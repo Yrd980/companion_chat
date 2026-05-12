@@ -5,7 +5,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.companion.chat.data.engine.BackendType
+import com.companion.chat.data.engine.DefaultModelConfig
 import com.companion.chat.data.engine.EngineConfig
 import com.companion.chat.data.engine.InferenceState
 import com.companion.chat.data.engine.VoiceInputEvent
@@ -14,7 +14,7 @@ import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.MessageRole
 import com.companion.chat.engine.AndroidVoiceInputEngine
 import com.companion.chat.engine.AndroidVoiceOutputEngine
-import com.companion.chat.engine.LiteRTLMInferenceEngine
+import com.companion.chat.engine.LlamaCppInferenceEngine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +22,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.File
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -40,16 +41,28 @@ data class ChatUiState(
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
+    companion object {
+        private const val ChatPrefsName = "chat_history"
+        private const val MessagesKey = "messages"
+        private val StopMarkers = listOf(
+            "<end_of_turn>",
+            "<|im_end|>",
+            "<end_of_",
+            "</s>",
+            "<eos>"
+        )
+    }
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    val inferenceEngine = LiteRTLMInferenceEngine(application)
+    val inferenceEngine = LlamaCppInferenceEngine(application)
     val voiceInputEngine = AndroidVoiceInputEngine(application)
     val voiceOutputEngine = AndroidVoiceOutputEngine(application)
 
     private var generateJob: Job? = null
     private var voiceCollectJob: Job? = null
+    private var stopSequenceReached = false
 
     init {
         logToFile("=== ChatViewModel 创建 ===")
@@ -58,14 +71,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         collectVoiceOutputState()
 
         _uiState.update {
-            it.copy(
-                messages = listOf(
-                    ChatMessage(
-                        role = MessageRole.ASSISTANT,
-                        content = "你好！我是你的 AI 伙伴。点击下方麦克风按钮开始语音对话，或直接输入文字。"
-                    )
-                )
-            )
+            it.copy(messages = loadMessages())
         }
 
         logToFile("ChatViewModel 初始化完成，开始自动初始化引擎")
@@ -164,6 +170,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val state = _uiState.value
         if (state.inputText.isBlank() && state.selectedImages.isEmpty()) return
         if (state.isGenerating) return
+        stopSequenceReached = false
 
         val userMessage = ChatMessage(
             role = MessageRole.USER,
@@ -185,6 +192,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 isGenerating = true
             )
         }
+        persistMessages(_uiState.value.messages)
 
         generateJob?.cancel()
         generateJob = viewModelScope.launch {
@@ -202,26 +210,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val messages = _uiState.value.messages
             inferenceEngine.sendMessageStream(messages).collect { token ->
-                appendAssistantToken(token)
+                if (appendAssistantToken(token)) {
+                    stopSequenceReached = true
+                    inferenceEngine.cancel()
+                }
             }
         } catch (e: Exception) {
-            updateAssistantMessage("推理出错: ${e.message}")
+            if (!stopSequenceReached) {
+                updateAssistantMessage("推理出错: ${e.message}")
+            }
         } finally {
             finishStreaming()
         }
     }
 
-    private fun appendAssistantToken(token: String) {
+    private fun appendAssistantToken(token: String): Boolean {
+        var shouldStop = false
         _uiState.update { state ->
             val updatedMessages = state.messages.toMutableList()
             val lastIndex = updatedMessages.lastIndex
             if (lastIndex >= 0 && updatedMessages[lastIndex].isStreaming) {
+                val rawContent = updatedMessages[lastIndex].content + token
+                val sanitizedContent = trimStopMarkers(rawContent)
+                shouldStop = sanitizedContent.length != rawContent.length
                 updatedMessages[lastIndex] = updatedMessages[lastIndex].copy(
-                    content = updatedMessages[lastIndex].content + token
+                    content = sanitizedContent
                 )
             }
             state.copy(messages = updatedMessages)
         }
+        return shouldStop
     }
 
     private fun updateAssistantMessage(content: String) {
@@ -230,12 +248,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val lastIndex = updatedMessages.lastIndex
             if (lastIndex >= 0 && updatedMessages[lastIndex].isStreaming) {
                 updatedMessages[lastIndex] = updatedMessages[lastIndex].copy(
-                    content = content,
+                    content = trimStopMarkers(content),
                     isStreaming = false
                 )
             }
             state.copy(messages = updatedMessages, isGenerating = false)
         }
+        persistMessages(_uiState.value.messages)
     }
 
     private fun finishStreaming() {
@@ -243,12 +262,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val updatedMessages = state.messages.toMutableList()
             val lastIndex = updatedMessages.lastIndex
             if (lastIndex >= 0 && updatedMessages[lastIndex].isStreaming) {
+                val finishedContent = trimStopMarkers(updatedMessages[lastIndex].content)
                 updatedMessages[lastIndex] = updatedMessages[lastIndex].copy(
+                    content = finishedContent,
                     isStreaming = false
                 )
             }
             state.copy(messages = updatedMessages, isGenerating = false)
         }
+        persistMessages(_uiState.value.messages)
 
         val lastMessage = _uiState.value.messages.lastOrNull()
         if (lastMessage?.role == MessageRole.ASSISTANT && lastMessage.content.isNotBlank()) {
@@ -286,18 +308,93 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun cancelGeneration() {
         generateJob?.cancel()
         inferenceEngine.cancel()
-        _uiState.update { it.copy(isGenerating = false) }
+        finishStreaming()
+    }
+
+    private fun defaultWelcomeMessage(): ChatMessage {
+        return ChatMessage(
+            role = MessageRole.ASSISTANT,
+            content = "你好！我是你的 AI 伙伴。点击下方麦克风按钮开始语音对话，或直接输入文字。"
+        )
+    }
+
+    private fun loadMessages(): List<ChatMessage> {
+        val app = getApplication<Application>()
+        val rawMessages = app.getSharedPreferences(ChatPrefsName, Context.MODE_PRIVATE)
+            .getString(MessagesKey, null)
+            ?: return listOf(defaultWelcomeMessage())
+
+        return try {
+            val array = JSONArray(rawMessages)
+            buildList {
+                for (i in 0 until array.length()) {
+                    val item = array.getJSONObject(i)
+                    val role = MessageRole.valueOf(item.getString("role"))
+                    add(
+                        ChatMessage(
+                            id = item.getString("id"),
+                            role = role,
+                            content = trimStopMarkers(item.getString("content")),
+                            timestamp = item.optLong("timestamp", System.currentTimeMillis()),
+                            isStreaming = false
+                        )
+                    )
+                }
+            }.ifEmpty { listOf(defaultWelcomeMessage()) }
+        } catch (e: Exception) {
+            logToFile("读取对话历史失败: ${e.message}")
+            listOf(defaultWelcomeMessage())
+        }
+    }
+
+    private fun persistMessages(messages: List<ChatMessage>) {
+        try {
+            val array = JSONArray()
+            messages
+                .filter { !it.isStreaming && it.content.isNotBlank() }
+                .forEach { message ->
+                    array.put(
+                        JSONObject()
+                            .put("id", message.id)
+                            .put("role", message.role.name)
+                            .put("content", trimStopMarkers(message.content))
+                            .put("timestamp", message.timestamp)
+                    )
+                }
+
+            getApplication<Application>()
+                .getSharedPreferences(ChatPrefsName, Context.MODE_PRIVATE)
+                .edit()
+                .putString(MessagesKey, array.toString())
+                .apply()
+        } catch (e: Exception) {
+            logToFile("保存对话历史失败: ${e.message}")
+        }
+    }
+
+    private fun trimStopMarkers(text: String): String {
+        val firstMarkerIndex = StopMarkers
+            .mapNotNull { marker ->
+                text.indexOf(marker).takeIf { it >= 0 }
+            }
+            .minOrNull()
+
+        return if (firstMarkerIndex == null) {
+            text
+        } else {
+            text.substring(0, firstMarkerIndex).trimEnd()
+        }
     }
 
     fun initializeEngine(modelPath: String = "", systemPrompt: String = "") {
         viewModelScope.launch {
             try {
                 val app = getApplication<Application>()
-                val modelsDir = app.getExternalFilesDir("models")
+                val modelsDir = app.getExternalFilesDir(DefaultModelConfig.ExternalModelsDir)
                 val defaultPath = if (modelsDir != null) {
-                    "${modelsDir.absolutePath}/gemma-4-E2B-it.litertlm"
+                    "${modelsDir.absolutePath}/${DefaultModelConfig.ModelFileName}"
                 } else {
-                    "${app.filesDir.absolutePath}/models/gemma-4-E2B-it.litertlm"
+                    "${app.filesDir.absolutePath}/${DefaultModelConfig.ExternalModelsDir}/${DefaultModelConfig.ModelFileName}"
                 }
                 val actualPath = modelPath.ifBlank { defaultPath }
                 val file = java.io.File(actualPath)
@@ -315,7 +412,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
                 val config = EngineConfig(
                     modelPath = actualPath,
-                    systemPrompt = systemPrompt
+                    systemPrompt = systemPrompt.ifBlank { DefaultModelConfig.DefaultSystemPrompt },
+                    contextSize = DefaultModelConfig.ContextSize,
+                    maxTokens = DefaultModelConfig.MaxTokens,
+                    temperature = DefaultModelConfig.Temperature,
+                    topK = DefaultModelConfig.TopK,
+                    topP = DefaultModelConfig.TopP
                 )
                 logToFile("开始调用 engine.initialize...")
                 inferenceEngine.initialize(config)

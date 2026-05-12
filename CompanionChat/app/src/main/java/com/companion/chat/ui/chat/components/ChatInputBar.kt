@@ -49,6 +49,8 @@ fun ChatInputBar(
     isVoiceListening: Boolean,
     isVoiceSpeaking: Boolean = false,
     onStopSpeaking: () -> Unit = {},
+    isGenerating: Boolean = false,
+    onCancelGeneration: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -125,7 +127,19 @@ fun ChatInputBar(
                     maxLines = 4
                 )
 
-                if (isVoiceSpeaking) {
+                if (isGenerating) {
+                    FilledIconButton(
+                        onClick = onCancelGeneration,
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Stop,
+                            contentDescription = "停止生成"
+                        )
+                    }
+                } else if (isVoiceSpeaking) {
                     FilledIconButton(
                         onClick = onStopSpeaking,
                         colors = IconButtonDefaults.filledIconButtonColors(

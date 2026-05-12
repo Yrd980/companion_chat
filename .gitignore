@@ -1,0 +1,3 @@
+*.gguf
+*.litertlm
+CompanionChat/app/src/main/assets/models/
