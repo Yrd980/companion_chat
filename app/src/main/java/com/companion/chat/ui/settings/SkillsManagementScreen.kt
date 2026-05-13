@@ -13,7 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -26,45 +26,40 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.companion.chat.data.local.entity.RoleCard
+import com.companion.chat.data.local.entity.Skill
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CharacterManagementScreen(
+fun SkillsManagementScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onActivateRoleCard: suspend (Long) -> Unit = {}
+    onActivateSkill: suspend (Long) -> Unit = {}
 ) {
-    val roleManagementViewModel: RoleManagementViewModel = viewModel()
-    val uiState by roleManagementViewModel.uiState.collectAsState()
+    val skillsManagementViewModel: SkillsManagementViewModel = viewModel()
+    val uiState by skillsManagementViewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
-    var editingRoleCard by remember { mutableStateOf<RoleCard?>(null) }
+    var editingSkill by remember { mutableStateOf<Skill?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
-    var deletingRoleCard by remember { mutableStateOf<RoleCard?>(null) }
+    var deletingSkill by remember { mutableStateOf<Skill?>(null) }
 
     Scaffold(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        text = "角色管理",
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                },
+                title = { Text("Skills 管理", style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -75,10 +70,7 @@ fun CharacterManagementScreen(
                 },
                 actions = {
                     IconButton(onClick = { showCreateDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "添加角色卡"
-                        )
+                        Icon(Icons.Default.Add, contentDescription = "添加 Skill")
                     }
                 }
             )
@@ -93,51 +85,65 @@ fun CharacterManagementScreen(
         ) {
             item {
                 Text(
-                    text = "创建和切换陪伴角色卡",
+                    text = "管理工作能力模板和自定义 skills",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            uiState.activeRoleCard?.let { activeRole ->
+            uiState.activeSkill?.let { activeSkill ->
+                item { SkillsSectionTitle("当前激活") }
                 item {
-                    SectionTitle("当前激活")
-                }
-                item {
-                    RoleCardItem(
-                        roleCard = activeRole,
+                    SkillItem(
+                        skill = activeSkill,
                         isActive = true,
                         onActivate = {},
-                        onEdit = { editingRoleCard = activeRole },
-                        onDelete = if (activeRole.isBuiltIn) null else ({ { deletingRoleCard = activeRole } })
+                        onEdit = if (activeSkill.isBuiltIn) null else ({ { editingSkill = activeSkill } }),
+                        onDelete = if (activeSkill.isBuiltIn) null else ({ { deletingSkill = activeSkill } })
                     )
                 }
             }
 
-            item {
-                SectionTitle("我的角色卡")
-            }
-
-            if (uiState.roleCards.isEmpty()) {
+            item { SkillsSectionTitle("内置 Skill") }
+            if (uiState.builtInSkills.isEmpty()) {
                 item {
-                    EmptyState(
-                        title = "还没有角色卡",
-                        description = "点击右上角“+”创建你的第一张角色卡。"
-                    )
+                    SkillsEmptyState("当前没有内置 Skill", "后续可在数据库初始化中补充。")
                 }
             } else {
-                items(uiState.roleCards, key = { it.id }) { roleCard ->
-                    RoleCardItem(
-                        roleCard = roleCard,
-                        isActive = roleCard.isActive,
+                items(uiState.builtInSkills, key = { it.id }) { skill ->
+                    SkillItem(
+                        skill = skill,
+                        isActive = skill.isActive,
                         onActivate = {
                             scope.launch {
-                                onActivateRoleCard(roleCard.id)
-                                roleManagementViewModel.refresh()
+                                onActivateSkill(skill.id)
+                                skillsManagementViewModel.refresh()
                             }
                         },
-                        onEdit = { editingRoleCard = roleCard },
-                        onDelete = if (roleCard.isBuiltIn) null else ({ { deletingRoleCard = roleCard } })
+                        onEdit = null,
+                        onDelete = null
+                    )
+                }
+            }
+
+            item { SkillsSectionTitle("我的 Skills") }
+            if (uiState.customSkills.isEmpty()) {
+                item {
+                    SkillsEmptyState("还没有自定义 Skills", "点击右上角“+”创建你的自定义 skill。")
+                }
+            } else {
+                items(uiState.customSkills, key = { it.id }) { skill ->
+                    SkillItem(
+                        skill = skill,
+                        isActive = skill.isActive,
+                        onActivate = {
+                            scope.launch {
+                                onActivateSkill(skill.id)
+                                skillsManagementViewModel.refresh()
+                            }
+                        },
+                        onEdit = { editingSkill = skill },
+                        onDelete = { deletingSkill = skill }
                     )
                 }
             }
@@ -145,72 +151,55 @@ fun CharacterManagementScreen(
     }
 
     if (showCreateDialog) {
-        RoleCardEditorDialog(
+        SkillEditorDialog(
             onDismiss = { showCreateDialog = false },
-            onSave = { name, description, avatar, persona, speakingStyle, background, rules, taboos, openingMessage, exampleDialogue ->
-                if (name.isBlank() || persona.isBlank()) {
-                    return@RoleCardEditorDialog
+            onSave = { name, description, systemPrompt ->
+                if (name.isBlank() || systemPrompt.isBlank()) {
+                    return@SkillEditorDialog
                 }
-                roleManagementViewModel.createRoleCard(
-                    name = name,
-                    description = description,
-                    avatar = avatar,
-                    persona = persona,
-                    speakingStyle = speakingStyle,
-                    background = background,
-                    rules = rules,
-                    taboos = taboos,
-                    openingMessage = openingMessage,
-                    exampleDialogue = exampleDialogue
-                )
+                skillsManagementViewModel.createSkill(name, description, systemPrompt)
                 showCreateDialog = false
             }
         )
     }
 
-    editingRoleCard?.let { roleCard ->
-        RoleCardEditorDialog(
-            roleCard = roleCard,
-            onDismiss = { editingRoleCard = null },
-            onSave = { name, description, avatar, persona, speakingStyle, background, rules, taboos, openingMessage, exampleDialogue ->
-                if (name.isBlank() || persona.isBlank()) {
-                    return@RoleCardEditorDialog
+    editingSkill?.let { skill ->
+        SkillEditorDialog(
+            skill = skill,
+            onDismiss = { editingSkill = null },
+            onSave = { name, description, systemPrompt ->
+                if (name.isBlank() || systemPrompt.isBlank()) {
+                    return@SkillEditorDialog
                 }
-                roleManagementViewModel.updateRoleCard(
-                    id = roleCard.id,
+                skillsManagementViewModel.updateSkill(
+                    id = skill.id,
                     name = name,
                     description = description,
-                    avatar = avatar,
-                    persona = persona,
-                    speakingStyle = speakingStyle,
-                    background = background,
-                    rules = rules,
-                    taboos = taboos,
-                    openingMessage = openingMessage,
-                    exampleDialogue = exampleDialogue
+                    systemPrompt = systemPrompt,
+                    icon = skill.icon
                 )
-                editingRoleCard = null
+                editingSkill = null
             }
         )
     }
 
-    deletingRoleCard?.let { roleCard ->
+    deletingSkill?.let { skill ->
         AlertDialog(
-            onDismissRequest = { deletingRoleCard = null },
-            title = { Text("删除角色卡") },
-            text = { Text("确认删除“${roleCard.name}”吗？") },
+            onDismissRequest = { deletingSkill = null },
+            title = { Text("删除 Skill") },
+            text = { Text("确认删除“${skill.name}”吗？") },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        roleManagementViewModel.deleteRoleCard(roleCard.id)
-                        deletingRoleCard = null
+                        skillsManagementViewModel.deleteSkill(skill.id)
+                        deletingSkill = null
                     }
                 ) {
                     Text("删除")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { deletingRoleCard = null }) {
+                TextButton(onClick = { deletingSkill = null }) {
                     Text("取消")
                 }
             }
@@ -219,21 +208,20 @@ fun CharacterManagementScreen(
 }
 
 @Composable
-private fun SectionTitle(title: String) {
+private fun SkillsSectionTitle(title: String) {
     Text(
         text = title,
         style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurface
+        fontWeight = FontWeight.SemiBold
     )
 }
 
 @Composable
-private fun RoleCardItem(
-    roleCard: RoleCard,
+private fun SkillItem(
+    skill: Skill,
     isActive: Boolean,
     onActivate: () -> Unit,
-    onEdit: () -> Unit,
+    onEdit: (() -> Unit)?,
     onDelete: (() -> Unit)?
 ) {
     Card {
@@ -249,39 +237,25 @@ private fun RoleCardItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = roleCard.name,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    if (roleCard.description.isNotBlank()) {
+                    Text(text = skill.name, style = MaterialTheme.typography.titleMedium)
+                    if (skill.description.isNotBlank()) {
                         Text(
-                            text = roleCard.description,
+                            text = skill.description,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
                 if (isActive) {
-                    AssistChip(
-                        onClick = {},
-                        label = { Text("使用中") }
-                    )
+                    AssistChip(onClick = {}, label = { Text("使用中") })
                 }
             }
 
             Text(
-                text = "人设：${roleCard.persona}",
+                text = "已使用 ${skill.usageCount} 次",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            if (roleCard.speakingStyle.isNotBlank()) {
-                Text(
-                    text = "风格：${roleCard.speakingStyle}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!isActive) {
@@ -289,8 +263,10 @@ private fun RoleCardItem(
                         Text("启用")
                     }
                 }
-                TextButton(onClick = onEdit) {
-                    Text("编辑")
+                onEdit?.let {
+                    TextButton(onClick = it) {
+                        Text("编辑")
+                    }
                 }
                 onDelete?.let {
                     TextButton(onClick = it) {
@@ -303,21 +279,14 @@ private fun RoleCardItem(
 }
 
 @Composable
-private fun EmptyState(
-    title: String,
-    description: String
-) {
+private fun SkillsEmptyState(title: String, description: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(
-            imageVector = Icons.Default.Person,
-            contentDescription = null
-        )
+        Icon(imageVector = Icons.Default.Build, contentDescription = null)
         Spacer(modifier = Modifier.height(12.dp))
         Text(text = title, style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(6.dp))

@@ -29,6 +29,9 @@ interface SkillDao {
     @Query("SELECT * FROM skills WHERE isActive = 1 LIMIT 1")
     suspend fun getActive(): Skill?
 
+    @Query("SELECT * FROM skills WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): Skill?
+
     @Query("UPDATE skills SET isActive = 0")
     suspend fun deactivateAll(): Int
 

@@ -45,6 +45,7 @@ enum class Screen(
 
 object SettingsRoutes {
     const val CHARACTER = "settings/character"
+    const val SKILLS = "settings/skills"
     const val MODEL = "settings/model"
     const val VOICE = "settings/voice"
     const val LANGUAGE = "settings/language"

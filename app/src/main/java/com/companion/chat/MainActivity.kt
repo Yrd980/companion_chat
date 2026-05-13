@@ -41,6 +41,7 @@ import com.companion.chat.ui.settings.DarkModeSettingsScreen
 import com.companion.chat.ui.settings.LanguageSettingsScreen
 import com.companion.chat.ui.settings.ModelConfigScreen
 import com.companion.chat.ui.settings.SettingsScreen
+import com.companion.chat.ui.settings.SkillsManagementScreen
 import com.companion.chat.ui.settings.VoiceSettingsScreen
 import com.companion.chat.ui.theme.CompanionChatTheme
 
@@ -133,6 +134,7 @@ fun MainApp() {
             composable(Screen.SETTINGS.route) {
                 SettingsScreen(
                     onNavigateToCharacter = { navController.navigate(SettingsRoutes.CHARACTER) },
+                    onNavigateToSkills = { navController.navigate(SettingsRoutes.SKILLS) },
                     onNavigateToMemory = { navController.navigate(Screen.MEMORY.route) },
                     onNavigateToModel = { navController.navigate(SettingsRoutes.MODEL) },
                     onNavigateToVoice = { navController.navigate(SettingsRoutes.VOICE) },
@@ -142,7 +144,16 @@ fun MainApp() {
                 )
             }
             composable(SettingsRoutes.CHARACTER) {
-                CharacterManagementScreen(onBack = { navController.popBackStack() })
+                CharacterManagementScreen(
+                    onBack = { navController.popBackStack() },
+                    onActivateRoleCard = { roleId -> chatViewModel.activateRoleCard(roleId) }
+                )
+            }
+            composable(SettingsRoutes.SKILLS) {
+                SkillsManagementScreen(
+                    onBack = { navController.popBackStack() },
+                    onActivateSkill = { skillId -> chatViewModel.activateSkill(skillId) }
+                )
             }
             composable(SettingsRoutes.MODEL) {
                 ModelConfigScreen(onBack = { navController.popBackStack() })

@@ -232,3 +232,69 @@
 - `21:32:53` 出现 `阶段四总结完成: memoryCount=14, preferenceCount=7, extractedCount=21`
 - 结论：本轮阶段四已经能同时写入 `memories` 和 `user_preferences`，但后台总结完成时间仍偏晚，导致用户会先误判为“没有任何记忆”。
 - 当前剩余核心问题已从“写不进去/刷不出来”收缩为“阶段四完成时延过长，需要继续优化用户可感知时序”。
+- 2026-05-13 已新增阶段五具体实施计划文档：
+- `docs/plans/2026-05-13-stage5-skill-management-plan.md`
+- 计划依据：
+- `COMPANIONCHAT_DESIGN.md` 中“技能管理（Prompt 模板）”设计目标、内置技能、切换流程和 UI 草图
+- `COMPANIONCHAT_TEST_CHECKLIST.md` 中阶段五 `5.1`、`5.2`、`5.3` 全部验收项
+- 当前阶段五现状判断：
+- `Skill` 实体、`SkillDao`、数据库内置四技能种子已存在
+- 设置页“角色管理”入口和 `CharacterManagementScreen` 仍是占位实现
+- `ChatViewModel.baseSystemPrompt` 已是技能切换可复用的主 prompt 入口
+- 阶段五计划拆分为四个实施阶段：
+- 技能仓库与业务规则
+- 技能管理 UI 与表单/删除确认
+- 技能切换到主引擎 prompt 与 Conversation 重建
+- 设置页接入、编译与真机验收闭环
+- 2026-05-13 阶段五需求已按新方向重设计：
+- `skills` 与“角色卡”正式分离，不再复用同一页面或同一概念。
+- 设置页后续将同时提供两个独立入口：`角色管理` 与 `Skills 管理`。
+- `CharacterManagementScreen` 不再改造成技能页，而是重做为真实角色卡管理页，支持创建、编辑、删除、激活完整角色卡。
+- 角色卡定位为日常聊天陪伴人格，skills 定位为工作任务能力；两者允许同时启用。
+- 激活规则确定为：同一时间仅 1 个激活角色卡 + 1 个激活 skill。
+- 内置 skill 已调整需求：移除 `通用助手`、`代码助手`、`写作助手`，仅保留 `翻译助手` 作为唯一内置项。
+- 唯一内置 `翻译助手` 的核心 prompt 已确定为：翻译时考虑使用者的语境、文化背景以及母语情况。
+- `ChatViewModel` 后续将继续复用 `baseSystemPrompt` 作为主入口，但内容改为“基础 prompt + 激活角色卡 prompt + 激活 skill prompt”，再继续走现有记忆、偏好、上下文链路。
+- 本轮已新增设计与实施文档：
+- `docs/plans/2026-05-13-stage5-role-skill-separation-design.md`
+- `docs/plans/2026-05-13-stage5-role-skill-separation-plan.md`
+- 当前阶段五旧计划 `docs/plans/2026-05-13-stage5-skill-management-plan.md` 已不再完全适用，后续实施应以“角色卡与 skills 分离”的新设计和新计划为准。
+- 2026-05-13 阶段五“角色卡与 skills 分离”第一版代码已完成：
+- 数据层：
+- 新增 `RoleCard` 实体与 `RoleCardDao`。
+- 新增 `RoleCardRepository`、`RoleCardPromptBuilder`、`SkillRepository`。
+- `CompanionDatabase` 已升级到 `version = 2`，并新增 `1 -> 2` migration：
+- 创建 `role_cards` 表。
+- 清理旧内置 skills，仅保留唯一内置 `翻译助手`。
+- 将 `翻译助手` prompt 固定为“翻译时考虑使用者的语境、文化背景以及母语情况”的版本。
+- UI 与导航：
+- `CharacterManagementScreen` 已从占位页替换为真实角色卡管理页，支持创建、编辑、删除、激活。
+- 新增 `SkillsManagementScreen`，用于管理唯一内置翻译助手和用户自定义 skills。
+- 设置页已拆分出两个独立入口：`角色管理` 与 `Skills 管理`。
+- `MainActivity` 与 `SettingsRoutes` 已接入新页面路由与激活回调。
+- 聊天主链路：
+- `ChatViewModel` 已接入 `RoleCardRepository`、`SkillRepository` 与 `RoleCardPromptBuilder`。
+- `baseSystemPrompt` 现改为“默认基础 prompt + 激活角色卡 prompt + 激活 skill prompt”组合结果。
+- 新增 `activateRoleCard()` 与 `activateSkill()`，切换后会尝试复用现有上下文链路重建 `Conversation`，并保留当前会话消息。
+- 本轮新增测试：
+- `SkillRepositoryTest`
+- `RoleCardRepositoryTest`
+- `RoleCardPromptBuilderTest`
+- `RoleManagementViewModelTest`
+- `SkillsManagementViewModelTest`
+- 本轮本地验证结果：
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.skill.*" --tests "com.companion.chat.data.role.*" --tests "com.companion.chat.ui.settings.*"` 通过。
+- `:app:testDebugUnitTest` 全量通过。
+- `:app:assembleDebug` 通过。
+- 本轮真机部署已按固定流程完成：
+- 设备 `aa972376` 在线。
+- 已卸载旧包 `com.companion.chat`。
+- 已将新 `app-debug.apk` 推送到 `/data/local/tmp/companionchat-stage5.apk` 并通过 `pm install -r -t --user 0` 安装成功。
+- 已启动一次应用创建目录。
+- 已将模型 `D:\Desktop\phone\models\gemma-4-E2B-it.litertlm` 重新推送到 `/sdcard/Android/data/com.companion.chat/files/models/gemma-4-E2B-it.litertlm`。
+- 当前下一步：
+- 进入人工真机功能复测，重点验证：
+- 设置页两个入口是否都可进入。
+- 角色卡创建/编辑/删除/激活是否正常。
+- `Skills 管理` 中是否只剩唯一内置 `翻译助手`。
+- 激活角色卡与 skill 后，回答是否同时体现人格与任务能力。

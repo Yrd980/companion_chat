@@ -2,6 +2,7 @@ package com.companion.chat.data.local
 
 import android.content.Context
 import androidx.room.Database
+import androidx.room.migration.Migration
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
@@ -9,10 +10,12 @@ import com.companion.chat.data.local.dao.ConversationDao
 import com.companion.chat.data.local.dao.MemoryDao
 import com.companion.chat.data.local.dao.MessageDao
 import com.companion.chat.data.local.dao.PreferenceDao
+import com.companion.chat.data.local.dao.RoleCardDao
 import com.companion.chat.data.local.dao.SkillDao
 import com.companion.chat.data.local.entity.ConversationEntity
 import com.companion.chat.data.local.entity.Memory
 import com.companion.chat.data.local.entity.MessageEntity
+import com.companion.chat.data.local.entity.RoleCard
 import com.companion.chat.data.local.entity.Skill
 import com.companion.chat.data.local.entity.UserPreference
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -23,9 +26,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MessageEntity::class,
         Memory::class,
         UserPreference::class,
-        Skill::class
+        Skill::class,
+        RoleCard::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -36,6 +40,7 @@ abstract class CompanionDatabase : RoomDatabase() {
     abstract fun memoryDao(): MemoryDao
     abstract fun preferenceDao(): PreferenceDao
     abstract fun skillDao(): SkillDao
+    abstract fun roleCardDao(): RoleCardDao
 
     companion object {
         private const val DATABASE_NAME = "companion_chat.db"
@@ -49,7 +54,83 @@ abstract class CompanionDatabase : RoomDatabase() {
                     context.applicationContext,
                     CompanionDatabase::class.java,
                     DATABASE_NAME
-                ).addCallback(DatabaseInitializationCallback()).build().also { instance = it }
+                )
+                    .addMigrations(MIGRATION_1_2)
+                    .addCallback(DatabaseInitializationCallback())
+                    .build()
+                    .also { instance = it }
+            }
+        }
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS role_cards (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        avatar TEXT NOT NULL,
+                        persona TEXT NOT NULL,
+                        speakingStyle TEXT NOT NULL,
+                        background TEXT NOT NULL,
+                        rules TEXT NOT NULL,
+                        taboos TEXT NOT NULL,
+                        openingMessage TEXT NOT NULL,
+                        exampleDialogue TEXT NOT NULL,
+                        isBuiltIn INTEGER NOT NULL,
+                        isActive INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    DELETE FROM skills
+                    WHERE isBuiltIn = 1 AND name IN ('通用助手', '代码助手', '写作助手')
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    UPDATE skills
+                    SET description = '考虑语境、文化和母语差异的专业翻译',
+                        systemPrompt = '你是一个专业的翻译助手。请根据使用者的语境、文化背景以及母语情况，给出准确、自然、符合目标表达习惯的翻译结果；在保持原意的前提下，优先保证易懂、得体和语用自然。',
+                        updatedAt = ${'$'}{System.currentTimeMillis()}
+                    WHERE name = '翻译助手'
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO skills(
+                        id, name, description, systemPrompt, icon,
+                        isBuiltIn, isActive, usageCount, createdAt, updatedAt
+                    ) VALUES (
+                        2,
+                        '翻译助手',
+                        '考虑语境、文化和母语差异的专业翻译',
+                        '你是一个专业的翻译助手。请根据使用者的语境、文化背景以及母语情况，给出准确、自然、符合目标表达习惯的翻译结果；在保持原意的前提下，优先保证易懂、得体和语用自然。',
+                        'translate',
+                        1,
+                        1,
+                        0,
+                        ${'$'}{System.currentTimeMillis()},
+                        ${'$'}{System.currentTimeMillis()}
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    UPDATE skills
+                    SET isActive = 1
+                    WHERE name = '翻译助手'
+                      AND NOT EXISTS (SELECT 1 FROM skills WHERE isActive = 1)
+                    """.trimIndent()
+                )
             }
         }
 
@@ -132,28 +213,10 @@ abstract class CompanionDatabase : RoomDatabase() {
 
         private val builtInSkills = listOf(
             BuiltInSkillSeed(
-                name = "通用助手",
-                description = "你的默认 AI 伙伴",
-                systemPrompt = "你是一个友善的 AI 助手，请用中文回答用户的问题。",
-                icon = "assistant"
-            ),
-            BuiltInSkillSeed(
                 name = "翻译助手",
-                description = "准确翻译并保持原意",
-                systemPrompt = "你是一个专业的翻译助手。用户会给你需要翻译的内容，请准确翻译并保持原意。",
+                description = "考虑语境、文化和母语差异的专业翻译",
+                systemPrompt = "你是一个专业的翻译助手。请根据使用者的语境、文化背景以及母语情况，给出准确、自然、符合目标表达习惯的翻译结果；在保持原意的前提下，优先保证易懂、得体和语用自然。",
                 icon = "translate"
-            ),
-            BuiltInSkillSeed(
-                name = "代码助手",
-                description = "擅长代码审查和问题排查",
-                systemPrompt = "你是一个编程助手，擅长代码审查和问题排查。回答时给出清晰的代码示例。",
-                icon = "code"
-            ),
-            BuiltInSkillSeed(
-                name = "写作助手",
-                description = "帮助润色文字和生成创意内容",
-                systemPrompt = "你是一个写作助手，帮助用户润色文字、生成创意内容。",
-                icon = "writing"
             )
         )
     }

@@ -47,6 +47,7 @@ import com.companion.chat.data.context.ContextConfigRepository
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onNavigateToCharacter: () -> Unit = {},
+    onNavigateToSkills: () -> Unit = {},
     onNavigateToMemory: () -> Unit = {},
     onNavigateToModel: () -> Unit = {},
     onNavigateToVoice: () -> Unit = {},
@@ -89,8 +90,15 @@ fun SettingsScreen(
                 SettingsItem(
                     icon = Icons.Default.Person,
                     title = "角色管理",
-                    subtitle = "选择或创建 AI 伴侣角色",
+                    subtitle = "创建和切换陪伴角色卡",
                     onClick = onNavigateToCharacter
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                SettingsItem(
+                    icon = Icons.Default.Psychology,
+                    title = "Skills 管理",
+                    subtitle = "管理工作能力模板和自定义 skills",
+                    onClick = onNavigateToSkills
                 )
             }
 

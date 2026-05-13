@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.companion.chat.data.local.CompanionDatabase
 import com.companion.chat.data.context.ContextConfigRepository
 import com.companion.chat.data.context.ContextManager
 import com.companion.chat.data.context.ContextSettings
@@ -24,6 +25,9 @@ import com.companion.chat.data.model.DEFAULT_WELCOME_MESSAGE
 import com.companion.chat.data.model.MessageRole
 import com.companion.chat.data.model.createDefaultSession
 import com.companion.chat.data.model.createWelcomeMessage
+import com.companion.chat.data.role.RoleCardPromptBuilder
+import com.companion.chat.data.role.RoleCardRepository
+import com.companion.chat.data.skill.SkillRepository
 import com.companion.chat.data.preferences.PreferenceRepository
 import com.companion.chat.data.preferences.PreferenceMemoryDeriver
 import com.companion.chat.data.preferences.SecondEngineManager
@@ -74,15 +78,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val inferenceEngine = LiteRTLMInferenceEngine(application)
     val voiceInputEngine = AndroidVoiceInputEngine(application)
     val voiceOutputEngine = AndroidVoiceOutputEngine(application)
+    private val database = CompanionDatabase.getInstance(application)
     private val contextConfigRepository = ContextConfigRepository(application)
     private val contextManager: ContextManager = DefaultContextManager()
     private val promptAssembler = PromptAssembler()
     private val sessionRepository = ChatSessionRepository(application)
     private val memoryRepository = MemoryRepository(
-        memoryDao = com.companion.chat.data.local.CompanionDatabase.getInstance(application).memoryDao()
+        memoryDao = database.memoryDao()
     )
     private val preferenceRepository = PreferenceRepository(
-        preferenceDao = com.companion.chat.data.local.CompanionDatabase.getInstance(application).preferenceDao()
+        preferenceDao = database.preferenceDao()
+    )
+    private val roleCardRepository = RoleCardRepository(
+        roleCardDao = database.roleCardDao()
+    )
+    private val roleCardPromptBuilder = RoleCardPromptBuilder()
+    private val skillRepository = SkillRepository(
+        skillDao = database.skillDao()
     )
     private val preferenceMemoryDeriver = PreferenceMemoryDeriver()
     private val memoryPromptBuilder = MemoryPromptBuilder()
@@ -109,8 +121,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         loadContextSettings()
         loadSessionsFromStorage()
 
-        logToFile("ChatViewModel 初始化完成，开始自动初始化引擎")
-        initializeEngine()
+        viewModelScope.launch {
+            refreshBaseSystemPrompt()
+            logToFile("ChatViewModel 初始化完成，开始自动初始化引擎")
+            initializeEngine(systemPrompt = baseSystemPrompt)
+        }
     }
 
     private fun logToFile(msg: String) {
@@ -140,6 +155,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "compressionBuffer=${contextSettings.compressionBuffer}"
         )
     }
+
+    private suspend fun refreshBaseSystemPrompt() {
+        val rolePrompt = roleCardPromptBuilder.build(roleCardRepository.getActiveRoleCard())
+        val skillPrompt = skillRepository.getActiveSkill()?.systemPrompt?.trim().orEmpty()
+        baseSystemPrompt = buildList {
+            add(DEFAULT_BASE_SYSTEM_PROMPT)
+            if (rolePrompt.isNotBlank()) {
+                add(rolePrompt)
+            }
+            if (skillPrompt.isNotBlank()) {
+                add(skillPrompt)
+            }
+        }.joinToString(separator = "\n\n")
+    }
+
+    internal fun debugBaseSystemPrompt(): String = baseSystemPrompt
 
     private fun collectInferenceState() {
         viewModelScope.launch {
@@ -292,62 +323,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         memoryPrompt: String
     ) {
         val stableMessages = messages.filterNot { it.isStreaming }
-        contextSettings = contextConfigRepository.getSettings()
-        val shouldInjectContext = userPreferences.isNotBlank() ||
-            persistentMemoryPrompt.isNotBlank() ||
-            memoryPrompt.isNotBlank()
-
-        if (!contextManager.shouldCompress(stableMessages, contextSettings) && !shouldInjectContext) {
-            logToFile(
-                "发送前上下文检查: 未触发压缩, " +
-                    "messageCount=${stableMessages.size}, threshold=${contextSettings.compressionThreshold}, " +
-                    "contextInjected=false"
-            )
-            return
-        }
-
-        val contextWindow = contextManager.buildContext(
-            messages = stableMessages,
-            systemPrompt = baseSystemPrompt,
+        rebuildConversationWithContext(
+            stableMessages = stableMessages,
             userPreferences = userPreferences,
             persistentMemoryPrompt = persistentMemoryPrompt,
             memoryPrompt = memoryPrompt,
-            settings = contextSettings
+            forceRebuild = false,
+            reason = "发送前上下文处理"
         )
-
-        logToFile(
-            "发送前上下文处理: recentMessages=${contextWindow.recentMessages.size}, " +
-                "summaryEmpty=${contextWindow.historySummary.isBlank()}, " +
-                "preferenceInjected=${contextWindow.userPreferences.isNotBlank()}, " +
-                "persistentMemoryInjected=${contextWindow.persistentMemoryPrompt.isNotBlank()}, " +
-                "memoryInjected=${contextWindow.memoryPrompt.isNotBlank()}"
-        )
-
-        val rebuildSucceeded = inferenceEngine.rebuildConversation(contextWindow.systemPrompt)
-        if (!rebuildSucceeded) {
-            logToFile("发送前上下文重建失败，本轮继续沿用当前 Conversation")
-            return
-        }
-
-        val replaySucceeded = inferenceEngine.replayMessages(contextWindow.recentMessages)
-        if (replaySucceeded) {
-            logToFile("发送前上下文处理: 最近消息回放成功")
-        } else {
-            val fallbackPrompt = promptAssembler.assemble(
-                baseSystemPrompt = contextWindow.systemPrompt,
-                userPreferences = "",
-                persistentMemoryPrompt = "",
-                memoryPrompt = "",
-                historySummary = "",
-                recentConversationSnippet = buildRecentConversationSnippet(contextWindow.recentMessages)
-            )
-            val fallbackSucceeded = inferenceEngine.rebuildConversationWithFallbackContext(fallbackPrompt)
-            if (fallbackSucceeded) {
-                logToFile("发送前上下文处理: 最近消息回放失败，降级摘要注入成功")
-            } else {
-                logToFile("发送前上下文处理: 最近消息回放失败，降级摘要注入失败")
-            }
-        }
     }
 
     private suspend fun buildMemoryContext(userInput: String): MemoryContext {
@@ -525,7 +508,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     logToFile("models目录: ${f.name} (${f.length()} bytes)")
                 }
 
-                val resolvedSystemPrompt = systemPrompt.ifBlank { DEFAULT_BASE_SYSTEM_PROMPT }
+                val resolvedSystemPrompt = systemPrompt.ifBlank {
+                    baseSystemPrompt.ifBlank { DEFAULT_BASE_SYSTEM_PROMPT }
+                }
                 baseSystemPrompt = resolvedSystemPrompt
                 val config = EngineConfig(
                     modelPath = actualPath,
@@ -948,6 +933,110 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 appendLine("- ${preference.content}")
             }
         }.trim()
+    }
+
+    private suspend fun rebuildConversationWithContext(
+        stableMessages: List<ChatMessage>,
+        userPreferences: String,
+        persistentMemoryPrompt: String,
+        memoryPrompt: String,
+        forceRebuild: Boolean,
+        reason: String
+    ) {
+        contextSettings = contextConfigRepository.getSettings()
+        val shouldInjectContext = userPreferences.isNotBlank() ||
+            persistentMemoryPrompt.isNotBlank() ||
+            memoryPrompt.isNotBlank()
+
+        if (!forceRebuild && !contextManager.shouldCompress(stableMessages, contextSettings) && !shouldInjectContext) {
+            logToFile(
+                "发送前上下文检查: 未触发压缩, " +
+                    "messageCount=${stableMessages.size}, threshold=${contextSettings.compressionThreshold}, " +
+                    "contextInjected=false"
+            )
+            return
+        }
+
+        val contextWindow = contextManager.buildContext(
+            messages = stableMessages,
+            systemPrompt = baseSystemPrompt,
+            userPreferences = userPreferences,
+            persistentMemoryPrompt = persistentMemoryPrompt,
+            memoryPrompt = memoryPrompt,
+            settings = contextSettings
+        )
+
+        logToFile(
+            "$reason: recentMessages=${contextWindow.recentMessages.size}, " +
+                "summaryEmpty=${contextWindow.historySummary.isBlank()}, " +
+                "preferenceInjected=${contextWindow.userPreferences.isNotBlank()}, " +
+                "persistentMemoryInjected=${contextWindow.persistentMemoryPrompt.isNotBlank()}, " +
+                "memoryInjected=${contextWindow.memoryPrompt.isNotBlank()}"
+        )
+
+        val rebuildSucceeded = inferenceEngine.rebuildConversation(contextWindow.systemPrompt)
+        if (!rebuildSucceeded) {
+            logToFile("$reason: Conversation 重建失败")
+            return
+        }
+
+        val replaySucceeded = inferenceEngine.replayMessages(contextWindow.recentMessages)
+        if (replaySucceeded) {
+            logToFile("$reason: 最近消息回放成功")
+        } else {
+            val fallbackPrompt = promptAssembler.assemble(
+                baseSystemPrompt = contextWindow.systemPrompt,
+                userPreferences = "",
+                persistentMemoryPrompt = "",
+                memoryPrompt = "",
+                historySummary = "",
+                recentConversationSnippet = buildRecentConversationSnippet(contextWindow.recentMessages)
+            )
+            val fallbackSucceeded = inferenceEngine.rebuildConversationWithFallbackContext(fallbackPrompt)
+            if (fallbackSucceeded) {
+                logToFile("$reason: 最近消息回放失败，降级摘要注入成功")
+            } else {
+                logToFile("$reason: 最近消息回放失败，降级摘要注入失败")
+            }
+        }
+    }
+
+    suspend fun activateRoleCard(roleId: Long) {
+        roleCardRepository.activateRoleCard(roleId)
+        refreshBaseSystemPrompt()
+        rebuildConversationForPromptChange(reason = "角色卡切换")
+    }
+
+    suspend fun activateSkill(skillId: Long) {
+        skillRepository.activateSkill(skillId)
+        refreshBaseSystemPrompt()
+        rebuildConversationForPromptChange(reason = "Skill 切换")
+    }
+
+    private suspend fun rebuildConversationForPromptChange(reason: String) {
+        if (inferenceEngine.state.value is InferenceState.Generating) {
+            logToFile("$reason: 当前正在生成，暂不重建 Conversation")
+            return
+        }
+        if (inferenceEngine.getCurrentConfig() == null) {
+            logToFile("$reason: 引擎尚未初始化，已仅更新基础 prompt")
+            return
+        }
+
+        val stableMessages = _uiState.value.messages
+            .filterNot { it.isStreaming }
+            .filter { it.role == MessageRole.USER || it.role == MessageRole.ASSISTANT }
+        val latestUserInput = stableMessages.lastOrNull { it.role == MessageRole.USER }?.content.orEmpty()
+        val memoryContext = buildMemoryContext(latestUserInput)
+
+        rebuildConversationWithContext(
+            stableMessages = stableMessages,
+            userPreferences = memoryContext.confirmedPreferencePrompt,
+            persistentMemoryPrompt = memoryContext.persistentPrompt,
+            memoryPrompt = memoryContext.retrievedPrompt,
+            forceRebuild = true,
+            reason = reason
+        )
     }
 
     companion object {
