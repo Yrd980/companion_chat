@@ -15,6 +15,8 @@ import com.companion.chat.data.engine.EngineConfig
 import com.companion.chat.data.engine.InferenceState
 import com.companion.chat.data.engine.VoiceInputEvent
 import com.companion.chat.data.engine.VoiceOutputState
+import com.companion.chat.data.memory.MemoryPromptBuilder
+import com.companion.chat.data.memory.MemoryRepository
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.ConversationSession
 import com.companion.chat.data.model.DEFAULT_SESSION_TITLE
@@ -70,6 +72,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val contextManager: ContextManager = DefaultContextManager()
     private val promptAssembler = PromptAssembler()
     private val sessionRepository = ChatSessionRepository(application)
+    private val memoryRepository = MemoryRepository(
+        memoryDao = com.companion.chat.data.local.CompanionDatabase.getInstance(application).memoryDao()
+    )
+    private val memoryPromptBuilder = MemoryPromptBuilder()
     private var contextSettings: ContextSettings = ContextConfigRepository.DEFAULT_SETTINGS
 
     private var generateJob: Job? = null
@@ -225,7 +231,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         generateJob?.cancel()
         generateJob = viewModelScope.launch {
-            generateResponse(state.inputText.trim())
+            storeMemoriesForMessage(userMessage)
+            generateResponse(userMessage.content.trim())
         }
     }
 
@@ -238,7 +245,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         try {
             val messages = _uiState.value.messages
-            prepareContextBeforeSend(messages)
+            val memoryContext = buildMemoryContext(userInput)
+            prepareContextBeforeSend(
+                messages = messages,
+                persistentMemoryPrompt = memoryContext.persistentPrompt,
+                memoryPrompt = memoryContext.retrievedPrompt
+            )
             inferenceEngine.sendMessageStream(messages).collect { token ->
                 appendAssistantToken(token)
             }
@@ -249,14 +261,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun prepareContextBeforeSend(messages: List<ChatMessage>) {
+    private suspend fun prepareContextBeforeSend(
+        messages: List<ChatMessage>,
+        persistentMemoryPrompt: String,
+        memoryPrompt: String
+    ) {
         val stableMessages = messages.filterNot { it.isStreaming }
         contextSettings = contextConfigRepository.getSettings()
+        val shouldInjectMemory = persistentMemoryPrompt.isNotBlank() || memoryPrompt.isNotBlank()
 
-        if (!contextManager.shouldCompress(stableMessages, contextSettings)) {
+        if (!contextManager.shouldCompress(stableMessages, contextSettings) && !shouldInjectMemory) {
             logToFile(
                 "发送前上下文检查: 未触发压缩, " +
-                    "messageCount=${stableMessages.size}, threshold=${contextSettings.compressionThreshold}"
+                    "messageCount=${stableMessages.size}, threshold=${contextSettings.compressionThreshold}, " +
+                    "memoryInjected=false"
             )
             return
         }
@@ -269,12 +287,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             messages = stableMessages,
             systemPrompt = baseSystemPrompt,
             userPreferences = "",
+            persistentMemoryPrompt = persistentMemoryPrompt,
+            memoryPrompt = memoryPrompt,
             settings = contextSettings
         )
 
         logToFile(
-            "发送前上下文压缩: recentMessages=${contextWindow.recentMessages.size}, " +
-                "summaryEmpty=${contextWindow.historySummary.isBlank()}"
+            "发送前上下文处理: recentMessages=${contextWindow.recentMessages.size}, " +
+                "summaryEmpty=${contextWindow.historySummary.isBlank()}, " +
+                "persistentMemoryInjected=${contextWindow.persistentMemoryPrompt.isNotBlank()}, " +
+                "memoryInjected=${contextWindow.memoryPrompt.isNotBlank()}"
         )
 
         val rebuildSucceeded = inferenceEngine.rebuildConversation(contextWindow.systemPrompt)
@@ -290,6 +312,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val fallbackPrompt = promptAssembler.assemble(
                 baseSystemPrompt = contextWindow.systemPrompt,
                 userPreferences = "",
+                persistentMemoryPrompt = "",
+                memoryPrompt = "",
                 historySummary = "",
                 recentConversationSnippet = buildRecentConversationSnippet(contextWindow.recentMessages)
             )
@@ -299,6 +323,53 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 logToFile("发送前上下文处理: 最近消息回放失败，降级摘要注入失败")
             }
+        }
+    }
+
+    private suspend fun buildMemoryContext(userInput: String): MemoryContext {
+        return try {
+            val persistentMemories = memoryRepository.getPersistentMemories()
+            val relevantMemories = memoryRepository.retrieveRelevantMemories(userInput)
+            val persistentPrompt = memoryPromptBuilder.buildPersistent(persistentMemories)
+            val memoryPrompt = memoryPromptBuilder.build(relevantMemories)
+            if (persistentPrompt.isNotBlank()) {
+                logToFile("常驻长期记忆注入: count=${persistentMemories.size}")
+            }
+            if (memoryPrompt.isNotBlank()) {
+                logToFile("动态记忆检索成功: count=${relevantMemories.size}, query=${userInput.trim()}")
+            } else {
+                logToFile("动态记忆检索为空: query=${userInput.trim()}")
+            }
+            MemoryContext(
+                persistentPrompt = persistentPrompt,
+                retrievedPrompt = memoryPrompt
+            )
+        } catch (e: Exception) {
+            logToFile("发送前记忆检索失败: ${e.message}")
+            MemoryContext()
+        }
+    }
+
+    private data class MemoryContext(
+        val persistentPrompt: String = "",
+        val retrievedPrompt: String = ""
+    )
+
+    private suspend fun storeMemoriesForMessage(userMessage: ChatMessage) {
+        try {
+            if (userMessage.content.isBlank()) {
+                return
+            }
+            val sessionId = _uiState.value.currentSessionId.ifBlank { return }
+            val insertedMemories = memoryRepository.extractAndStoreMemories(
+                userMessage = userMessage.content,
+                sessionId = sessionId
+            )
+            if (insertedMemories.isNotEmpty()) {
+                logToFile("用户消息记忆写入成功: count=${insertedMemories.size}")
+            }
+        } catch (e: Exception) {
+            logToFile("用户消息记忆写入失败: ${e.message}")
         }
     }
 

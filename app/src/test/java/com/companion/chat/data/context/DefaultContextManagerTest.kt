@@ -79,6 +79,26 @@ class DefaultContextManagerTest {
     }
 
     @Test
+    fun `buildContext会保留长期记忆段和动态记忆段`() = runBlocking {
+        val manager = DefaultContextManager()
+        val messages = buildConversationWithCurrentMessage(historyCount = 4, currentContent = "当前问题")
+
+        val contextWindow = manager.buildContext(
+            messages = messages,
+            systemPrompt = "基础提示词",
+            userPreferences = "",
+            persistentMemoryPrompt = "长期记忆中的关键信息：\n- [关系] 小王是用户同事",
+            memoryPrompt = "从记忆中检索到的与当前对话相关的信息：\n- [事实] 用户最近在做 Android 项目",
+            settings = ContextSettings(retainedRounds = 10, compressionBuffer = 10)
+        )
+
+        assertEquals("长期记忆中的关键信息：\n- [关系] 小王是用户同事", contextWindow.persistentMemoryPrompt)
+        assertEquals("从记忆中检索到的与当前对话相关的信息：\n- [事实] 用户最近在做 Android 项目", contextWindow.memoryPrompt)
+        assertTrue(contextWindow.systemPrompt.contains("长期记忆中的关键信息"))
+        assertTrue(contextWindow.systemPrompt.contains("从记忆中检索到的与当前对话相关的信息"))
+    }
+
+    @Test
     fun `摘要器超时时compressHistory返回空字符串`() = runBlocking {
         val manager = DefaultContextManager(
             summaryGenerator = object : SummaryGenerator {

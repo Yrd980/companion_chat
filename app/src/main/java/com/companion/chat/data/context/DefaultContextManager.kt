@@ -17,6 +17,8 @@ class DefaultContextManager(
         messages: List<ChatMessage>,
         systemPrompt: String,
         userPreferences: String,
+        persistentMemoryPrompt: String,
+        memoryPrompt: String,
         settings: ContextSettings
     ): ContextWindow {
         val currentMessage = messages.lastOrNull { it.role == MessageRole.USER }
@@ -40,9 +42,13 @@ class DefaultContextManager(
             systemPrompt = promptAssembler.assemble(
                 baseSystemPrompt = systemPrompt,
                 userPreferences = userPreferences,
+                persistentMemoryPrompt = persistentMemoryPrompt,
+                memoryPrompt = memoryPrompt,
                 historySummary = historySummary
             ),
             userPreferences = userPreferences,
+            persistentMemoryPrompt = persistentMemoryPrompt,
+            memoryPrompt = memoryPrompt,
             historySummary = historySummary,
             recentMessages = recentMessages,
             currentMessage = currentMessage

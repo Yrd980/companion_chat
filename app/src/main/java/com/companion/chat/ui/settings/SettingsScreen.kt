@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -44,6 +45,7 @@ import com.companion.chat.data.context.ContextConfigRepository
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onNavigateToCharacter: () -> Unit = {},
+    onNavigateToMemory: () -> Unit = {},
     onNavigateToModel: () -> Unit = {},
     onNavigateToVoice: () -> Unit = {},
     onNavigateToLanguage: () -> Unit = {},
@@ -83,6 +85,15 @@ fun SettingsScreen(
                     title = "角色管理",
                     subtitle = "选择或创建 AI 伴侣角色",
                     onClick = onNavigateToCharacter
+                )
+            }
+
+            SettingsSection(title = "记忆") {
+                SettingsItem(
+                    icon = Icons.Default.Psychology,
+                    title = "记忆管理",
+                    subtitle = "查看、编辑和提升短期记忆",
+                    onClick = onNavigateToMemory
                 )
             }
 

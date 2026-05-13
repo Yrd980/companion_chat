@@ -38,3 +38,68 @@
 - 新增 `docs/plans/2026-05-13-stage3-memory-system-design.md`
 - 新增 `docs/plans/2026-05-13-stage3-memory-system-plan.md`
 - 阶段三方向确定为“完整阶段三覆盖，但按后端主链路先行、UI 随后收口”的实现策略。
+- 2026-05-13 阶段三代码主链路已完成：
+- 已新增 `ExtractedMemory`、`MemoryExtractor`、`RuleBasedMemoryExtractor`。
+- 已新增 `MemoryRepository`、`MemoryRetriever`、`MemoryPromptBuilder`、`MemoryLifecycleManager`。
+- `ChatViewModel` 已接入发送前相关记忆检索与注入、发送后规则提取自动落库。
+- `CompanionChatApplication` 已接入启动时过期短期记忆清理与可提升短期记忆提升。
+- 已新增 `MemoryViewModel`、`MemoryUiState`，并将 `MemoryScreen` 从占位页替换为可筛选、手动新增、编辑、删除、提升的最小可用版。
+- 设置页已新增“记忆管理”入口，可跳转到记忆页。
+- 2026-05-13 阶段三本地验证通过：
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.memory.*"` 通过。
+- `:app:testDebugUnitTest --tests "com.companion.chat.ui.memory.*"` 通过。
+- `:app:testDebugUnitTest` 全量通过。
+- `:app:assembleDebug` 通过。
+- 2026-05-13 阶段三真机部署验证通过：
+- 已按“编译成功 -> 卸载旧 app -> 安装新 app -> 推送模型”流程完成重装。
+- `app_init_log.txt` 确认应用启动后执行了 `ensureInitialized` 和“记忆生命周期维护完成”。
+- `viewmodel_log.txt` 确认模型路径存在、模型文件大小正确，且 `engine.initialize` 返回 `state = Ready`。
+- 设备数据库导出检查确认：`skills` 表已有 4 条内置技能，`conversations` 表当前为空，`memories` 表当前为空。
+- 当前真机自动化限制：
+- 设备仅有微信输入法，ADB 直接中文输入失败，导致“记住我叫小明 -> 我叫什么”的全自动对话验收暂未完成。
+- 底部导航与设置入口的 ADB 坐标点击在当前系统桌面/输入法状态下不稳定，阶段三 UI 真机验证目前以编译通过、布局树可见、日志与数据库证据为主。
+- 2026-05-13 记忆页闪退已修复：
+- 根因是 `MemoryViewModel` 仅保留了 Kotlin 默认参数主构造器，运行时 `viewModel()` 通过 `AndroidViewModelFactory` 反射查找 `MemoryViewModel(Application)` 失败，抛出 `NoSuchMethodException` 并导致进入记忆页闪退。
+- 已在 `MemoryViewModel` 中补充显式的 `constructor(application: Application)`，保持测试注入构造方式不变。
+- 修复后已重新 `assembleDebug` 并真机重装。
+- 复验结果：点击底部“记忆”后未再出现 `AndroidRuntime` 崩溃栈，`dumpsys window windows` 显示前台窗口仍为 `com.companion.chat/.MainActivity`。
+- 2026-05-13 记忆页真机可用性补测：
+- 已验证空状态展示正确，页面显示“还没有记忆”与引导文案。
+- 已验证顶部分类筛选存在：全部 / 事实 / 偏好 / 事件 / 关系。
+- 已验证手动新增：通过 ADB 英文输入新增一条事实类长期记忆，列表立即出现新卡片。
+- 已验证分类筛选：切到“偏好”后列表为空，切回“事实”后新增记忆重新出现。
+- 已验证编辑：打开编辑弹窗后追加文本保存，列表标题与更新时间发生变化。
+- 已验证删除：点击删除后出现确认弹窗，确认后列表回到空状态。
+- 已验证设置页入口：从“设置 -> 记忆管理”可正确回到记忆页。
+- 当前仍未自动化验证“手动提升短期记忆”为长期：
+- 原因 1：设备无可用 `sqlite3`，无法直接在真机库中快速注入 `short_term` 测试数据。
+- 原因 2：当前设备中文 ADB 输入受微信输入法限制，无法稳定走“记住我叫小明”这类中文规则提取路径来生成短期记忆。
+- 2026-05-13 已修复“记忆主语归属错误”：
+- 现象：当用户写入“`小王是我的哥哥`”这类关系记忆后，模型可能把“我的”误解为助手自身，而不是用户。
+- 根因：记忆虽然已进入上下文，但原有 `MemoryPromptBuilder` 和 `PromptAssembler` 没有明确约束“这些记忆都属于用户”，导致 prompt 视角歧义。
+- 修复方式：
+- `PromptAssembler` 在存在任一记忆段时新增统一“记忆解释规则”，明确记忆属于用户，且“我/我的”默认指用户。
+- `MemoryPromptBuilder` 在长期记忆段和动态记忆段内新增局部说明“以下内容均为用户本人的记忆，不代表助手自身”。
+- 本次未改数据库、FTS、记忆内容存储格式，只做 prompt 层最小修复。
+- 本次新增文档：
+- `docs/plans/2026-05-13-memory-user-perspective-fix-design.md`
+- `docs/plans/2026-05-13-memory-user-perspective-fix-plan.md`
+- 本次验证结果：
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.memory.MemoryPromptBuilderTest" --tests "com.companion.chat.data.context.PromptAssemblerTest" --tests "com.companion.chat.data.context.DefaultContextManagerTest"` 通过。
+- `:app:testDebugUnitTest` 全量通过。
+- `:app:assembleDebug` 通过。
+- 2026-05-13 已补强“第二人称记忆归属”规则：
+- 补充约束：在记忆解释规则中明确“我/我的”默认指用户，“你/你的”默认指助手或模型自己，避免“你是我的搭档”这类记忆继续发生第二人称误判。
+- 已同步更新 `PromptAssemblerTest` 的完整断言，并新增第二人称归属专项断言。
+- 定向验证结果：`:app:testDebugUnitTest --tests "com.companion.chat.data.context.PromptAssemblerTest"` 通过。
+- 2026-05-13 第二人称归属补丁已重新完成真机部署：
+- `:app:testDebugUnitTest` 全量通过。
+- `:app:assembleDebug` 通过。
+- 已执行卸载旧包、推送新 `app-debug.apk`、`pm install -r -t --user 0` 安装成功。
+- 已重新启动应用并推送模型到 `/storage/emulated/0/Android/data/com.companion.chat/files/models/`。
+- ADB 校验通过：模型文件存在，前台窗口为 `com.companion.chat/.MainActivity`，可进入人工复测阶段。
+- 2026-05-13 已进入阶段四规划：
+- 已新增 `docs/plans/2026-05-13-stage4-self-evolution-design.md`
+- 已新增 `docs/plans/2026-05-13-stage4-self-evolution-plan.md`
+- 阶段四范围确定为：Engine-B 管理、触发调度、偏好总结 JSON 解析、`user_preferences` 合并、confirmed 偏好 prompt 注入、设置页“自动学习偏好”开关。
+- 当前判断：阶段三分支从测试、编译和真机重装证据看已具备合并检查点条件，但工作区仍有未提交改动，需先整理提交后再合并。
