@@ -99,6 +99,22 @@ class DefaultContextManagerTest {
     }
 
     @Test
+    fun `buildContext会保留confirmed偏好段`() = runBlocking {
+        val manager = DefaultContextManager()
+        val messages = buildConversationWithCurrentMessage(historyCount = 4, currentContent = "当前问题")
+
+        val contextWindow = manager.buildContext(
+            messages = messages,
+            systemPrompt = "基础提示词",
+            userPreferences = "关于当前用户的已知信息（请自然地融入对话，不要刻意提及你知道这些）：\n- 喜欢简洁回答",
+            settings = ContextSettings(retainedRounds = 10, compressionBuffer = 10)
+        )
+
+        assertEquals("关于当前用户的已知信息（请自然地融入对话，不要刻意提及你知道这些）：\n- 喜欢简洁回答", contextWindow.userPreferences)
+        assertTrue(contextWindow.systemPrompt.contains("关于当前用户的已知信息"))
+    }
+
+    @Test
     fun `摘要器超时时compressHistory返回空字符串`() = runBlocking {
         val manager = DefaultContextManager(
             summaryGenerator = object : SummaryGenerator {

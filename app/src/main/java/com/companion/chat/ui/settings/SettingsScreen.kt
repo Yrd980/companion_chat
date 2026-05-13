@@ -31,8 +31,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,9 +57,13 @@ fun SettingsScreen(
     val context = LocalContext.current
     val contextConfigRepository = remember(context) { ContextConfigRepository(context) }
     var retainedRounds by remember { mutableIntStateOf(contextConfigRepository.getSettings().retainedRounds) }
+    var autoPreferenceLearningEnabled by remember {
+        mutableStateOf(contextConfigRepository.getAutoPreferenceLearningEnabled())
+    }
 
     LaunchedEffect(Unit) {
         retainedRounds = contextConfigRepository.getSettings().retainedRounds
+        autoPreferenceLearningEnabled = contextConfigRepository.getAutoPreferenceLearningEnabled()
     }
 
     Scaffold(
@@ -94,6 +100,21 @@ fun SettingsScreen(
                     title = "记忆管理",
                     subtitle = "查看、编辑和提升短期记忆",
                     onClick = onNavigateToMemory
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                SettingsToggleItem(
+                    icon = Icons.Default.Psychology,
+                    title = "自动学习偏好",
+                    subtitle = if (autoPreferenceLearningEnabled) {
+                        "后台总结最近对话并逐步学习用户偏好"
+                    } else {
+                        "已关闭后台偏好总结，不会自动触发阶段四学习"
+                    },
+                    checked = autoPreferenceLearningEnabled,
+                    onCheckedChange = { enabled ->
+                        autoPreferenceLearningEnabled = enabled
+                        contextConfigRepository.updateAutoPreferenceLearningEnabled(enabled)
+                    }
                 )
             }
 
@@ -206,6 +227,47 @@ private fun SettingsItem(
             contentDescription = null,
             modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        )
+    }
+}
+
+@Composable
+private fun SettingsToggleItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
         )
     }
 }

@@ -33,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +44,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companion.chat.data.local.entity.Memory
@@ -56,12 +60,25 @@ fun MemoryScreen(
     modifier: Modifier = Modifier,
     memoryViewModel: MemoryViewModel = viewModel()
 ) {
+    val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by memoryViewModel.uiState.collectAsStateWithLifecycle()
     var editingMemory by remember { mutableStateOf<Memory?>(null) }
     var showEditor by remember { mutableStateOf(false) }
     var draftContent by remember { mutableStateOf("") }
     var draftCategory by remember { mutableStateOf("fact") }
     var deletingMemory by remember { mutableStateOf<Memory?>(null) }
+
+    DisposableEffect(lifecycleOwner, memoryViewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                memoryViewModel.loadMemories()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     fun openEditor(memory: Memory?) {
         editingMemory = memory
@@ -320,7 +337,7 @@ private fun MemoryEditorDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("fact", "preference", "event", "relationship").forEach { item ->
+                    listOf("fact", "preference", "event", "relation", "time", "other").forEach { item ->
                         AssistChip(
                             onClick = { onCategoryChange(item) },
                             label = { Text(categoryLabel(item)) },
@@ -393,7 +410,9 @@ private fun filterLabel(filter: MemoryFilter): String {
         MemoryFilter.FACT -> "事实"
         MemoryFilter.PREFERENCE -> "偏好"
         MemoryFilter.EVENT -> "事件"
-        MemoryFilter.RELATIONSHIP -> "关系"
+        MemoryFilter.RELATION -> "关系"
+        MemoryFilter.TIME -> "时间"
+        MemoryFilter.OTHER -> "其他"
     }
 }
 
@@ -402,7 +421,9 @@ private fun categoryLabel(category: String): String {
         "fact" -> "事实"
         "preference" -> "偏好"
         "event" -> "事件"
-        "relationship" -> "关系"
+        "relation", "relationship" -> "关系"
+        "time" -> "时间"
+        "other" -> "其他"
         else -> category
     }
 }

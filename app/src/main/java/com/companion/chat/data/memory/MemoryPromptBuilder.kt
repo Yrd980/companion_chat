@@ -47,7 +47,9 @@ class MemoryPromptBuilder {
             "fact" -> "事实"
             "preference" -> "偏好"
             "event" -> "事件"
-            "relationship" -> "关系"
+            "relation", "relationship" -> "关系"
+            "time" -> "时间"
+            "other" -> "其他"
             else -> category
         }
     }

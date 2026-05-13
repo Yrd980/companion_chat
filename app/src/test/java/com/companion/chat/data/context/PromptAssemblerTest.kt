@@ -33,6 +33,21 @@ class PromptAssemblerTest {
     }
 
     @Test
+    fun `confirmed 偏好段存在时排在记忆和摘要前面`() {
+        val prompt = PromptAssembler().assemble(
+            baseSystemPrompt = "基础提示词",
+            userPreferences = "关于当前用户的已知信息（请自然地融入对话，不要刻意提及你知道这些）：\n- 喜欢简洁回答",
+            persistentMemoryPrompt = "长期记忆中的关键信息：\n- [事实] 用户在做 Android 项目",
+            historySummary = "用户刚刚在讨论阶段四"
+        )
+
+        assertEquals(
+            "基础提示词\n\n关于当前用户的已知信息（请自然地融入对话，不要刻意提及你知道这些）：\n- 喜欢简洁回答\n\n记忆解释规则：\n- 以下记忆都描述用户本人的信息、关系、偏好或经历，不是助手自己的信息。\n- 除非用户明确要求角色扮演、改写文案或切换叙述视角，记忆中的“我”“我的”默认都指用户，“你”“你的”默认都指助手或模型自己。\n- 回答涉及这些记忆时，应使用“你”或“用户”的视角理解和表达。\n\n长期记忆中的关键信息：\n- [事实] 用户在做 Android 项目\n\n之前对话的摘要：\n用户刚刚在讨论阶段四",
+            prompt
+        )
+    }
+
+    @Test
     fun `摘要为空时不出现摘要标题`() {
         val prompt = PromptAssembler().assemble(
             baseSystemPrompt = "基础提示词",

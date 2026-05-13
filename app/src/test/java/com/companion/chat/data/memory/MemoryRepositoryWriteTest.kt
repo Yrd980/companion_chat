@@ -3,6 +3,8 @@ package com.companion.chat.data.memory
 import androidx.sqlite.db.SupportSQLiteQuery
 import com.companion.chat.data.local.dao.MemoryDao
 import com.companion.chat.data.local.entity.Memory
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -79,6 +81,51 @@ class MemoryRepositoryWriteTest {
         assertTrue(insertedMemories.isEmpty())
     }
 
+    @Test
+    fun `模型提取结果写入时会跳过重复记忆`() = runBlocking {
+        val insertedMemories = mutableListOf(
+            Memory(
+                id = 1L,
+                content = "用户喜欢火锅",
+                category = "preference",
+                layer = "short_term",
+                source = MemoryRepository.MODEL_SOURCE,
+                referenceCount = 0,
+                sessionId = "session-1",
+                createdAt = 10L,
+                updatedAt = 10L,
+                expiresAt = 20L
+            )
+        )
+        val fakeDao = FakeMemoryDao(insertedMemories)
+        val repository = MemoryRepository(
+            memoryDao = fakeDao,
+            nowProvider = { 1_700_000_000_000L }
+        )
+
+        val result = repository.storeModelExtractedMemories(
+            extractedMemories = listOf(
+                ExtractedMemory(
+                    content = "用户喜欢火锅",
+                    category = "preference",
+                    layer = "short_term",
+                    source = MemoryRepository.MODEL_SOURCE
+                ),
+                ExtractedMemory(
+                    content = "用户一般晚上聊天比较多",
+                    category = "time",
+                    layer = "short_term",
+                    source = MemoryRepository.MODEL_SOURCE
+                )
+            ),
+            sessionId = "session-1"
+        )
+
+        assertEquals(2, result.size)
+        assertEquals(2, insertedMemories.size)
+        assertEquals(listOf("用户喜欢火锅", "用户一般晚上聊天比较多"), result.map { it.content })
+    }
+
     private class FakeMemoryDao(
         private val insertedMemories: MutableList<Memory>
     ) : MemoryDao {
@@ -100,6 +147,8 @@ class MemoryRepositoryWriteTest {
 
         override suspend fun getAll(): List<Memory> = insertedMemories.toList()
 
+        override fun observeAll(): Flow<List<Memory>> = flowOf(insertedMemories.toList())
+
         override suspend fun getByLayer(layer: String): List<Memory> =
             insertedMemories.filter { it.layer == layer }
 
@@ -108,6 +157,9 @@ class MemoryRepositoryWriteTest {
 
         override suspend fun getByCategory(category: String): List<Memory> =
             insertedMemories.filter { it.category == category }
+
+        override suspend fun findExactMatch(category: String, content: String): Memory? =
+            insertedMemories.firstOrNull { it.category == category && it.content == content }
 
         override suspend fun searchByFTS(query: SupportSQLiteQuery): List<Memory> = emptyList()
 

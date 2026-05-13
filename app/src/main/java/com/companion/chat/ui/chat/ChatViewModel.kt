@@ -24,6 +24,12 @@ import com.companion.chat.data.model.DEFAULT_WELCOME_MESSAGE
 import com.companion.chat.data.model.MessageRole
 import com.companion.chat.data.model.createDefaultSession
 import com.companion.chat.data.model.createWelcomeMessage
+import com.companion.chat.data.preferences.PreferenceRepository
+import com.companion.chat.data.preferences.PreferenceMemoryDeriver
+import com.companion.chat.data.preferences.SecondEngineManager
+import com.companion.chat.data.preferences.SummaryRunResult
+import com.companion.chat.data.preferences.UnifiedExtractionParser
+import com.companion.chat.data.preferences.UnifiedExtractionPromptBuilder
 import com.companion.chat.data.repository.ChatSessionRepository
 import com.companion.chat.engine.AndroidVoiceInputEngine
 import com.companion.chat.engine.AndroidVoiceOutputEngine
@@ -75,11 +81,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val memoryRepository = MemoryRepository(
         memoryDao = com.companion.chat.data.local.CompanionDatabase.getInstance(application).memoryDao()
     )
+    private val preferenceRepository = PreferenceRepository(
+        preferenceDao = com.companion.chat.data.local.CompanionDatabase.getInstance(application).preferenceDao()
+    )
+    private val preferenceMemoryDeriver = PreferenceMemoryDeriver()
     private val memoryPromptBuilder = MemoryPromptBuilder()
+    private val unifiedExtractionPromptBuilder = UnifiedExtractionPromptBuilder()
+    private val unifiedExtractionParser = UnifiedExtractionParser()
+    private val secondEngineManager = SecondEngineManager(
+        primaryEngineStateProvider = { inferenceEngine.state.value },
+        engineFactory = { LiteRTLMInferenceEngine(application) },
+        timeoutMillis = STAGE4_SUMMARY_TIMEOUT_MILLIS
+    )
     private var contextSettings: ContextSettings = ContextConfigRepository.DEFAULT_SETTINGS
+    private var baseSystemPrompt: String = DEFAULT_BASE_SYSTEM_PROMPT
 
     private var generateJob: Job? = null
     private var voiceCollectJob: Job? = null
+    private var preferenceSummaryDelayJob: Job? = null
+    private val lastSummaryTimestamps = mutableMapOf<String, Long>()
 
     init {
         logToFile("=== ChatViewModel 创建 ===")
@@ -193,6 +213,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         var state = _uiState.value
         if (state.inputText.isBlank() && state.selectedImages.isEmpty()) return
         if (state.isGenerating) return
+        secondEngineManager.cancelRunningSummary()
 
         if (state.currentSessionId.isBlank()) {
             val newSession = ConversationSession(messages = emptyList())
@@ -231,7 +252,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         generateJob?.cancel()
         generateJob = viewModelScope.launch {
-            storeMemoriesForMessage(userMessage)
+            if (!contextConfigRepository.getAutoPreferenceLearningEnabled()) {
+                storeRuleBasedMemoriesForMessage(userMessage)
+            }
             generateResponse(userMessage.content.trim())
         }
     }
@@ -248,6 +271,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val memoryContext = buildMemoryContext(userInput)
             prepareContextBeforeSend(
                 messages = messages,
+                userPreferences = memoryContext.confirmedPreferencePrompt,
                 persistentMemoryPrompt = memoryContext.persistentPrompt,
                 memoryPrompt = memoryContext.retrievedPrompt
             )
@@ -263,30 +287,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun prepareContextBeforeSend(
         messages: List<ChatMessage>,
+        userPreferences: String,
         persistentMemoryPrompt: String,
         memoryPrompt: String
     ) {
         val stableMessages = messages.filterNot { it.isStreaming }
         contextSettings = contextConfigRepository.getSettings()
-        val shouldInjectMemory = persistentMemoryPrompt.isNotBlank() || memoryPrompt.isNotBlank()
+        val shouldInjectContext = userPreferences.isNotBlank() ||
+            persistentMemoryPrompt.isNotBlank() ||
+            memoryPrompt.isNotBlank()
 
-        if (!contextManager.shouldCompress(stableMessages, contextSettings) && !shouldInjectMemory) {
+        if (!contextManager.shouldCompress(stableMessages, contextSettings) && !shouldInjectContext) {
             logToFile(
                 "发送前上下文检查: 未触发压缩, " +
                     "messageCount=${stableMessages.size}, threshold=${contextSettings.compressionThreshold}, " +
-                    "memoryInjected=false"
+                    "contextInjected=false"
             )
             return
         }
 
-        val currentConfig = inferenceEngine.getCurrentConfig()
-        val baseSystemPrompt = currentConfig?.systemPrompt?.ifBlank {
-            "你是一个友善的AI助手，请用中文回答用户的问题。"
-        } ?: "你是一个友善的AI助手，请用中文回答用户的问题。"
         val contextWindow = contextManager.buildContext(
             messages = stableMessages,
             systemPrompt = baseSystemPrompt,
-            userPreferences = "",
+            userPreferences = userPreferences,
             persistentMemoryPrompt = persistentMemoryPrompt,
             memoryPrompt = memoryPrompt,
             settings = contextSettings
@@ -295,6 +318,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         logToFile(
             "发送前上下文处理: recentMessages=${contextWindow.recentMessages.size}, " +
                 "summaryEmpty=${contextWindow.historySummary.isBlank()}, " +
+                "preferenceInjected=${contextWindow.userPreferences.isNotBlank()}, " +
                 "persistentMemoryInjected=${contextWindow.persistentMemoryPrompt.isNotBlank()}, " +
                 "memoryInjected=${contextWindow.memoryPrompt.isNotBlank()}"
         )
@@ -328,10 +352,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun buildMemoryContext(userInput: String): MemoryContext {
         return try {
+            val confirmedPreferencePrompt = buildConfirmedPreferencePrompt()
             val persistentMemories = memoryRepository.getPersistentMemories()
             val relevantMemories = memoryRepository.retrieveRelevantMemories(userInput)
             val persistentPrompt = memoryPromptBuilder.buildPersistent(persistentMemories)
             val memoryPrompt = memoryPromptBuilder.build(relevantMemories)
+            if (confirmedPreferencePrompt.isNotBlank()) {
+                logToFile("confirmed 偏好注入: count=${preferenceRepository.getConfirmedPreferences().size}")
+            }
             if (persistentPrompt.isNotBlank()) {
                 logToFile("常驻长期记忆注入: count=${persistentMemories.size}")
             }
@@ -341,6 +369,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 logToFile("动态记忆检索为空: query=${userInput.trim()}")
             }
             MemoryContext(
+                confirmedPreferencePrompt = confirmedPreferencePrompt,
                 persistentPrompt = persistentPrompt,
                 retrievedPrompt = memoryPrompt
             )
@@ -351,11 +380,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private data class MemoryContext(
+        val confirmedPreferencePrompt: String = "",
         val persistentPrompt: String = "",
         val retrievedPrompt: String = ""
     )
 
-    private suspend fun storeMemoriesForMessage(userMessage: ChatMessage) {
+    private suspend fun storeRuleBasedMemoriesForMessage(userMessage: ChatMessage) {
         try {
             if (userMessage.content.isBlank()) {
                 return
@@ -366,10 +396,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 sessionId = sessionId
             )
             if (insertedMemories.isNotEmpty()) {
-                logToFile("用户消息记忆写入成功: count=${insertedMemories.size}")
+                logToFile("规则兜底记忆写入成功: count=${insertedMemories.size}")
             }
         } catch (e: Exception) {
-            logToFile("用户消息记忆写入失败: ${e.message}")
+            logToFile("规则兜底记忆写入失败: ${e.message}")
         }
     }
 
@@ -434,6 +464,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         saveCurrentSession()
+        schedulePreferenceSummaryAfterDelay()
     }
 
     fun toggleVoiceListening() {
@@ -466,6 +497,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun cancelGeneration() {
         generateJob?.cancel()
         inferenceEngine.cancel()
+        secondEngineManager.cancelRunningSummary()
         _uiState.update { it.copy(isGenerating = false) }
     }
 
@@ -493,9 +525,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     logToFile("models目录: ${f.name} (${f.length()} bytes)")
                 }
 
+                val resolvedSystemPrompt = systemPrompt.ifBlank { DEFAULT_BASE_SYSTEM_PROMPT }
+                baseSystemPrompt = resolvedSystemPrompt
                 val config = EngineConfig(
                     modelPath = actualPath,
-                    systemPrompt = systemPrompt
+                    systemPrompt = resolvedSystemPrompt
                 )
                 logToFile("开始调用 engine.initialize...")
                 inferenceEngine.initialize(config)
@@ -513,6 +547,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
         generateJob?.cancel()
         voiceCollectJob?.cancel()
+        preferenceSummaryDelayJob?.cancel()
+        secondEngineManager.release()
         inferenceEngine.release()
         voiceInputEngine.release()
         voiceOutputEngine.release()
@@ -532,6 +568,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun createNewSession() {
         if (_uiState.value.currentSessionId.isNotBlank()) {
+            triggerPreferenceSummaryNow(reason = "新建会话前")
             saveCurrentSession()
         }
         val newSession = createDefaultSession()
@@ -591,6 +628,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(showSessionDrawer = false, sessionSearchQuery = "") }
             return
         }
+        triggerPreferenceSummaryNow(
+            reason = "切换会话",
+            sessionId = state.currentSessionId,
+            messages = state.messages
+        )
         saveCurrentSession()
         val session = state.sessions.find { it.id == sessionId } ?: return
         _uiState.update {
@@ -700,5 +742,221 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 logToFile("保存会话列表失败: ${e.message}")
             }
         }
+    }
+
+    fun onAppBackgrounded() {
+        triggerPreferenceSummaryNow(reason = "应用进入后台")
+    }
+
+    private fun schedulePreferenceSummaryAfterDelay() {
+        preferenceSummaryDelayJob?.cancel()
+        preferenceSummaryDelayJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(STAGE4_IDLE_DELAY_MILLIS)
+            runPreferenceSummaryIfNeeded(reason = "发送后静置")
+        }
+    }
+
+    private fun triggerPreferenceSummaryNow(
+        reason: String,
+        sessionId: String = _uiState.value.currentSessionId,
+        messages: List<ChatMessage> = _uiState.value.messages
+    ) {
+        preferenceSummaryDelayJob?.cancel()
+        viewModelScope.launch {
+            runPreferenceSummaryIfNeeded(
+                reason = reason,
+                sessionId = sessionId,
+                messages = messages
+            )
+        }
+    }
+
+    private suspend fun runPreferenceSummaryIfNeeded(
+        reason: String,
+        sessionId: String = _uiState.value.currentSessionId,
+        messages: List<ChatMessage> = _uiState.value.messages,
+        retryAttempt: Int = 0
+    ) {
+        if (!contextConfigRepository.getAutoPreferenceLearningEnabled()) {
+            logToFile("阶段四跳过: 自动学习偏好已关闭, reason=$reason")
+            return
+        }
+        if (sessionId.isBlank()) {
+            return
+        }
+        if (inferenceEngine.state.value is InferenceState.Generating) {
+            logToFile("阶段四跳过: 前台仍在生成, reason=$reason")
+            return
+        }
+
+        val stableMessages = messages.filterNot { it.isStreaming }
+            .filter { it.role == MessageRole.USER || it.role == MessageRole.ASSISTANT }
+        if (stableMessages.size < MIN_STAGE4_MESSAGE_COUNT) {
+            logToFile("阶段四跳过: 对话轮数不足, reason=$reason, messageCount=${stableMessages.size}")
+            return
+        }
+
+        val now = System.currentTimeMillis()
+        val lastSummaryAt = lastSummaryTimestamps[sessionId] ?: 0L
+        if (now - lastSummaryAt < STAGE4_THROTTLE_MILLIS) {
+            logToFile("阶段四跳过: 节流中, reason=$reason")
+            return
+        }
+
+        val currentConfig = inferenceEngine.getCurrentConfig() ?: return
+        val summaryConfig = currentConfig.copy(systemPrompt = baseSystemPrompt)
+        val prompt = unifiedExtractionPromptBuilder.buildPrompt(stableMessages)
+        when (val result = secondEngineManager.runSummaryIfAllowed(summaryConfig, prompt)) {
+            is SummaryRunResult.Completed -> {
+                val rawSummaryPreview = result.content
+                    .replace("\n", "\\n")
+                    .take(300)
+                logToFile("阶段四原始输出: preview=$rawSummaryPreview")
+                val extractionResult = unifiedExtractionParser.parse(result.content)
+                val derivedMemories = preferenceMemoryDeriver.derive(extractionResult.userPreferences)
+                if (derivedMemories.isNotEmpty()) {
+                    logToFile("阶段四偏好派生记忆: count=${derivedMemories.size}")
+                }
+                val storedModelMemories = memoryRepository.storeModelExtractedMemories(
+                    extractedMemories = extractionResult.memories + derivedMemories,
+                    sessionId = sessionId
+                )
+                if (storedModelMemories.isEmpty()) {
+                    val fallbackCount = storeFallbackRuleMemories(
+                        messages = stableMessages,
+                        sessionId = sessionId
+                    )
+                    if (fallbackCount > 0) {
+                        logToFile("阶段四记忆兜底成功: count=$fallbackCount, reason=$reason")
+                    }
+                }
+                preferenceRepository.mergePreferences(extractionResult.userPreferences)
+                val confirmedPreferences = preferenceRepository.getConfirmedPreferences()
+                logToFile(
+                    "阶段四偏好合并完成: merged=${extractionResult.userPreferences.size}, " +
+                        "confirmed=${confirmedPreferences.size}, retryAttempt=$retryAttempt"
+                )
+                lastSummaryTimestamps[sessionId] = now
+                logToFile(
+                    "阶段四总结完成: reason=$reason, memoryCount=${storedModelMemories.size}, " +
+                        "preferenceCount=${extractionResult.userPreferences.size}, " +
+                        "extractedCount=${storedModelMemories.size + extractionResult.userPreferences.size}, " +
+                        "sessionId=$sessionId"
+                )
+            }
+            SummaryRunResult.SkippedPrimaryBusy -> {
+                logToFile("阶段四跳过: 前台繁忙, reason=$reason")
+            }
+            SummaryRunResult.SkippedAlreadyRunning -> {
+                logToFile("阶段四跳过: 后台总结已在运行, reason=$reason")
+            }
+            SummaryRunResult.Cancelled -> {
+                if (retryAttempt < MAX_STAGE4_RETRY_COUNT) {
+                    logToFile("阶段四取消: reason=$reason, retry=${retryAttempt + 1}")
+                    schedulePreferenceSummaryRetry(
+                        reason = reason,
+                        sessionId = sessionId,
+                        messages = stableMessages,
+                        retryAttempt = retryAttempt + 1
+                    )
+                } else {
+                    val fallbackCount = storeFallbackRuleMemories(
+                        messages = stableMessages,
+                        sessionId = sessionId
+                    )
+                    if (fallbackCount > 0) {
+                        logToFile("阶段四取消后二次兜底成功: count=$fallbackCount, reason=$reason")
+                    }
+                    logToFile("阶段四取消: reason=$reason, retry=$retryAttempt")
+                }
+            }
+            SummaryRunResult.TimedOut -> {
+                if (retryAttempt < MAX_STAGE4_RETRY_COUNT) {
+                    logToFile("阶段四超时: reason=$reason, retry=${retryAttempt + 1}")
+                    schedulePreferenceSummaryRetry(
+                        reason = reason,
+                        sessionId = sessionId,
+                        messages = stableMessages,
+                        retryAttempt = retryAttempt + 1
+                    )
+                } else {
+                    val fallbackCount = storeFallbackRuleMemories(
+                        messages = stableMessages,
+                        sessionId = sessionId
+                    )
+                    if (fallbackCount > 0) {
+                        logToFile("阶段四超时后二次兜底成功: count=$fallbackCount, reason=$reason")
+                    }
+                    logToFile("阶段四超时: reason=$reason, retry=$retryAttempt")
+                }
+            }
+            is SummaryRunResult.Failed -> {
+                val fallbackCount = storeFallbackRuleMemories(
+                    messages = stableMessages,
+                    sessionId = sessionId
+                )
+                if (fallbackCount > 0) {
+                    logToFile("阶段四失败后记忆兜底成功: count=$fallbackCount, reason=$reason")
+                }
+                logToFile("阶段四失败: reason=$reason, message=${result.message}")
+            }
+        }
+    }
+
+    private fun schedulePreferenceSummaryRetry(
+        reason: String,
+        sessionId: String,
+        messages: List<ChatMessage>,
+        retryAttempt: Int
+    ) {
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(STAGE4_RETRY_DELAY_MILLIS)
+            runPreferenceSummaryIfNeeded(
+                reason = "$reason-重试",
+                sessionId = sessionId,
+                messages = messages,
+                retryAttempt = retryAttempt
+            )
+        }
+    }
+
+    private suspend fun storeFallbackRuleMemories(
+        messages: List<ChatMessage>,
+        sessionId: String
+    ): Int {
+        val userMessages = messages
+            .filter { it.role == MessageRole.USER }
+            .map { it.content.trim() }
+            .filter { it.isNotBlank() }
+        if (userMessages.isEmpty()) {
+            return 0
+        }
+        return memoryRepository.extractAndStoreMemoriesFromMessages(
+            userMessages = userMessages,
+            sessionId = sessionId
+        ).size
+    }
+
+    private suspend fun buildConfirmedPreferencePrompt(): String {
+        val confirmedPreferences = preferenceRepository.getConfirmedPreferences()
+        if (confirmedPreferences.isEmpty()) {
+            return ""
+        }
+        return buildString {
+            appendLine("关于当前用户的已知信息（请自然地融入对话，不要刻意提及你知道这些）：")
+            confirmedPreferences.forEach { preference ->
+                appendLine("- ${preference.content}")
+            }
+        }.trim()
+    }
+
+    companion object {
+        private const val DEFAULT_BASE_SYSTEM_PROMPT = "你是一个友善的AI助手，请用中文回答用户的问题。"
+        private const val STAGE4_IDLE_DELAY_MILLIS = 3 * 60 * 1000L
+        private const val STAGE4_THROTTLE_MILLIS = 5 * 60 * 1000L
+        private const val STAGE4_SUMMARY_TIMEOUT_MILLIS = 90_000L
+        private const val STAGE4_RETRY_DELAY_MILLIS = 3_000L
+        private const val MAX_STAGE4_RETRY_COUNT = 1
+        private const val MIN_STAGE4_MESSAGE_COUNT = 4
     }
 }

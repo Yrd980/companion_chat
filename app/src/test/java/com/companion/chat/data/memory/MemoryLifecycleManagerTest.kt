@@ -3,6 +3,8 @@ package com.companion.chat.data.memory
 import androidx.sqlite.db.SupportSQLiteQuery
 import com.companion.chat.data.local.dao.MemoryDao
 import com.companion.chat.data.local.entity.Memory
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -97,12 +99,16 @@ class MemoryLifecycleManagerTest {
 
         override suspend fun getAll(): List<Memory> = memories.toList()
 
+        override fun observeAll(): Flow<List<Memory>> = flowOf(memories.toList())
+
         override suspend fun getByLayer(layer: String): List<Memory> = memories.filter { it.layer == layer }
 
         override suspend fun getPersistentMemories(): List<Memory> =
             memories.filter { it.layer == "long_term" }.sortedByDescending { it.updatedAt }
 
         override suspend fun getByCategory(category: String): List<Memory> = memories.filter { it.category == category }
+
+        override suspend fun findExactMatch(category: String, content: String): Memory? = null
 
         override suspend fun searchByFTS(query: SupportSQLiteQuery): List<Memory> = emptyList()
 

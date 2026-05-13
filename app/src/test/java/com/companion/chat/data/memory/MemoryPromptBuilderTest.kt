@@ -33,7 +33,7 @@ class MemoryPromptBuilderTest {
     @Test
     fun `长期记忆段使用固定标题并显示关系标签`() {
         val prompt = builder.buildPersistent(
-            listOf(memory(content = "用户是同事", category = "relationship"))
+            listOf(memory(content = "用户是同事", category = "relation"))
         )
 
         assertEquals(
@@ -45,7 +45,7 @@ class MemoryPromptBuilderTest {
     @Test
     fun `记忆段保留原文但补充用户视角说明`() {
         val prompt = builder.buildPersistent(
-            listOf(memory(content = "小王是我的哥哥", category = "relationship"))
+            listOf(memory(content = "小王是我的哥哥", category = "relation"))
         )
 
         assertEquals(
@@ -62,6 +62,21 @@ class MemoryPromptBuilderTest {
         )
 
         assertEquals("", prompt)
+    }
+
+    @Test
+    fun `时间和其他分类使用固定中文标签`() {
+        val prompt = builder.build(
+            listOf(
+                memory(content = "用户一般晚上聊天比较多", category = "time"),
+                memory(content = "用户在意回答准确性", category = "other")
+            )
+        )
+
+        assertEquals(
+            "从记忆中检索到的与当前对话相关的信息：\n以下内容均为用户本人的记忆，不代表助手自身。\n- [时间] 用户一般晚上聊天比较多\n- [其他] 用户在意回答准确性",
+            prompt
+        )
     }
 
     private fun memory(content: String, category: String) = Memory(

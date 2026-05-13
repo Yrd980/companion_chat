@@ -17,14 +17,20 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.companion.chat.ui.chat.ChatScreen
+import com.companion.chat.ui.chat.ChatViewModel
 import com.companion.chat.ui.home.HomeScreen
 import com.companion.chat.ui.memory.MemoryScreen
 import com.companion.chat.ui.navigation.Screen
@@ -58,12 +64,26 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainApp() {
     val navController = rememberNavController()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val chatViewModel: ChatViewModel = viewModel()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
     val screens = Screen.entries.toList()
     val showBottomBar = screens.any { screen ->
         currentRoute == screen.route
+    }
+
+    DisposableEffect(lifecycleOwner, chatViewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                chatViewModel.onAppBackgrounded()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     Scaffold(
@@ -108,7 +128,7 @@ fun MainApp() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.HOME.route) { HomeScreen() }
-            composable(Screen.CHAT.route) { ChatScreen() }
+            composable(Screen.CHAT.route) { ChatScreen(viewModel = chatViewModel) }
             composable(Screen.MEMORY.route) { MemoryScreen() }
             composable(Screen.SETTINGS.route) {
                 SettingsScreen(

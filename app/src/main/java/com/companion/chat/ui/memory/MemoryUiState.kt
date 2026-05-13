@@ -7,7 +7,9 @@ enum class MemoryFilter(val category: String?) {
     FACT("fact"),
     PREFERENCE("preference"),
     EVENT("event"),
-    RELATIONSHIP("relationship")
+    RELATION("relation"),
+    TIME("time"),
+    OTHER("other")
 }
 
 data class MemoryUiState(

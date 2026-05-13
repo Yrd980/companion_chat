@@ -2,6 +2,7 @@ package com.companion.chat.data.engine
 
 import com.companion.chat.data.model.ChatMessage
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 enum class BackendType {
     CPU,
@@ -24,7 +25,7 @@ sealed class InferenceState {
 }
 
 interface InferenceEngine {
-    val state: Flow<InferenceState>
+    val state: StateFlow<InferenceState>
 
     suspend fun initialize(config: EngineConfig)
 

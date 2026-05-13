@@ -8,6 +8,7 @@ import com.companion.chat.data.memory.MemoryRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,7 +37,7 @@ class MemoryViewModel(
     private var allMemories: List<Memory> = emptyList()
 
     init {
-        loadMemories()
+        observeMemories()
     }
 
     fun loadMemories() {
@@ -88,6 +89,15 @@ class MemoryViewModel(
         }
     }
 
+    private fun observeMemories() {
+        workerScope.launch {
+            memoryRepository.observeAllMemories().collectLatest { memories ->
+                allMemories = memories
+                publishMemories(isLoading = false)
+            }
+        }
+    }
+
     private suspend fun refreshMemories() {
         allMemories = memoryRepository.getAllMemories()
         publishMemories(isLoading = false)
@@ -97,6 +107,9 @@ class MemoryViewModel(
         val filter = _uiState.value.filter
         val visibleMemories = when (filter) {
             MemoryFilter.ALL -> allMemories
+            MemoryFilter.RELATION -> allMemories.filter {
+                it.category == "relation" || it.category == "relationship"
+            }
             else -> allMemories.filter { it.category == filter.category }
         }
         _uiState.update {

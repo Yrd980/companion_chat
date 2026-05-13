@@ -103,3 +103,132 @@
 - 已新增 `docs/plans/2026-05-13-stage4-self-evolution-plan.md`
 - 阶段四范围确定为：Engine-B 管理、触发调度、偏好总结 JSON 解析、`user_preferences` 合并、confirmed 偏好 prompt 注入、设置页“自动学习偏好”开关。
 - 当前判断：阶段三分支从测试、编译和真机重装证据看已具备合并检查点条件，但工作区仍有未提交改动，需先整理提交后再合并。
+- 2026-05-13 阶段四第一版代码主链路已完成：
+- 已在 `ContextConfigRepository` 增加 `autoPreferenceLearningEnabled` 开关读写，并在 `SettingsScreen` 增加“自动学习偏好”开关项。
+- 已新增 `ExtractedPreference`、`PreferenceSummaryPromptBuilder`、`PreferenceSummaryParser`、`PreferenceRepository`、`SecondEngineManager`。
+- `ChatViewModel` 已接入 confirmed 偏好 prompt 注入、3 分钟静置触发、切换会话触发、应用进后台触发、发送新消息时取消 Engine-B。
+- `MainActivity` 已接入应用级 `ON_STOP` 生命周期监听，用于触发当前会话的后台偏好总结检查。
+- 当前阶段四仍保持阶段三规则提取链路不变：
+- “记住我叫小明”这类规则提取仍写入 `memories`，不走 `user_preferences`。
+- 关闭“自动学习偏好”后仅阻止阶段四后台总结触发，不影响阶段三记忆提取与已有 confirmed 偏好注入。
+- 2026-05-13 阶段四本地验证通过：
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.context.ContextConfigRepositoryTest"` 通过。
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.preferences.PreferenceSummaryPromptBuilderTest" --tests "com.companion.chat.data.preferences.PreferenceSummaryParserTest"` 通过。
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.preferences.PreferenceRepositoryTest"` 通过。
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.preferences.SecondEngineManagerTest"` 通过。
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.context.PromptAssemblerTest" --tests "com.companion.chat.data.context.DefaultContextManagerTest"` 通过。
+- `:app:testDebugUnitTest` 全量通过。
+- `:app:assembleDebug` 通过。
+- 当前待完成项：
+- 还未做阶段四真机联调，下一步需按“卸载旧 app -> 安装新 app -> 推送模型”完成设备侧验收。
+- 真机阶段四验收需要人工配合观察开关行为、等待静置触发和检查回答是否体现 confirmed 偏好注入。
+- 2026-05-13 阶段四第一轮真机联调结果：
+- 已按“编译成功 -> 卸载旧 app -> 安装新 app -> 推送模型”完成重装，第二次启动后日志确认模型文件存在且 `engine.initialize` 返回 `Ready`。
+- 真机日志确认阶段四后台触发链路正常：开启“自动学习偏好”后，`应用进入后台` 可触发 `阶段四总结完成`。
+- 关闭开关时未再出现阶段四总结执行日志；开启开关后恢复触发，说明开关控制行为基本符合预期。
+- 第一轮真机问题已定位：`阶段四总结完成` 已出现，但两轮实际结果均为 `extractedCount=0`，问题不在触发层，而在偏好总结输出格式或解析层。
+- 2026-05-13 阶段四提取层修复已完成：
+- `PreferenceSummaryPromptBuilder` 已改为更严格的“只输出 JSON 数组、不要解释和 Markdown 代码块”提示词，并补充示例输出。
+- `PreferenceSummaryParser` 已增强为可解析带前后说明、Markdown 代码块包裹的 JSON，并兼容中文字段名与类别别名。
+- `ChatViewModel` 已补充阶段四原始输出预览日志，便于后续真机直接判断是模型输出问题还是 parser 问题。
+- 本轮定向验证结果：
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.preferences.PreferenceSummaryPromptBuilderTest" --tests "com.companion.chat.data.preferences.PreferenceSummaryParserTest"` 通过。
+- `:app:assembleDebug` 通过。
+- 当前下一步：
+- 重新安装新包并推送模型后，需再做一轮阶段四真机复测，重点看 `阶段四原始输出` 与 `extractedCount` 是否大于 0。
+- 2026-05-13 阶段四提取层修复复测通过：
+- 已重新执行“卸载旧 app -> 安装新 app -> 推送模型 -> 重启应用”流程。
+- 真机日志确认模型文件最终大小正确，第二次启动后 `engine.initialize` 返回 `Ready`。
+- 本轮人工复测输入“以后请尽量简洁回答 / 我喜欢游戏和科幻 / 你可以叫我老王 / 我一般晚上聊天比较多”后，应用进入后台成功触发阶段四总结。
+- `viewmodel_log.txt` 已记录阶段四原始输出预览，输出为合法 JSON 数组，包含 `style`、`interest`、`name`、`habit` 4 类偏好。
+- 本轮关键结果：`阶段四总结完成: reason=应用进入后台, extractedCount=4`，说明“总结 prompt -> Engine-B 输出 -> parser 解析 -> 结构化提取”链路已打通。
+- 当前剩余待验项：
+- `PreferenceRepository` 现策略首次写入 `confidence=1`，confirmed 偏好注入要求 `confidence>=3`，因此若要继续做 prompt 注入真机验收，还需重复相同偏好至少 3 次或人工注入高置信度数据。
+- 2026-05-13 已完成“模型统一抽取 memories + user_preferences”第一版开发：
+- 阶段四后台链路不再只做偏好总结，已改为一次模型调用统一输出 `memories` 与 `user_preferences` 两个数组。
+- 新增 `UnifiedExtractionPromptBuilder` 与 `UnifiedExtractionParser`，要求模型严格输出 JSON 对象，并同时解析两类结果。
+- `memories.category` 已固定接入 `fact / preference / event / relation / time / other`。
+- `user_preferences.category` 继续保留 `name / style / interest / habit / other`。
+- `MemoryRepository` 已新增模型抽取写入入口与精确去重，避免阶段四重复触发时同一记忆反复插入。
+- `ChatViewModel` 已改为：当“自动学习偏好”开启时，主记忆提取走后台模型统一抽取；若模型未产出记忆、失败、超时或取消，则回退到规则提取兜底。
+- 当前规则提取器未删除，但已从主链路退化为兜底链路；关闭“自动学习偏好”时，发送消息仍沿用规则提取，避免已有记忆功能失效。
+- 记忆 UI 与 prompt 展示已同步扩展新分类，新增 `relation / time / other`，并兼容旧数据中的 `relationship`。
+- 本轮本地验证结果：
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.preferences.UnifiedExtractionPromptBuilderTest" --tests "com.companion.chat.data.preferences.UnifiedExtractionParserTest" --tests "com.companion.chat.data.memory.MemoryRepositoryWriteTest" --tests "com.companion.chat.data.memory.MemoryPromptBuilderTest" --tests "com.companion.chat.ui.memory.MemoryViewModelTest"` 通过。
+- `:app:assembleDebug` 通过。
+- 当前下一步：
+- 需要重新真机安装并推送模型后，验证一次后台触发是否能同时写入 memories 和 user_preferences，并检查记忆页是否能看到新增分类数据。
+- 2026-05-13 记忆页 Flow 刷新链路修复已完成：
+- `MemoryDao` 新增 `observeAll(): Flow<List<Memory>>`，`MemoryRepository` 新增 `observeAllMemories()`。
+- `MemoryViewModel` 已从一次性 `loadMemories()` 初始化改为启动即订阅 `memories` 表变化；页面停留期间如后台稍后写入记忆，UI 应可自动刷新。
+- 本轮为适配 DAO 新接口，已补齐 `MemoryViewModelTest`、`MemoryLifecycleManagerTest`、`MemoryRepositoryPersistentTest`、`MemoryRepositoryWriteTest`、`MemoryRetrieverTest` 中假 DAO 的 `observeAll()` 实现。
+- 本轮本地验证结果：
+- `:app:assembleDebug` 通过。
+- `:app:testDebugUnitTest --tests com.companion.chat.ui.memory.MemoryViewModelTest --tests com.companion.chat.data.memory.MemoryLifecycleManagerTest --tests com.companion.chat.data.memory.MemoryRepositoryPersistentTest --tests com.companion.chat.data.memory.MemoryRepositoryWriteTest --tests com.companion.chat.data.memory.MemoryRetrieverTest` 通过。
+- 2026-05-13 已完成本轮真机重装与模型校验：
+- 已执行“卸载旧 app -> 安装新 app -> 启动一次建目录 -> 推送模型 -> 强制停止并重启应用”完整流程。
+- `viewmodel_log.txt` 确认第二次启动后模型文件存在且大小正确：`2588147712 bytes`。
+- `viewmodel_log.txt` 确认本轮最终初始化结果为 `engine.initialize 返回, state = Ready`。
+- 当前待复测项：
+- 需要再次人工验证“打开记忆页后，再让应用进后台触发阶段四总结”时，记忆页是否会在页面停留期间自动出现新记忆。
+- 2026-05-13 已完成“弱记忆补强”第一轮：
+- `UnifiedExtractionPromptBuilder` 已强化提示词，明确要求优先提取兴趣、喜欢/不喜欢、习惯、时间规律、性格特征、自我描述、禁忌、回答偏好，并要求一句话中的多条稳定信息尽量拆开提取。
+- `PreferenceMemoryDeriver` 已补强派生规则：
+- `interest` 现可正确保留负向表达，如“不喜欢 / 讨厌 / 不爱”。
+- `habit` 对“我一般怎样 / 我通常怎样”这类非时间表达不再简单误判为 `time`，实际时间规律仍优先归到 `time`。
+- `other` 对“比较慢热 / 有点内向”这类自我特征会稳定补成用户视角记忆。
+- `RuleBasedMemoryExtractor` 已补强兜底覆盖：
+- 新增对 `我不喜欢...`、`我一般...`、`我通常...`、`我经常...`、`我比较...`、`我是个...的人`、`以后请...`、`希望你...` 的识别。
+- 规则兜底已支持一句消息拆分多子句后提取多条记忆，不再固定 `.take(1)` 只保留一条。
+- 本轮新增/更新测试覆盖：
+- `UnifiedExtractionPromptBuilderTest`
+- `PreferenceMemoryDeriverTest`
+- `RuleBasedMemoryExtractorTest`
+- 本轮本地验证结果：
+- `:app:testDebugUnitTest --tests com.companion.chat.data.preferences.UnifiedExtractionPromptBuilderTest --tests com.companion.chat.data.preferences.PreferenceMemoryDeriverTest --tests com.companion.chat.data.memory.RuleBasedMemoryExtractorTest` 通过。
+- `:app:assembleDebug` 通过。
+- 当前下一步：
+- 重新真机复测以下高价值表达是否能稳定进入记忆页：
+- `我喜欢科幻和游戏`
+- `我不喜欢太官方的回答`
+- `我一般晚上十点后聊天`
+- `我比较慢热`
+- `以后请尽量直接一点，多举例`
+- 2026-05-13 已完成弱记忆补强版真机重装：
+- 已重新执行“卸载旧 app -> 安装新 app -> 启动一次建目录 -> 推送模型 -> 强制停止并重启应用”。
+- 安装后首次启动仍先报模型不存在，推送模型并第二次启动后恢复正常，属于当前已知安装后首次读模型竞态。
+- `viewmodel_log.txt` 确认第二次启动后模型文件存在且大小正确：`2588147712 bytes`。
+- `viewmodel_log.txt` 确认本轮增强包最终初始化结果为 `engine.initialize 返回, state = Ready`。
+- 2026-05-13 已完成阶段四收尾第一轮实现：
+- 后台总结稳定性已调整为“超时/取消先自动重试一次，只有二次超时或取消后才走规则兜底”，不再首次超时就立即写入 1 条兜底记忆。
+- `SecondEngineManager` 在 `ChatViewModel` 中的阶段四 summary timeout 已从默认 60 秒提升到 90 秒，以降低首轮后台总结超时概率。
+- `UnifiedExtractionParser` 已增加结构纠偏：当模型把偏好信息误输出到 `memories` 区时，会自动恢复出对应的 `user_preferences`，覆盖 `style / interest / habit / other` 等场景。
+- 阶段四总结完成后已新增偏好合并日志，记录 `merged` 与 `confirmed` 数量，便于后续真机确认 `user_preferences -> confirmed -> prompt 注入` 闭环。
+- 本轮新增/更新测试覆盖：
+- `UnifiedExtractionParserTest`
+- `PreferenceRepositoryTest`
+- `SecondEngineManagerTest`
+- `PromptAssemblerTest`
+- 本轮本地验证结果：
+- `:app:testDebugUnitTest --tests com.companion.chat.data.preferences.UnifiedExtractionParserTest --tests com.companion.chat.data.preferences.PreferenceRepositoryTest --tests com.companion.chat.data.preferences.SecondEngineManagerTest --tests com.companion.chat.data.context.PromptAssemblerTest` 通过。
+- `:app:assembleDebug` 通过。
+- 当前下一步：
+- 重装真机后复测以下阶段四收尾目标：
+- 首次后台触发不再先出现“只落 1 条兜底再变多条”的明显分裂结果。
+- 同一轮总结日志中 `preferenceCount` 不再稳定为 0。
+- 重复表达相同偏好至少 3 次后，发送前日志可看到 `confirmed 偏好注入: count>0`，并观察回答是否体现该偏好。
+- 2026-05-13 已完成阶段四收尾版真机重装：
+- 已重新执行“卸载旧 app -> 安装新 app -> 启动一次建目录 -> 推送模型 -> 强制停止并重启应用”。
+- 安装后首次启动仍先报模型不存在，推送模型并第二次启动后恢复正常，属于当前已知安装后首次读模型竞态。
+- `viewmodel_log.txt` 确认第二次启动后模型文件存在且大小正确：`2588147712 bytes`。
+- `viewmodel_log.txt` 确认本轮阶段四收尾版最终初始化结果为 `engine.initialize 返回, state = Ready`。
+- 2026-05-13 新一轮真机复测结果：
+- 用户最初反馈“没有任何记忆”，但继续等待后记忆最终出现，说明当前不是“写库失败”或“UI 永远不刷新”。
+- 本轮 `viewmodel_log.txt` 关键证据：
+- `21:31:16` 出现 `阶段四取消: reason=应用进入后台, retry=1`
+- `21:31:19` 出现 `阶段四跳过: 前台仍在生成, reason=应用进入后台-重试`
+- `21:32:53` 出现 `阶段四原始输出`
+- `21:32:53` 出现 `阶段四偏好合并完成: merged=7, confirmed=0`
+- `21:32:53` 出现 `阶段四总结完成: memoryCount=14, preferenceCount=7, extractedCount=21`
+- 结论：本轮阶段四已经能同时写入 `memories` 和 `user_preferences`，但后台总结完成时间仍偏晚，导致用户会先误判为“没有任何记忆”。
+- 当前剩余核心问题已从“写不进去/刷不出来”收缩为“阶段四完成时延过长，需要继续优化用户可感知时序”。

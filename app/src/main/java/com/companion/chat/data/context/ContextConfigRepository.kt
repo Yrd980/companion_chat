@@ -1,12 +1,17 @@
 package com.companion.chat.data.context
 
 import android.content.Context
+import android.content.SharedPreferences
 
-class ContextConfigRepository(context: Context) {
+class ContextConfigRepository(
+    private val sharedPreferences: SharedPreferences
+) {
 
-    private val sharedPreferences = context.applicationContext.getSharedPreferences(
-        PREFS_NAME,
-        Context.MODE_PRIVATE
+    constructor(context: Context) : this(
+        context.applicationContext.getSharedPreferences(
+            PREFS_NAME,
+            Context.MODE_PRIVATE
+        )
     )
 
     fun getSettings(): ContextSettings {
@@ -43,6 +48,19 @@ class ContextConfigRepository(context: Context) {
         )
     }
 
+    fun getAutoPreferenceLearningEnabled(): Boolean {
+        return sharedPreferences.getBoolean(
+            KEY_AUTO_PREFERENCE_LEARNING_ENABLED,
+            DEFAULT_AUTO_PREFERENCE_LEARNING_ENABLED
+        )
+    }
+
+    fun updateAutoPreferenceLearningEnabled(enabled: Boolean) {
+        sharedPreferences.edit()
+            .putBoolean(KEY_AUTO_PREFERENCE_LEARNING_ENABLED, enabled)
+            .apply()
+    }
+
     companion object {
         const val MIN_RETAINED_ROUNDS = 3
         const val MAX_RETAINED_ROUNDS = 20
@@ -51,6 +69,8 @@ class ContextConfigRepository(context: Context) {
         private const val KEY_COMPRESSION_BUFFER = "compression_buffer"
         private const val KEY_SUMMARY_MAX_CHARS = "summary_max_chars"
         private const val KEY_SUMMARY_TIMEOUT_MILLIS = "summary_timeout_millis"
+        private const val KEY_AUTO_PREFERENCE_LEARNING_ENABLED = "auto_preference_learning_enabled"
+        private const val DEFAULT_AUTO_PREFERENCE_LEARNING_ENABLED = true
 
         val DEFAULT_SETTINGS = ContextSettings()
     }

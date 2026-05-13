@@ -9,6 +9,7 @@ import androidx.room.RawQuery
 import androidx.room.Update
 import androidx.sqlite.db.SupportSQLiteQuery
 import com.companion.chat.data.local.entity.Memory
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MemoryDao {
@@ -28,6 +29,9 @@ interface MemoryDao {
     @Query("SELECT * FROM memories ORDER BY updatedAt DESC")
     suspend fun getAll(): List<Memory>
 
+    @Query("SELECT * FROM memories ORDER BY updatedAt DESC")
+    fun observeAll(): Flow<List<Memory>>
+
     @Query("SELECT * FROM memories WHERE layer = :layer ORDER BY updatedAt DESC")
     suspend fun getByLayer(layer: String): List<Memory>
 
@@ -36,6 +40,15 @@ interface MemoryDao {
 
     @Query("SELECT * FROM memories WHERE category = :category ORDER BY updatedAt DESC")
     suspend fun getByCategory(category: String): List<Memory>
+
+    @Query(
+        """
+        SELECT * FROM memories
+        WHERE category = :category AND content = :content
+        LIMIT 1
+        """
+    )
+    suspend fun findExactMatch(category: String, content: String): Memory?
 
     @RawQuery(observedEntities = [Memory::class])
     suspend fun searchByFTS(query: SupportSQLiteQuery): List<Memory>

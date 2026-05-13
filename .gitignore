@@ -28,5 +28,11 @@ Thumbs.db
 # Logs
 *.log
 
+# Local temp database
+tmp_db/
+*.db
+*.db-shm
+*.db-wal
+
 # Local worktrees
 .worktrees/
