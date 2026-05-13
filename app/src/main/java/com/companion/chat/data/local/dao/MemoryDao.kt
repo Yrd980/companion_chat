@@ -16,6 +16,9 @@ interface MemoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(memory: Memory): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(memories: List<Memory>): List<Long>
+
     @Update
     suspend fun update(memory: Memory)
 
@@ -27,6 +30,9 @@ interface MemoryDao {
 
     @Query("SELECT * FROM memories WHERE layer = :layer ORDER BY updatedAt DESC")
     suspend fun getByLayer(layer: String): List<Memory>
+
+    @Query("SELECT * FROM memories WHERE layer = 'long_term' ORDER BY updatedAt DESC")
+    suspend fun getPersistentMemories(): List<Memory>
 
     @Query("SELECT * FROM memories WHERE category = :category ORDER BY updatedAt DESC")
     suspend fun getByCategory(category: String): List<Memory>

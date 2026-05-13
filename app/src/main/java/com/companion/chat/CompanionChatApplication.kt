@@ -2,6 +2,9 @@ package com.companion.chat
 
 import android.app.Application
 import android.content.Context
+import com.companion.chat.data.local.CompanionDatabase
+import com.companion.chat.data.memory.MemoryLifecycleManager
+import com.companion.chat.data.memory.MemoryRepository
 import com.companion.chat.data.repository.ChatSessionRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,11 +23,17 @@ class CompanionChatApplication : Application() {
         logToFile("Application.onCreate")
 
         val sessionRepository = ChatSessionRepository(this)
+        val memoryRepository = MemoryRepository(
+            memoryDao = CompanionDatabase.getInstance(this).memoryDao()
+        )
+        val memoryLifecycleManager = MemoryLifecycleManager(memoryRepository)
         applicationScope.launch {
             runCatching {
                 logToFile("开始 ensureInitialized")
                 sessionRepository.ensureInitialized()
                 logToFile("ensureInitialized 完成")
+                memoryLifecycleManager.runStartupMaintenance()
+                logToFile("记忆生命周期维护完成")
             }.onFailure {
                 logToFile("ensureInitialized 失败: ${it.javaClass.simpleName}: ${it.message}")
             }

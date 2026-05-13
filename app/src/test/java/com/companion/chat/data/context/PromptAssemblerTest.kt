@@ -63,11 +63,80 @@ class PromptAssemblerTest {
         val prompt = PromptAssembler().assemble(
             baseSystemPrompt = "基础提示词",
             userPreferences = "",
+            historySummary = "历史摘要"
+        )
+
+        assertFalse(prompt.contains("最近几轮对话片段"))
+    }
+
+    @Test
+    fun `记忆段落接在偏好后面`() {
+        val prompt = PromptAssembler().assemble(
+            baseSystemPrompt = "基础提示词",
+            userPreferences = "用户偏好",
+            memoryPrompt = "从记忆中检索到的与当前对话相关的信息：\n以下内容均为用户本人的记忆，不代表助手自身。\n- [事实] 用户叫小明",
             historySummary = "历史摘要",
             recentConversationSnippet = ""
         )
 
-        assertFalse(prompt.contains("最近几轮对话片段"))
+        assertEquals(
+            "基础提示词\n\n用户偏好\n\n记忆解释规则：\n- 以下记忆都描述用户本人的信息、关系、偏好或经历，不是助手自己的信息。\n- 除非用户明确要求角色扮演、改写文案或切换叙述视角，记忆中的“我”“我的”默认都指用户，“你”“你的”默认都指助手或模型自己。\n- 回答涉及这些记忆时，应使用“你”或“用户”的视角理解和表达。\n\n从记忆中检索到的与当前对话相关的信息：\n以下内容均为用户本人的记忆，不代表助手自身。\n- [事实] 用户叫小明\n\n之前对话的摘要：\n历史摘要",
+            prompt
+        )
+    }
+
+    @Test
+    fun `长期记忆段排在动态记忆段前面`() {
+        val prompt = PromptAssembler().assemble(
+            baseSystemPrompt = "基础提示词",
+            userPreferences = "用户偏好",
+            persistentMemoryPrompt = "长期记忆中的关键信息：\n以下内容均为用户本人的记忆，不代表助手自身。\n- [关系] 小王是用户同事",
+            memoryPrompt = "从记忆中检索到的与当前对话相关的信息：\n以下内容均为用户本人的记忆，不代表助手自身。\n- [事实] 用户正在做 Android 项目",
+            historySummary = "历史摘要"
+        )
+
+        assertEquals(
+            "基础提示词\n\n用户偏好\n\n记忆解释规则：\n- 以下记忆都描述用户本人的信息、关系、偏好或经历，不是助手自己的信息。\n- 除非用户明确要求角色扮演、改写文案或切换叙述视角，记忆中的“我”“我的”默认都指用户，“你”“你的”默认都指助手或模型自己。\n- 回答涉及这些记忆时，应使用“你”或“用户”的视角理解和表达。\n\n长期记忆中的关键信息：\n以下内容均为用户本人的记忆，不代表助手自身。\n- [关系] 小王是用户同事\n\n从记忆中检索到的与当前对话相关的信息：\n以下内容均为用户本人的记忆，不代表助手自身。\n- [事实] 用户正在做 Android 项目\n\n之前对话的摘要：\n历史摘要",
+            prompt
+        )
+    }
+
+    @Test
+    fun `无动态记忆时长期记忆段可单独存在`() {
+        val prompt = PromptAssembler().assemble(
+            baseSystemPrompt = "基础提示词",
+            userPreferences = "",
+            persistentMemoryPrompt = "长期记忆中的关键信息：\n以下内容均为用户本人的记忆，不代表助手自身。\n- [事实] 用户角色是项目负责人",
+            historySummary = ""
+        )
+
+        assertEquals(
+            "基础提示词\n\n记忆解释规则：\n- 以下记忆都描述用户本人的信息、关系、偏好或经历，不是助手自己的信息。\n- 除非用户明确要求角色扮演、改写文案或切换叙述视角，记忆中的“我”“我的”默认都指用户，“你”“你的”默认都指助手或模型自己。\n- 回答涉及这些记忆时，应使用“你”或“用户”的视角理解和表达。\n\n长期记忆中的关键信息：\n以下内容均为用户本人的记忆，不代表助手自身。\n- [事实] 用户角色是项目负责人",
+            prompt
+        )
+    }
+
+    @Test
+    fun `记忆解释规则明确第二人称归属`() {
+        val prompt = PromptAssembler().assemble(
+            baseSystemPrompt = "基础提示词",
+            userPreferences = "",
+            memoryPrompt = "从记忆中检索到的与当前对话相关的信息：\n以下内容均为用户本人的记忆，不代表助手自身。\n- [关系] 你是我的搭档",
+            historySummary = ""
+        )
+
+        assertTrue(prompt.contains("记忆中的“我”“我的”默认都指用户，“你”“你的”默认都指助手或模型自己。"))
+    }
+
+    @Test
+    fun `无记忆段时不插入记忆解释规则`() {
+        val prompt = PromptAssembler().assemble(
+            baseSystemPrompt = "基础提示词",
+            userPreferences = "用户偏好",
+            historySummary = ""
+        )
+
+        assertFalse(prompt.contains("记忆解释规则"))
     }
 
     @Test

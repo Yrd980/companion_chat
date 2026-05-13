@@ -113,6 +113,7 @@ fun MainApp() {
             composable(Screen.SETTINGS.route) {
                 SettingsScreen(
                     onNavigateToCharacter = { navController.navigate(SettingsRoutes.CHARACTER) },
+                    onNavigateToMemory = { navController.navigate(Screen.MEMORY.route) },
                     onNavigateToModel = { navController.navigate(SettingsRoutes.MODEL) },
                     onNavigateToVoice = { navController.navigate(SettingsRoutes.VOICE) },
                     onNavigateToLanguage = { navController.navigate(SettingsRoutes.LANGUAGE) },

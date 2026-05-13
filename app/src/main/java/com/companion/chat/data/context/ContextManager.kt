@@ -10,6 +10,8 @@ interface ContextManager {
         messages: List<ChatMessage>,
         systemPrompt: String,
         userPreferences: String,
+        persistentMemoryPrompt: String = "",
+        memoryPrompt: String = "",
         settings: ContextSettings
     ): ContextWindow
 
