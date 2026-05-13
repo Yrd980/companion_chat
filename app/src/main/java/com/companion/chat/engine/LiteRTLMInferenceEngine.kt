@@ -17,6 +17,7 @@ import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Engine
+import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.ai.edge.litertlm.EngineConfig as LiteRTConfig
 import kotlinx.coroutines.CancellationException
@@ -27,6 +28,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -47,6 +50,107 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
     private var engine: Engine? = null
     private var conversation: Conversation? = null
     private var currentConfig: EngineConfig? = null
+    private val rebuildMutex = Mutex()
+
+    private fun createConversationConfig(
+        systemPrompt: String,
+        initialMessages: List<Message> = emptyList()
+    ): ConversationConfig {
+        return ConversationConfig(
+            systemInstruction = Contents.of(systemPrompt),
+            initialMessages = initialMessages,
+            samplerConfig = SamplerConfig(
+                topK = 40,
+                topP = 0.95,
+                temperature = 0.7
+            )
+        )
+    }
+
+    private fun toInitialMessage(message: ChatMessage): Message? {
+        return when (message.role) {
+            MessageRole.USER -> {
+                val contentList = mutableListOf<Content>()
+                message.images.mapNotNull(::uriToImageBytes).forEach { bytes ->
+                    contentList += Content.ImageBytes(bytes)
+                }
+                if (message.content.isNotBlank()) {
+                    contentList += Content.Text(message.content)
+                }
+                if (contentList.isEmpty()) {
+                    null
+                } else {
+                    Message.user(Contents.of(contentList))
+                }
+            }
+            MessageRole.ASSISTANT -> {
+                if (message.content.isBlank()) {
+                    null
+                } else {
+                    Message.model(message.content)
+                }
+            }
+            MessageRole.SYSTEM -> {
+                if (message.content.isBlank()) {
+                    null
+                } else {
+                    Message.system(message.content)
+                }
+            }
+        }
+    }
+
+    private suspend fun replaceConversation(
+        systemPrompt: String,
+        initialMessages: List<Message>,
+        reasonLabel: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        rebuildMutex.withLock {
+            val eng = engine
+            val previousConfig = currentConfig
+            if (eng == null || previousConfig == null) {
+                logToFile("$reasonLabel 失败: 引擎未初始化或当前配置缺失")
+                return@withLock false
+            }
+
+            try {
+                conversation?.close()
+                conversation = null
+            } catch (closeError: Exception) {
+                logToFile("$reasonLabel 关闭旧 Conversation 失败: ${closeError.message}")
+            }
+
+            return@withLock try {
+                val newConversation = eng.createConversation(
+                    createConversationConfig(
+                        systemPrompt = systemPrompt,
+                        initialMessages = initialMessages
+                    )
+                )
+                conversation = newConversation
+                currentConfig = previousConfig.copy(systemPrompt = systemPrompt)
+                true
+            } catch (createError: Exception) {
+                logToFile("$reasonLabel 创建新 Conversation 失败: ${createError.javaClass.simpleName}: ${createError.message}")
+
+                try {
+                    val fallbackConversation = eng.createConversation(
+                        createConversationConfig(
+                            systemPrompt = previousConfig.systemPrompt
+                        )
+                    )
+                    conversation = fallbackConversation
+                    currentConfig = previousConfig
+                    logToFile("$reasonLabel 降级恢复成功: 已恢复到空历史 Conversation")
+                } catch (fallbackError: Exception) {
+                    conversation = null
+                    logToFile("$reasonLabel 降级恢复失败: ${fallbackError.javaClass.simpleName}: ${fallbackError.message}")
+                }
+
+                false
+            }
+        }
+    }
 
     private fun logToFile(msg: String) {
         try {
@@ -207,14 +311,7 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
             }
             logToFile("系统提示词: ${systemPrompt.take(50)}...")
 
-            val convConfig = ConversationConfig(
-                systemInstruction = Contents.of(systemPrompt),
-                samplerConfig = SamplerConfig(
-                    topK = 40,
-                    topP = 0.95,
-                    temperature = 0.7
-                )
-            )
+            val convConfig = createConversationConfig(systemPrompt)
             logToFile("ConversationConfig 创建成功")
 
             logToFile("创建 Conversation...")
@@ -308,6 +405,70 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
         } catch (e: Exception) {
             logToFile("取消推理出错: ${e.message}")
         }
+    }
+
+    override fun getCurrentConfig(): EngineConfig? {
+        return currentConfig
+    }
+
+    override suspend fun rebuildConversation(systemPrompt: String): Boolean = withContext(Dispatchers.IO) {
+        logToFile("开始重建 Conversation")
+        logToFile("新 system prompt: ${systemPrompt.take(80)}")
+        val success = replaceConversation(
+            systemPrompt = systemPrompt,
+            initialMessages = emptyList(),
+            reasonLabel = "Conversation 重建"
+        )
+        if (success) {
+            logToFile("Conversation 重建完成")
+        }
+        success
+    }
+
+    override suspend fun rebuildConversationWithFallbackContext(systemPrompt: String): Boolean = withContext(Dispatchers.IO) {
+        logToFile("开始降级摘要注入重建")
+        logToFile("降级 system prompt: ${systemPrompt.take(80)}")
+        val success = replaceConversation(
+            systemPrompt = systemPrompt,
+            initialMessages = emptyList(),
+            reasonLabel = "降级摘要注入重建"
+        )
+        if (success) {
+            logToFile("降级摘要注入重建完成")
+        }
+        success
+    }
+
+    override suspend fun replayMessages(messages: List<ChatMessage>): Boolean = withContext(Dispatchers.IO) {
+        if (messages.isEmpty()) {
+            logToFile("最近消息回放跳过: 无需回放")
+            return@withContext true
+        }
+
+        val existingConfig = currentConfig
+        if (existingConfig == null) {
+            logToFile("最近消息回放失败: 引擎未初始化或配置缺失")
+            return@withContext false
+        }
+
+        val initialMessages = messages.mapNotNull(::toInitialMessage)
+        if (initialMessages.isEmpty()) {
+            logToFile("最近消息回放跳过: 转换后的初始消息为空")
+            return@withContext true
+        }
+
+        logToFile("开始最近消息回放实验: messageCount=${messages.size}")
+        val success = replaceConversation(
+            systemPrompt = existingConfig.systemPrompt,
+            initialMessages = initialMessages,
+            reasonLabel = "最近消息回放"
+        )
+        if (success) {
+            logToFile("最近消息回放成功: initialMessages=${initialMessages.size}")
+        } else {
+            logToFile("最近消息回放失败，降级为摘要注入")
+        }
+        success
     }
 
     override fun release() {

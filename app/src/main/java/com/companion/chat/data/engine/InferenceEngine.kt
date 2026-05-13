@@ -28,6 +28,14 @@ interface InferenceEngine {
 
     suspend fun initialize(config: EngineConfig)
 
+    fun getCurrentConfig(): EngineConfig?
+
+    suspend fun rebuildConversation(systemPrompt: String): Boolean
+
+    suspend fun rebuildConversationWithFallbackContext(systemPrompt: String): Boolean
+
+    suspend fun replayMessages(messages: List<ChatMessage>): Boolean
+
     fun sendMessageStream(
         messages: List<ChatMessage>
     ): Flow<String>

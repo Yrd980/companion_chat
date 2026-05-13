@@ -184,26 +184,42 @@ fun ChatScreen(
             }
 
             // 消息列表
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                state = listState,
-                contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(
-                    items = uiState.messages,
-                    key = { it.id }
-                ) { message ->
-                    MessageBubble(message = message)
+            if (uiState.currentSessionId.isBlank() && uiState.messages.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "还没有对话，点击左上角菜单新建会话，或直接输入第一条消息开始。",
+                        modifier = Modifier.padding(horizontal = 24.dp),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    state = listState,
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(
+                        items = uiState.messages,
+                        key = { it.id }
+                    ) { message ->
+                        MessageBubble(message = message)
+                    }
 
-                if (uiState.isGenerating) {
-                    item {
-                        TypingIndicator(
-                            modifier = Modifier.padding(start = 52.dp)
-                        )
+                    if (uiState.isGenerating) {
+                        item {
+                            TypingIndicator(
+                                modifier = Modifier.padding(start = 52.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -242,6 +258,7 @@ fun ChatScreen(
             editingSessionId = uiState.editingSessionId,
             editingTitle = uiState.editingTitle,
             onStartEditing = viewModel::startEditingTitle,
+            onDeleteSession = viewModel::deleteSession,
             onEditingTitleChange = viewModel::updateEditingTitle,
             onConfirmEditing = viewModel::confirmEditingTitle,
             onCancelEditing = viewModel::cancelEditingTitle

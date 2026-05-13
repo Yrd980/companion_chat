@@ -5,6 +5,11 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.companion.chat.data.context.ContextConfigRepository
+import com.companion.chat.data.context.ContextManager
+import com.companion.chat.data.context.ContextSettings
+import com.companion.chat.data.context.DefaultContextManager
+import com.companion.chat.data.context.PromptAssembler
 import com.companion.chat.data.engine.BackendType
 import com.companion.chat.data.engine.EngineConfig
 import com.companion.chat.data.engine.InferenceState
@@ -12,7 +17,12 @@ import com.companion.chat.data.engine.VoiceInputEvent
 import com.companion.chat.data.engine.VoiceOutputState
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.ConversationSession
+import com.companion.chat.data.model.DEFAULT_SESSION_TITLE
+import com.companion.chat.data.model.DEFAULT_WELCOME_MESSAGE
 import com.companion.chat.data.model.MessageRole
+import com.companion.chat.data.model.createDefaultSession
+import com.companion.chat.data.model.createWelcomeMessage
+import com.companion.chat.data.repository.ChatSessionRepository
 import com.companion.chat.engine.AndroidVoiceInputEngine
 import com.companion.chat.engine.AndroidVoiceOutputEngine
 import com.companion.chat.engine.LiteRTLMInferenceEngine
@@ -23,9 +33,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -59,52 +66,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val inferenceEngine = LiteRTLMInferenceEngine(application)
     val voiceInputEngine = AndroidVoiceInputEngine(application)
     val voiceOutputEngine = AndroidVoiceOutputEngine(application)
+    private val contextConfigRepository = ContextConfigRepository(application)
+    private val contextManager: ContextManager = DefaultContextManager()
+    private val promptAssembler = PromptAssembler()
+    private val sessionRepository = ChatSessionRepository(application)
+    private var contextSettings: ContextSettings = ContextConfigRepository.DEFAULT_SETTINGS
 
     private var generateJob: Job? = null
     private var voiceCollectJob: Job? = null
-    private val sessionsFile: File
-        get() = File(getApplication<Application>().filesDir, "conversations.json")
 
     init {
         logToFile("=== ChatViewModel 创建 ===")
         collectInferenceState()
         collectVoiceEvents()
         collectVoiceOutputState()
-
-        loadSessions()
-        val existing = _uiState.value.sessions.firstOrNull()
-        if (existing != null) {
-            _uiState.update {
-                it.copy(
-                    messages = existing.messages.ifEmpty {
-                        listOf(welcomeMessage())
-                    },
-                    currentSessionId = existing.id
-                )
-            }
-        } else {
-            val defaultSession = ConversationSession(
-                title = "新对话",
-                messages = listOf(welcomeMessage())
-            )
-            _uiState.update {
-                it.copy(
-                    sessions = listOf(defaultSession),
-                    currentSessionId = defaultSession.id,
-                    messages = defaultSession.messages
-                )
-            }
-            saveSessions()
-        }
+        loadContextSettings()
+        loadSessionsFromStorage()
 
         logToFile("ChatViewModel 初始化完成，开始自动初始化引擎")
         initializeEngine()
     }
-
-    private fun welcomeMessage() = ChatMessage(
-        role = MessageRole.ASSISTANT,
-        content = "你好！我是你的 AI 伙伴。点击下方麦克风按钮开始语音对话，或直接输入文字。"
-    )
 
     private fun logToFile(msg: String) {
         try {
@@ -124,6 +105,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update { it.copy(diagnosticLog = it.diagnosticLog + "LOG_INIT_ERROR: ${e.message}\n") }
             } catch (_: Exception) {}
         }
+    }
+
+    private fun loadContextSettings() {
+        contextSettings = contextConfigRepository.getSettings()
+        logToFile(
+            "上下文设置已加载: retainedRounds=${contextSettings.retainedRounds}, " +
+                "compressionBuffer=${contextSettings.compressionBuffer}"
+        )
     }
 
     private fun collectInferenceState() {
@@ -195,9 +184,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendMessage() {
-        val state = _uiState.value
+        var state = _uiState.value
         if (state.inputText.isBlank() && state.selectedImages.isEmpty()) return
         if (state.isGenerating) return
+
+        if (state.currentSessionId.isBlank()) {
+            val newSession = ConversationSession(messages = emptyList())
+            _uiState.update {
+                it.copy(
+                    sessions = listOf(newSession) + it.sessions,
+                    currentSessionId = newSession.id,
+                    messages = emptyList()
+                )
+            }
+            persistSession(newSession)
+            state = _uiState.value
+        }
 
         val userMessage = ChatMessage(
             role = MessageRole.USER,
@@ -219,6 +221,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 isGenerating = true
             )
         }
+        saveCurrentSession()
 
         generateJob?.cancel()
         generateJob = viewModelScope.launch {
@@ -235,6 +238,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         try {
             val messages = _uiState.value.messages
+            prepareContextBeforeSend(messages)
             inferenceEngine.sendMessageStream(messages).collect { token ->
                 appendAssistantToken(token)
             }
@@ -243,6 +247,75 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } finally {
             finishStreaming()
         }
+    }
+
+    private suspend fun prepareContextBeforeSend(messages: List<ChatMessage>) {
+        val stableMessages = messages.filterNot { it.isStreaming }
+        contextSettings = contextConfigRepository.getSettings()
+
+        if (!contextManager.shouldCompress(stableMessages, contextSettings)) {
+            logToFile(
+                "发送前上下文检查: 未触发压缩, " +
+                    "messageCount=${stableMessages.size}, threshold=${contextSettings.compressionThreshold}"
+            )
+            return
+        }
+
+        val currentConfig = inferenceEngine.getCurrentConfig()
+        val baseSystemPrompt = currentConfig?.systemPrompt?.ifBlank {
+            "你是一个友善的AI助手，请用中文回答用户的问题。"
+        } ?: "你是一个友善的AI助手，请用中文回答用户的问题。"
+        val contextWindow = contextManager.buildContext(
+            messages = stableMessages,
+            systemPrompt = baseSystemPrompt,
+            userPreferences = "",
+            settings = contextSettings
+        )
+
+        logToFile(
+            "发送前上下文压缩: recentMessages=${contextWindow.recentMessages.size}, " +
+                "summaryEmpty=${contextWindow.historySummary.isBlank()}"
+        )
+
+        val rebuildSucceeded = inferenceEngine.rebuildConversation(contextWindow.systemPrompt)
+        if (!rebuildSucceeded) {
+            logToFile("发送前上下文重建失败，本轮继续沿用当前 Conversation")
+            return
+        }
+
+        val replaySucceeded = inferenceEngine.replayMessages(contextWindow.recentMessages)
+        if (replaySucceeded) {
+            logToFile("发送前上下文处理: 最近消息回放成功")
+        } else {
+            val fallbackPrompt = promptAssembler.assemble(
+                baseSystemPrompt = contextWindow.systemPrompt,
+                userPreferences = "",
+                historySummary = "",
+                recentConversationSnippet = buildRecentConversationSnippet(contextWindow.recentMessages)
+            )
+            val fallbackSucceeded = inferenceEngine.rebuildConversationWithFallbackContext(fallbackPrompt)
+            if (fallbackSucceeded) {
+                logToFile("发送前上下文处理: 最近消息回放失败，降级摘要注入成功")
+            } else {
+                logToFile("发送前上下文处理: 最近消息回放失败，降级摘要注入失败")
+            }
+        }
+    }
+
+    private fun buildRecentConversationSnippet(messages: List<ChatMessage>): String {
+        return messages.mapNotNull { message ->
+            val content = message.content.trim()
+            if (content.isBlank()) {
+                return@mapNotNull null
+            }
+
+            val roleLabel = when (message.role) {
+                MessageRole.USER -> "用户"
+                MessageRole.ASSISTANT -> "助手"
+                MessageRole.SYSTEM -> "系统"
+            }
+            "$roleLabel：${content.take(80)}"
+        }.joinToString(separator = "\n")
     }
 
     private fun appendAssistantToken(token: String) {
@@ -387,11 +460,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun createNewSession() {
-        saveCurrentSession()
-        val newSession = ConversationSession(
-            title = "新对话",
-            messages = listOf(welcomeMessage())
-        )
+        if (_uiState.value.currentSessionId.isNotBlank()) {
+            saveCurrentSession()
+        }
+        val newSession = createDefaultSession()
         _uiState.update {
             it.copy(
                 sessions = listOf(newSession) + it.sessions,
@@ -401,7 +473,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 sessionSearchQuery = ""
             )
         }
-        saveSessions()
+        persistSession(newSession)
     }
 
     fun setDateFilter(filter: DateFilter) {
@@ -420,7 +492,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun confirmEditingTitle() {
         val state = _uiState.value
         if (state.editingSessionId.isBlank()) return
-        val newTitle = state.editingTitle.trim().ifBlank { "新对话" }
+        val newTitle = state.editingTitle.trim().ifBlank { DEFAULT_SESSION_TITLE }
         val updatedSessions = state.sessions.map { session ->
             if (session.id == state.editingSessionId) {
                 session.copy(title = newTitle)
@@ -435,7 +507,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 editingTitle = ""
             )
         }
-        saveSessions()
+        updatedSessions.firstOrNull { it.id == state.editingSessionId }?.let(::persistSession)
     }
 
     fun cancelEditingTitle() {
@@ -453,7 +525,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update {
             it.copy(
                 currentSessionId = sessionId,
-                messages = session.messages.ifEmpty { listOf(welcomeMessage()) },
+                messages = session.messages,
                 showSessionDrawer = false,
                 sessionSearchQuery = "",
                 inputText = "",
@@ -462,83 +534,100 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun deleteSession(sessionId: String) {
+        val state = _uiState.value
+        val remainingSessions = state.sessions.filterNot { it.id == sessionId }
+        val nextSession = if (state.currentSessionId == sessionId) {
+            remainingSessions.firstOrNull()
+        } else {
+            state.sessions.firstOrNull { it.id == state.currentSessionId }
+        }
+
+        _uiState.update {
+            it.copy(
+                sessions = remainingSessions,
+                currentSessionId = nextSession?.id.orEmpty(),
+                messages = nextSession?.messages ?: emptyList(),
+                showSessionDrawer = false,
+                sessionSearchQuery = "",
+                editingSessionId = if (it.editingSessionId == sessionId) "" else it.editingSessionId,
+                editingTitle = if (it.editingSessionId == sessionId) "" else it.editingTitle
+            )
+        }
+
+        viewModelScope.launch {
+            try {
+                sessionRepository.deleteSession(sessionId)
+            } catch (e: Exception) {
+                logToFile("删除会话失败: ${e.message}")
+            }
+        }
+    }
+
     private fun saveCurrentSession() {
         val state = _uiState.value
         if (state.currentSessionId.isBlank()) return
-        val filteredMessages = state.messages.filter { it.content != "你好！我是你的 AI 伙伴。点击下方麦克风按钮开始语音对话，或直接输入文字。" || it.role != MessageRole.ASSISTANT }
-        val title = filteredMessages.firstOrNull { it.role == MessageRole.USER }?.content?.take(20) ?: "新对话"
+        val filteredMessages = state.messages.filter {
+            it.content != DEFAULT_WELCOME_MESSAGE || it.role != MessageRole.ASSISTANT
+        }
+        val title = filteredMessages.firstOrNull { it.role == MessageRole.USER }?.content?.take(20)
+            ?: state.sessions.firstOrNull { it.id == state.currentSessionId }?.title
+            ?: DEFAULT_SESSION_TITLE
+        val updatedAt = System.currentTimeMillis()
         val updatedSessions = state.sessions.map { session ->
             if (session.id == state.currentSessionId) {
-                session.copy(title = title, messages = state.messages)
+                session.copy(title = title, messages = state.messages, updatedAt = updatedAt)
             } else {
                 session
             }
         }
         _uiState.update { it.copy(sessions = updatedSessions) }
-        saveSessions()
+        updatedSessions.firstOrNull { it.id == state.currentSessionId }?.let(::persistSession)
     }
 
-    private fun loadSessions() {
-        try {
-            if (!sessionsFile.exists()) return
-            val json = sessionsFile.readText()
-            val arr = JSONArray(json)
-            val sessions = mutableListOf<ConversationSession>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                val msgsArr = obj.getJSONArray("messages")
-                val messages = mutableListOf<ChatMessage>()
-                for (j in 0 until msgsArr.length()) {
-                    val msgObj = msgsArr.getJSONObject(j)
-                    messages.add(
-                        ChatMessage(
-                            id = msgObj.getString("id"),
-                            role = MessageRole.valueOf(msgObj.getString("role")),
-                            content = msgObj.getString("content"),
-                            timestamp = msgObj.getLong("timestamp")
+    private fun loadSessionsFromStorage() {
+        viewModelScope.launch {
+            try {
+                sessionRepository.ensureInitialized()
+                val sessions = sessionRepository.getAllSessions()
+                val existing = sessions.firstOrNull()
+                if (existing != null) {
+                    _uiState.update {
+                        it.copy(
+                            sessions = sessions,
+                            messages = existing.messages,
+                            currentSessionId = existing.id
                         )
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            sessions = emptyList(),
+                            currentSessionId = "",
+                            messages = emptyList()
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                logToFile("加载会话列表失败: ${e.message}")
+                _uiState.update {
+                    it.copy(
+                        sessions = emptyList(),
+                        currentSessionId = "",
+                        messages = emptyList()
                     )
                 }
-                sessions.add(
-                    ConversationSession(
-                        id = obj.getString("id"),
-                        title = obj.getString("title"),
-                        messages = messages,
-                        createdAt = obj.getLong("createdAt")
-                    )
-                )
             }
-            val sorted = sessions.sortedByDescending { it.createdAt }
-            _uiState.update { it.copy(sessions = sorted) }
-        } catch (e: Exception) {
-            logToFile("加载会话列表失败: ${e.message}")
         }
     }
 
-    private fun saveSessions() {
-        try {
-            val sessions = _uiState.value.sessions
-            val arr = JSONArray()
-            for (session in sessions) {
-                val obj = JSONObject()
-                obj.put("id", session.id)
-                obj.put("title", session.title)
-                obj.put("createdAt", session.createdAt)
-                val msgsArr = JSONArray()
-                for (msg in session.messages) {
-                    val msgObj = JSONObject()
-                    msgObj.put("id", msg.id)
-                    msgObj.put("role", msg.role.name)
-                    msgObj.put("content", msg.content)
-                    msgObj.put("timestamp", msg.timestamp)
-                    msgsArr.put(msgObj)
-                }
-                obj.put("messages", msgsArr)
-                arr.put(obj)
+    private fun persistSession(session: ConversationSession) {
+        viewModelScope.launch {
+            try {
+                sessionRepository.replaceSession(session)
+            } catch (e: Exception) {
+                logToFile("保存会话列表失败: ${e.message}")
             }
-            sessionsFile.writeText(arr.toString())
-        } catch (e: Exception) {
-            logToFile("保存会话列表失败: ${e.message}")
         }
     }
 }

@@ -1,5 +1,10 @@
 package com.companion.chat.ui.settings
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,12 +18,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -26,11 +31,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.companion.chat.data.context.ContextConfigRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,6 +50,14 @@ fun SettingsScreen(
     onNavigateToDarkMode: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val contextConfigRepository = remember(context) { ContextConfigRepository(context) }
+    var retainedRounds by remember { mutableIntStateOf(contextConfigRepository.getSettings().retainedRounds) }
+
+    LaunchedEffect(Unit) {
+        retainedRounds = contextConfigRepository.getSettings().retainedRounds
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -78,11 +93,18 @@ fun SettingsScreen(
                     subtitle = "选择模型、GPU/CPU 后端",
                     onClick = onNavigateToModel
                 )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                SettingsItem(
+                    icon = Icons.Default.Memory,
+                    title = "上下文窗口大小",
+                    subtitle = "当前保留最近 $retainedRounds 轮对话",
+                    onClick = onNavigateToModel
+                )
             }
 
             SettingsSection(title = "语音") {
                 SettingsItem(
-                    icon = Icons.Default.VolumeUp,
+                    icon = Icons.AutoMirrored.Filled.VolumeUp,
                     title = "语音设置",
                     subtitle = "语音输入输出、语速语调",
                     onClick = onNavigateToVoice

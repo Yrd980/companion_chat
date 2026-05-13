@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.FilterChip
@@ -86,6 +87,7 @@ fun ConversationDrawerSheet(
     editingSessionId: String = "",
     editingTitle: String = "",
     onStartEditing: (String) -> Unit = {},
+    onDeleteSession: (String) -> Unit = {},
     onEditingTitleChange: (String) -> Unit = {},
     onConfirmEditing: () -> Unit = {},
     onCancelEditing: () -> Unit = {},
@@ -311,6 +313,7 @@ fun ConversationDrawerSheet(
                                             editingTitle = editingTitle,
                                             onClick = { onSessionClick(session.id) },
                                             onStartEditing = { onStartEditing(session.id) },
+                                            onDelete = { onDeleteSession(session.id) },
                                             onEditingTitleChange = onEditingTitleChange,
                                             onConfirmEditing = onConfirmEditing,
                                             onCancelEditing = onCancelEditing
@@ -334,6 +337,7 @@ private fun SessionItem(
     editingTitle: String,
     onClick: () -> Unit,
     onStartEditing: () -> Unit,
+    onDelete: () -> Unit,
     onEditingTitleChange: (String) -> Unit,
     onConfirmEditing: () -> Unit,
     onCancelEditing: () -> Unit,
@@ -453,6 +457,18 @@ private fun SessionItem(
                         imageVector = Icons.Default.Edit,
                         contentDescription = "编辑标题",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "删除会话",
+                        tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(18.dp)
                     )
                 }
