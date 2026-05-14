@@ -41,7 +41,7 @@ Optional LiteRT-LM runtime path:
 /sdcard/Android/data/com.companion.chat/files/models/gemma-4-E2B-it.litertlm
 ```
 
-If an old checkout still has `CompanionChat/app/src/main/assets/models/*.gguf`, move it to a local ignored cache such as `third_party/models/gguf/` and push it to the device from there. Do not keep GGUF or mmproj files under Android assets.
+Keep local GGUF and mmproj downloads in an ignored cache such as `third_party/models/gguf/`, then push them to `/sdcard/Android/data/com.companion.chat/files/models/`. Do not keep GGUF or mmproj files under Android assets.
 
 The uncensored Gemma 4 projector can be fetched with:
 
@@ -70,7 +70,16 @@ topP=0.95
 recentPromptMessages=6
 ```
 
-The GGUF runtime clamps each response to the remaining context window before decoding. If `llama_decode` returns a non-zero status during token generation, the runtime logs the status and ends the current response instead of surfacing a hard chat error. Generated Gemma turn markers such as `<end_of_turn>` and `<start_of_turn>` are treated as stop markers and are filtered from the chat UI.
+The GGUF runtime clamps each response to the remaining context window before decoding. If `llama_decode` returns a non-zero status during token generation, the runtime logs the status and ends the current response instead of surfacing a hard chat error.
+
+Generated Gemma and chat-template markers are sanitized before tokens reach the chat UI:
+
+- Stop markers such as `<end_of_turn>`, `<start_of_turn>`, `<|endoftext|>`, and `<|eot_id|>` end the current response and suppress trailing text.
+- Role markers such as `<|assistant|>`, `<|user|>`, `<|system|>`, `<assistant>`, `<user>`, and `<system>` are removed without stopping generation.
+- The sanitizer keeps a small pending suffix so markers split across streamed token chunks are still recognized.
+- Markdown syntax characters such as `#`, `*`, `>`, backticks, and list prefixes are preserved.
+
+Assistant chat bubbles render lightweight Markdown directly in Compose. Supported output includes headings, paragraphs, bold and italic spans, inline code, fenced code blocks, unordered and ordered lists, quote blocks, and link styling. User bubbles remain plain text so user input is not unexpectedly formatted.
 
 ## Diagnostics
 

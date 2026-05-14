@@ -166,13 +166,28 @@ private fun BubbleContent(
                 }
             }
 
-            Text(
-                text = if (message.content.isEmpty() && message.isStreaming) "正在输入..."
-                else message.content,
-                color = if (isUser) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSecondaryContainer,
-                style = MaterialTheme.typography.bodyLarge
-            )
+            val contentText = if (message.content.isEmpty() && message.isStreaming) {
+                "正在输入..."
+            } else {
+                message.content
+            }
+            val contentColor = if (isUser) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSecondaryContainer
+            }
+            if (isUser) {
+                Text(
+                    text = contentText,
+                    color = contentColor,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            } else {
+                MarkdownMessageText(
+                    text = contentText,
+                    color = contentColor
+                )
+            }
 
             if (!message.isStreaming) {
                 Text(

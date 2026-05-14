@@ -31,7 +31,23 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         private const val TAG = "LlamaCppEngine"
         private const val MissingMmprojMessage = "GGUF 图片输入需要 mmproj 文件，请先推送: "
         private const val MultimodalContextSize = 8192
-        private val StopMarkers = listOf("<end_of_turn>", "<start_of_turn>")
+        private val StopMarkers = listOf(
+            "<end_of_turn>",
+            "<start_of_turn>",
+            "<|endoftext|>",
+            "<|eot_id|>"
+        )
+        private val RemovableMarkers = listOf(
+            "<|assistant|>",
+            "<|user|>",
+            "<|system|>",
+            "<assistant>",
+            "<user>",
+            "<system>",
+            "</assistant>",
+            "</user>",
+            "</system>"
+        )
     }
 
     private val runtimeDispatcher: CoroutineDispatcher =
@@ -184,7 +200,10 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         logToFile("发送推理请求: promptMessages=${promptMessages.size}, maxTokens=${config.maxTokens}, contextSize=${config.contextSize}")
 
         _state.value = InferenceState.Generating()
-        val tokenSanitizer = TemplateTokenSanitizer(StopMarkers)
+        val tokenSanitizer = TemplateTokenSanitizer(
+            stopMarkers = StopMarkers,
+            removableMarkers = RemovableMarkers
+        )
         val job = launch(runtimeDispatcher) {
             try {
                 val callback = object : LlamaCppNative.TokenCallback {
@@ -282,59 +301,6 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         }
         val text = userText.ifBlank { "请描述这张图片。" }
         return markerPrefix + text
-    }
-
-    private data class SanitizedToken(
-        val text: String,
-        val shouldStop: Boolean
-    )
-
-    private class TemplateTokenSanitizer(
-        private val stopMarkers: List<String>
-    ) {
-        private var pending = ""
-        private var stopped = false
-        private val maxMarkerLength = stopMarkers.maxOf { it.length }
-
-        fun append(token: String): SanitizedToken {
-            if (stopped || token.isEmpty()) return SanitizedToken("", stopped)
-
-            val combined = pending + token
-            val markerIndex = stopMarkers
-                .map { marker -> combined.indexOf(marker) }
-                .filter { index -> index >= 0 }
-                .minOrNull()
-            if (markerIndex != null) {
-                stopped = true
-                pending = ""
-                return SanitizedToken(combined.substring(0, markerIndex), shouldStop = true)
-            }
-
-            val holdLength = longestPossibleMarkerPrefixSuffix(combined)
-            val emitLength = (combined.length - holdLength).coerceAtLeast(0)
-            val output = combined.substring(0, emitLength)
-            pending = combined.substring(emitLength).takeLast(maxMarkerLength - 1)
-            return SanitizedToken(output, shouldStop = false)
-        }
-
-        fun flush(): String {
-            if (stopped) {
-                pending = ""
-                return ""
-            }
-            return pending.also { pending = "" }
-        }
-
-        private fun longestPossibleMarkerPrefixSuffix(value: String): Int {
-            val maxLength = minOf(value.length, maxMarkerLength - 1)
-            for (length in maxLength downTo 1) {
-                val suffix = value.takeLast(length)
-                if (stopMarkers.any { marker -> marker.startsWith(suffix) }) {
-                    return length
-                }
-            }
-            return 0
-        }
     }
 
     override fun cancel() {
