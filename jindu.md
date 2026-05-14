@@ -136,3 +136,307 @@
 - 记忆系统
 - 角色管理
 - 模型/角色下载管理
+
+---
+
+# master 分支进度记录
+
+
+## 2026-05-13
+
+- 已完成 Task 1：建立阶段二数据模型与配置入口。
+- 新增 `ContextSettings`、`ContextWindow`、`ContextConfigRepository`。
+- `ChatViewModel` 已接入上下文配置读取入口，但当前发送逻辑还没有切到阶段二上下文管理链路。
+- 已补充最小 `JUnit4` 单元测试依赖，并新增 `ContextSettingsTest`。
+- 已执行 `.\gradlew.bat :app:testDebugUnitTest`，当前通过。
+- 已完成 Task 2-4：实现 `PromptAssembler`、`DefaultContextManager`、`SummaryGenerator`、`NoOpSummaryGenerator`，对应单元测试已通过。
+- 已完成 Task 5-7 的第一版主链路：引擎支持 `getCurrentConfig()`、`rebuildConversation()`、`replayMessages()` 接口，发送前可触发上下文压缩判断、Conversation 重建、回放失败降级日志。
+- `replayMessages()` 已升级为基于 LiteRT-LM `ConversationConfig.initialMessages` 的原生回放实验实现，不再只是占位降级。
+- 已完成 Task 8：设置页新增“上下文窗口大小”入口，可在模型配置页选择保留轮数并持久化。
+- 多次执行 `.\gradlew.bat :app:assembleDebug` 成功，当前进入真机部署与长对话验证阶段。
+- 真机已验证：应用可启动、模型可进入 `Ready`、可发送至少两轮真实对话、聊天页与设置页可正常切换。
+- 真机当前阻塞：ADB 自动输入受到系统拼音输入法组合态影响，连续批量发消息不稳定，导致长对话压缩路径尚未在真机上稳定触发。
+- Task 9 当前结论：代码侧已切到原生 `initialMessages` 回放实验方案。
+- 2026-05-13 真机阶段二专项验证通过：
+- 设置项 `N=5` 生效，`shouldCompress()` 阈值实际为 `20`。
+- 真机长对话在 `messageCount=21` 起成功触发压缩。
+- 修复后 `Conversation` 重建成功，不再出现 “A session already exists”。
+- 最近消息回放成功，日志显示 `initialMessages=10`。
+- 追问“我们刚才聊了什么”时，模型成功回忆出关键信息：电竞竞猜、明天早上 9 点、5 人参与。
+- 2026-05-13 阶段二补齐版已重新部署到真机，规则摘要器与降级摘要注入代码已生效，单测与编译通过。
+- 本轮真机补测结果：`retainedRounds=10` 初始加载后，实际发送前阈值日志为 `threshold=20`，说明运行时设置已切到 `N=5`。
+- 本轮日志确认：`summaryEmpty=false`，说明被裁剪历史已生成非空规则摘要。
+- 本轮日志确认：`Conversation` 重建成功，且最近消息回放成功，未触发降级摘要注入。
+- 本轮人工反馈：上下文管理“没什么问题”，界面可继续操作，未出现明显卡死。
+- 但本轮日志只覆盖到 `messageCount=19` 后触发首次压缩，并非严格的 `30+` 条消息专项验收；若要完全对齐阶段二清单，仍需补一轮 `30+` 条真实消息记录。
+- 2026-05-13 已补齐 `30+` 条真机长对话专项：日志确认从 `12` 持续到 `30` 的过程中，多次触发压缩。
+- 本轮 `30+` 专项中，每次压缩均表现为：
+- `summaryEmpty=false`，说明规则摘要持续生成成功。
+- `Conversation` 重建完成。
+- `最近消息回放成功: initialMessages=10`。
+- 最新真机专项说明：在长对话连续推进到 `30` 条后，应用未崩溃、未 ANR，聊天页仍可继续交互。
+- 阶段二当前结论：主链路、规则摘要、压缩重建、最近消息回放、`30+` 条长对话稳定性、UI 可操作性均已具备明确证据。
+- 2026-05-13 已完成阶段三文档准备：
+- 新增 `docs/plans/2026-05-13-stage3-memory-system-design.md`
+- 新增 `docs/plans/2026-05-13-stage3-memory-system-plan.md`
+- 阶段三方向确定为“完整阶段三覆盖，但按后端主链路先行、UI 随后收口”的实现策略。
+- 2026-05-13 阶段三代码主链路已完成：
+- 已新增 `ExtractedMemory`、`MemoryExtractor`、`RuleBasedMemoryExtractor`。
+- 已新增 `MemoryRepository`、`MemoryRetriever`、`MemoryPromptBuilder`、`MemoryLifecycleManager`。
+- `ChatViewModel` 已接入发送前相关记忆检索与注入、发送后规则提取自动落库。
+- `CompanionChatApplication` 已接入启动时过期短期记忆清理与可提升短期记忆提升。
+- 已新增 `MemoryViewModel`、`MemoryUiState`，并将 `MemoryScreen` 从占位页替换为可筛选、手动新增、编辑、删除、提升的最小可用版。
+- 设置页已新增“记忆管理”入口，可跳转到记忆页。
+- 2026-05-13 阶段三本地验证通过：
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.memory.*"` 通过。
+- `:app:testDebugUnitTest --tests "com.companion.chat.ui.memory.*"` 通过。
+- `:app:testDebugUnitTest` 全量通过。
+- `:app:assembleDebug` 通过。
+- 2026-05-13 阶段三真机部署验证通过：
+- 已按“编译成功 -> 卸载旧 app -> 安装新 app -> 推送模型”流程完成重装。
+- `app_init_log.txt` 确认应用启动后执行了 `ensureInitialized` 和“记忆生命周期维护完成”。
+- `viewmodel_log.txt` 确认模型路径存在、模型文件大小正确，且 `engine.initialize` 返回 `state = Ready`。
+- 设备数据库导出检查确认：`skills` 表已有 4 条内置技能，`conversations` 表当前为空，`memories` 表当前为空。
+- 当前真机自动化限制：
+- 设备仅有微信输入法，ADB 直接中文输入失败，导致“记住我叫小明 -> 我叫什么”的全自动对话验收暂未完成。
+- 底部导航与设置入口的 ADB 坐标点击在当前系统桌面/输入法状态下不稳定，阶段三 UI 真机验证目前以编译通过、布局树可见、日志与数据库证据为主。
+- 2026-05-13 记忆页闪退已修复：
+- 根因是 `MemoryViewModel` 仅保留了 Kotlin 默认参数主构造器，运行时 `viewModel()` 通过 `AndroidViewModelFactory` 反射查找 `MemoryViewModel(Application)` 失败，抛出 `NoSuchMethodException` 并导致进入记忆页闪退。
+- 已在 `MemoryViewModel` 中补充显式的 `constructor(application: Application)`，保持测试注入构造方式不变。
+- 修复后已重新 `assembleDebug` 并真机重装。
+- 复验结果：点击底部“记忆”后未再出现 `AndroidRuntime` 崩溃栈，`dumpsys window windows` 显示前台窗口仍为 `com.companion.chat/.MainActivity`。
+- 2026-05-13 记忆页真机可用性补测：
+- 已验证空状态展示正确，页面显示“还没有记忆”与引导文案。
+- 已验证顶部分类筛选存在：全部 / 事实 / 偏好 / 事件 / 关系。
+- 已验证手动新增：通过 ADB 英文输入新增一条事实类长期记忆，列表立即出现新卡片。
+- 已验证分类筛选：切到“偏好”后列表为空，切回“事实”后新增记忆重新出现。
+- 已验证编辑：打开编辑弹窗后追加文本保存，列表标题与更新时间发生变化。
+- 已验证删除：点击删除后出现确认弹窗，确认后列表回到空状态。
+- 已验证设置页入口：从“设置 -> 记忆管理”可正确回到记忆页。
+- 当前仍未自动化验证“手动提升短期记忆”为长期：
+- 原因 1：设备无可用 `sqlite3`，无法直接在真机库中快速注入 `short_term` 测试数据。
+- 原因 2：当前设备中文 ADB 输入受微信输入法限制，无法稳定走“记住我叫小明”这类中文规则提取路径来生成短期记忆。
+- 2026-05-13 已修复“记忆主语归属错误”：
+- 现象：当用户写入“`小王是我的哥哥`”这类关系记忆后，模型可能把“我的”误解为助手自身，而不是用户。
+- 根因：记忆虽然已进入上下文，但原有 `MemoryPromptBuilder` 和 `PromptAssembler` 没有明确约束“这些记忆都属于用户”，导致 prompt 视角歧义。
+- 修复方式：
+- `PromptAssembler` 在存在任一记忆段时新增统一“记忆解释规则”，明确记忆属于用户，且“我/我的”默认指用户。
+- `MemoryPromptBuilder` 在长期记忆段和动态记忆段内新增局部说明“以下内容均为用户本人的记忆，不代表助手自身”。
+- 本次未改数据库、FTS、记忆内容存储格式，只做 prompt 层最小修复。
+- 本次新增文档：
+- `docs/plans/2026-05-13-memory-user-perspective-fix-design.md`
+- `docs/plans/2026-05-13-memory-user-perspective-fix-plan.md`
+- 本次验证结果：
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.memory.MemoryPromptBuilderTest" --tests "com.companion.chat.data.context.PromptAssemblerTest" --tests "com.companion.chat.data.context.DefaultContextManagerTest"` 通过。
+- `:app:testDebugUnitTest` 全量通过。
+- `:app:assembleDebug` 通过。
+- 2026-05-13 已补强“第二人称记忆归属”规则：
+- 补充约束：在记忆解释规则中明确“我/我的”默认指用户，“你/你的”默认指助手或模型自己，避免“你是我的搭档”这类记忆继续发生第二人称误判。
+- 已同步更新 `PromptAssemblerTest` 的完整断言，并新增第二人称归属专项断言。
+- 定向验证结果：`:app:testDebugUnitTest --tests "com.companion.chat.data.context.PromptAssemblerTest"` 通过。
+- 2026-05-13 第二人称归属补丁已重新完成真机部署：
+- `:app:testDebugUnitTest` 全量通过。
+- `:app:assembleDebug` 通过。
+- 已执行卸载旧包、推送新 `app-debug.apk`、`pm install -r -t --user 0` 安装成功。
+- 已重新启动应用并推送模型到 `/storage/emulated/0/Android/data/com.companion.chat/files/models/`。
+- ADB 校验通过：模型文件存在，前台窗口为 `com.companion.chat/.MainActivity`，可进入人工复测阶段。
+- 2026-05-13 已进入阶段四规划：
+- 已新增 `docs/plans/2026-05-13-stage4-self-evolution-design.md`
+- 已新增 `docs/plans/2026-05-13-stage4-self-evolution-plan.md`
+- 阶段四范围确定为：Engine-B 管理、触发调度、偏好总结 JSON 解析、`user_preferences` 合并、confirmed 偏好 prompt 注入、设置页“自动学习偏好”开关。
+- 当前判断：阶段三分支从测试、编译和真机重装证据看已具备合并检查点条件，但工作区仍有未提交改动，需先整理提交后再合并。
+- 2026-05-13 阶段四第一版代码主链路已完成：
+- 已在 `ContextConfigRepository` 增加 `autoPreferenceLearningEnabled` 开关读写，并在 `SettingsScreen` 增加“自动学习偏好”开关项。
+- 已新增 `ExtractedPreference`、`PreferenceSummaryPromptBuilder`、`PreferenceSummaryParser`、`PreferenceRepository`、`SecondEngineManager`。
+- `ChatViewModel` 已接入 confirmed 偏好 prompt 注入、3 分钟静置触发、切换会话触发、应用进后台触发、发送新消息时取消 Engine-B。
+- `MainActivity` 已接入应用级 `ON_STOP` 生命周期监听，用于触发当前会话的后台偏好总结检查。
+- 当前阶段四仍保持阶段三规则提取链路不变：
+- “记住我叫小明”这类规则提取仍写入 `memories`，不走 `user_preferences`。
+- 关闭“自动学习偏好”后仅阻止阶段四后台总结触发，不影响阶段三记忆提取与已有 confirmed 偏好注入。
+- 2026-05-13 阶段四本地验证通过：
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.context.ContextConfigRepositoryTest"` 通过。
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.preferences.PreferenceSummaryPromptBuilderTest" --tests "com.companion.chat.data.preferences.PreferenceSummaryParserTest"` 通过。
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.preferences.PreferenceRepositoryTest"` 通过。
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.preferences.SecondEngineManagerTest"` 通过。
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.context.PromptAssemblerTest" --tests "com.companion.chat.data.context.DefaultContextManagerTest"` 通过。
+- `:app:testDebugUnitTest` 全量通过。
+- `:app:assembleDebug` 通过。
+- 当前待完成项：
+- 还未做阶段四真机联调，下一步需按“卸载旧 app -> 安装新 app -> 推送模型”完成设备侧验收。
+- 真机阶段四验收需要人工配合观察开关行为、等待静置触发和检查回答是否体现 confirmed 偏好注入。
+- 2026-05-13 阶段四第一轮真机联调结果：
+- 已按“编译成功 -> 卸载旧 app -> 安装新 app -> 推送模型”完成重装，第二次启动后日志确认模型文件存在且 `engine.initialize` 返回 `Ready`。
+- 真机日志确认阶段四后台触发链路正常：开启“自动学习偏好”后，`应用进入后台` 可触发 `阶段四总结完成`。
+- 关闭开关时未再出现阶段四总结执行日志；开启开关后恢复触发，说明开关控制行为基本符合预期。
+- 第一轮真机问题已定位：`阶段四总结完成` 已出现，但两轮实际结果均为 `extractedCount=0`，问题不在触发层，而在偏好总结输出格式或解析层。
+- 2026-05-13 阶段四提取层修复已完成：
+- `PreferenceSummaryPromptBuilder` 已改为更严格的“只输出 JSON 数组、不要解释和 Markdown 代码块”提示词，并补充示例输出。
+- `PreferenceSummaryParser` 已增强为可解析带前后说明、Markdown 代码块包裹的 JSON，并兼容中文字段名与类别别名。
+- `ChatViewModel` 已补充阶段四原始输出预览日志，便于后续真机直接判断是模型输出问题还是 parser 问题。
+- 本轮定向验证结果：
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.preferences.PreferenceSummaryPromptBuilderTest" --tests "com.companion.chat.data.preferences.PreferenceSummaryParserTest"` 通过。
+- `:app:assembleDebug` 通过。
+- 当前下一步：
+- 重新安装新包并推送模型后，需再做一轮阶段四真机复测，重点看 `阶段四原始输出` 与 `extractedCount` 是否大于 0。
+- 2026-05-13 阶段四提取层修复复测通过：
+- 已重新执行“卸载旧 app -> 安装新 app -> 推送模型 -> 重启应用”流程。
+- 真机日志确认模型文件最终大小正确，第二次启动后 `engine.initialize` 返回 `Ready`。
+- 本轮人工复测输入“以后请尽量简洁回答 / 我喜欢游戏和科幻 / 你可以叫我老王 / 我一般晚上聊天比较多”后，应用进入后台成功触发阶段四总结。
+- `viewmodel_log.txt` 已记录阶段四原始输出预览，输出为合法 JSON 数组，包含 `style`、`interest`、`name`、`habit` 4 类偏好。
+- 本轮关键结果：`阶段四总结完成: reason=应用进入后台, extractedCount=4`，说明“总结 prompt -> Engine-B 输出 -> parser 解析 -> 结构化提取”链路已打通。
+- 当前剩余待验项：
+- `PreferenceRepository` 现策略首次写入 `confidence=1`，confirmed 偏好注入要求 `confidence>=3`，因此若要继续做 prompt 注入真机验收，还需重复相同偏好至少 3 次或人工注入高置信度数据。
+- 2026-05-13 已完成“模型统一抽取 memories + user_preferences”第一版开发：
+- 阶段四后台链路不再只做偏好总结，已改为一次模型调用统一输出 `memories` 与 `user_preferences` 两个数组。
+- 新增 `UnifiedExtractionPromptBuilder` 与 `UnifiedExtractionParser`，要求模型严格输出 JSON 对象，并同时解析两类结果。
+- `memories.category` 已固定接入 `fact / preference / event / relation / time / other`。
+- `user_preferences.category` 继续保留 `name / style / interest / habit / other`。
+- `MemoryRepository` 已新增模型抽取写入入口与精确去重，避免阶段四重复触发时同一记忆反复插入。
+- `ChatViewModel` 已改为：当“自动学习偏好”开启时，主记忆提取走后台模型统一抽取；若模型未产出记忆、失败、超时或取消，则回退到规则提取兜底。
+- 当前规则提取器未删除，但已从主链路退化为兜底链路；关闭“自动学习偏好”时，发送消息仍沿用规则提取，避免已有记忆功能失效。
+- 记忆 UI 与 prompt 展示已同步扩展新分类，新增 `relation / time / other`，并兼容旧数据中的 `relationship`。
+- 本轮本地验证结果：
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.preferences.UnifiedExtractionPromptBuilderTest" --tests "com.companion.chat.data.preferences.UnifiedExtractionParserTest" --tests "com.companion.chat.data.memory.MemoryRepositoryWriteTest" --tests "com.companion.chat.data.memory.MemoryPromptBuilderTest" --tests "com.companion.chat.ui.memory.MemoryViewModelTest"` 通过。
+- `:app:assembleDebug` 通过。
+- 当前下一步：
+- 需要重新真机安装并推送模型后，验证一次后台触发是否能同时写入 memories 和 user_preferences，并检查记忆页是否能看到新增分类数据。
+- 2026-05-13 记忆页 Flow 刷新链路修复已完成：
+- `MemoryDao` 新增 `observeAll(): Flow<List<Memory>>`，`MemoryRepository` 新增 `observeAllMemories()`。
+- `MemoryViewModel` 已从一次性 `loadMemories()` 初始化改为启动即订阅 `memories` 表变化；页面停留期间如后台稍后写入记忆，UI 应可自动刷新。
+- 本轮为适配 DAO 新接口，已补齐 `MemoryViewModelTest`、`MemoryLifecycleManagerTest`、`MemoryRepositoryPersistentTest`、`MemoryRepositoryWriteTest`、`MemoryRetrieverTest` 中假 DAO 的 `observeAll()` 实现。
+- 本轮本地验证结果：
+- `:app:assembleDebug` 通过。
+- `:app:testDebugUnitTest --tests com.companion.chat.ui.memory.MemoryViewModelTest --tests com.companion.chat.data.memory.MemoryLifecycleManagerTest --tests com.companion.chat.data.memory.MemoryRepositoryPersistentTest --tests com.companion.chat.data.memory.MemoryRepositoryWriteTest --tests com.companion.chat.data.memory.MemoryRetrieverTest` 通过。
+- 2026-05-13 已完成本轮真机重装与模型校验：
+- 已执行“卸载旧 app -> 安装新 app -> 启动一次建目录 -> 推送模型 -> 强制停止并重启应用”完整流程。
+- `viewmodel_log.txt` 确认第二次启动后模型文件存在且大小正确：`2588147712 bytes`。
+- `viewmodel_log.txt` 确认本轮最终初始化结果为 `engine.initialize 返回, state = Ready`。
+- 当前待复测项：
+- 需要再次人工验证“打开记忆页后，再让应用进后台触发阶段四总结”时，记忆页是否会在页面停留期间自动出现新记忆。
+- 2026-05-13 已完成“弱记忆补强”第一轮：
+- `UnifiedExtractionPromptBuilder` 已强化提示词，明确要求优先提取兴趣、喜欢/不喜欢、习惯、时间规律、性格特征、自我描述、禁忌、回答偏好，并要求一句话中的多条稳定信息尽量拆开提取。
+- `PreferenceMemoryDeriver` 已补强派生规则：
+- `interest` 现可正确保留负向表达，如“不喜欢 / 讨厌 / 不爱”。
+- `habit` 对“我一般怎样 / 我通常怎样”这类非时间表达不再简单误判为 `time`，实际时间规律仍优先归到 `time`。
+- `other` 对“比较慢热 / 有点内向”这类自我特征会稳定补成用户视角记忆。
+- `RuleBasedMemoryExtractor` 已补强兜底覆盖：
+- 新增对 `我不喜欢...`、`我一般...`、`我通常...`、`我经常...`、`我比较...`、`我是个...的人`、`以后请...`、`希望你...` 的识别。
+- 规则兜底已支持一句消息拆分多子句后提取多条记忆，不再固定 `.take(1)` 只保留一条。
+- 本轮新增/更新测试覆盖：
+- `UnifiedExtractionPromptBuilderTest`
+- `PreferenceMemoryDeriverTest`
+- `RuleBasedMemoryExtractorTest`
+- 本轮本地验证结果：
+- `:app:testDebugUnitTest --tests com.companion.chat.data.preferences.UnifiedExtractionPromptBuilderTest --tests com.companion.chat.data.preferences.PreferenceMemoryDeriverTest --tests com.companion.chat.data.memory.RuleBasedMemoryExtractorTest` 通过。
+- `:app:assembleDebug` 通过。
+- 当前下一步：
+- 重新真机复测以下高价值表达是否能稳定进入记忆页：
+- `我喜欢科幻和游戏`
+- `我不喜欢太官方的回答`
+- `我一般晚上十点后聊天`
+- `我比较慢热`
+- `以后请尽量直接一点，多举例`
+- 2026-05-13 已完成弱记忆补强版真机重装：
+- 已重新执行“卸载旧 app -> 安装新 app -> 启动一次建目录 -> 推送模型 -> 强制停止并重启应用”。
+- 安装后首次启动仍先报模型不存在，推送模型并第二次启动后恢复正常，属于当前已知安装后首次读模型竞态。
+- `viewmodel_log.txt` 确认第二次启动后模型文件存在且大小正确：`2588147712 bytes`。
+- `viewmodel_log.txt` 确认本轮增强包最终初始化结果为 `engine.initialize 返回, state = Ready`。
+- 2026-05-13 已完成阶段四收尾第一轮实现：
+- 后台总结稳定性已调整为“超时/取消先自动重试一次，只有二次超时或取消后才走规则兜底”，不再首次超时就立即写入 1 条兜底记忆。
+- `SecondEngineManager` 在 `ChatViewModel` 中的阶段四 summary timeout 已从默认 60 秒提升到 90 秒，以降低首轮后台总结超时概率。
+- `UnifiedExtractionParser` 已增加结构纠偏：当模型把偏好信息误输出到 `memories` 区时，会自动恢复出对应的 `user_preferences`，覆盖 `style / interest / habit / other` 等场景。
+- 阶段四总结完成后已新增偏好合并日志，记录 `merged` 与 `confirmed` 数量，便于后续真机确认 `user_preferences -> confirmed -> prompt 注入` 闭环。
+- 本轮新增/更新测试覆盖：
+- `UnifiedExtractionParserTest`
+- `PreferenceRepositoryTest`
+- `SecondEngineManagerTest`
+- `PromptAssemblerTest`
+- 本轮本地验证结果：
+- `:app:testDebugUnitTest --tests com.companion.chat.data.preferences.UnifiedExtractionParserTest --tests com.companion.chat.data.preferences.PreferenceRepositoryTest --tests com.companion.chat.data.preferences.SecondEngineManagerTest --tests com.companion.chat.data.context.PromptAssemblerTest` 通过。
+- `:app:assembleDebug` 通过。
+- 当前下一步：
+- 重装真机后复测以下阶段四收尾目标：
+- 首次后台触发不再先出现“只落 1 条兜底再变多条”的明显分裂结果。
+- 同一轮总结日志中 `preferenceCount` 不再稳定为 0。
+- 重复表达相同偏好至少 3 次后，发送前日志可看到 `confirmed 偏好注入: count>0`，并观察回答是否体现该偏好。
+- 2026-05-13 已完成阶段四收尾版真机重装：
+- 已重新执行“卸载旧 app -> 安装新 app -> 启动一次建目录 -> 推送模型 -> 强制停止并重启应用”。
+- 安装后首次启动仍先报模型不存在，推送模型并第二次启动后恢复正常，属于当前已知安装后首次读模型竞态。
+- `viewmodel_log.txt` 确认第二次启动后模型文件存在且大小正确：`2588147712 bytes`。
+- `viewmodel_log.txt` 确认本轮阶段四收尾版最终初始化结果为 `engine.initialize 返回, state = Ready`。
+- 2026-05-13 新一轮真机复测结果：
+- 用户最初反馈“没有任何记忆”，但继续等待后记忆最终出现，说明当前不是“写库失败”或“UI 永远不刷新”。
+- 本轮 `viewmodel_log.txt` 关键证据：
+- `21:31:16` 出现 `阶段四取消: reason=应用进入后台, retry=1`
+- `21:31:19` 出现 `阶段四跳过: 前台仍在生成, reason=应用进入后台-重试`
+- `21:32:53` 出现 `阶段四原始输出`
+- `21:32:53` 出现 `阶段四偏好合并完成: merged=7, confirmed=0`
+- `21:32:53` 出现 `阶段四总结完成: memoryCount=14, preferenceCount=7, extractedCount=21`
+- 结论：本轮阶段四已经能同时写入 `memories` 和 `user_preferences`，但后台总结完成时间仍偏晚，导致用户会先误判为“没有任何记忆”。
+- 当前剩余核心问题已从“写不进去/刷不出来”收缩为“阶段四完成时延过长，需要继续优化用户可感知时序”。
+- 2026-05-13 已新增阶段五具体实施计划文档：
+- `docs/plans/2026-05-13-stage5-skill-management-plan.md`
+- 计划依据：
+- `COMPANIONCHAT_DESIGN.md` 中“技能管理（Prompt 模板）”设计目标、内置技能、切换流程和 UI 草图
+- `COMPANIONCHAT_TEST_CHECKLIST.md` 中阶段五 `5.1`、`5.2`、`5.3` 全部验收项
+- 当前阶段五现状判断：
+- `Skill` 实体、`SkillDao`、数据库内置四技能种子已存在
+- 设置页“角色管理”入口和 `CharacterManagementScreen` 仍是占位实现
+- `ChatViewModel.baseSystemPrompt` 已是技能切换可复用的主 prompt 入口
+- 阶段五计划拆分为四个实施阶段：
+- 技能仓库与业务规则
+- 技能管理 UI 与表单/删除确认
+- 技能切换到主引擎 prompt 与 Conversation 重建
+- 设置页接入、编译与真机验收闭环
+- 2026-05-13 阶段五需求已按新方向重设计：
+- `skills` 与“角色卡”正式分离，不再复用同一页面或同一概念。
+- 设置页后续将同时提供两个独立入口：`角色管理` 与 `Skills 管理`。
+- `CharacterManagementScreen` 不再改造成技能页，而是重做为真实角色卡管理页，支持创建、编辑、删除、激活完整角色卡。
+- 角色卡定位为日常聊天陪伴人格，skills 定位为工作任务能力；两者允许同时启用。
+- 激活规则确定为：同一时间仅 1 个激活角色卡 + 1 个激活 skill。
+- 内置 skill 已调整需求：移除 `通用助手`、`代码助手`、`写作助手`，仅保留 `翻译助手` 作为唯一内置项。
+- 唯一内置 `翻译助手` 的核心 prompt 已确定为：翻译时考虑使用者的语境、文化背景以及母语情况。
+- `ChatViewModel` 后续将继续复用 `baseSystemPrompt` 作为主入口，但内容改为“基础 prompt + 激活角色卡 prompt + 激活 skill prompt”，再继续走现有记忆、偏好、上下文链路。
+- 本轮已新增设计与实施文档：
+- `docs/plans/2026-05-13-stage5-role-skill-separation-design.md`
+- `docs/plans/2026-05-13-stage5-role-skill-separation-plan.md`
+- 当前阶段五旧计划 `docs/plans/2026-05-13-stage5-skill-management-plan.md` 已不再完全适用，后续实施应以“角色卡与 skills 分离”的新设计和新计划为准。
+- 2026-05-13 阶段五“角色卡与 skills 分离”第一版代码已完成：
+- 数据层：
+- 新增 `RoleCard` 实体与 `RoleCardDao`。
+- 新增 `RoleCardRepository`、`RoleCardPromptBuilder`、`SkillRepository`。
+- `CompanionDatabase` 已升级到 `version = 2`，并新增 `1 -> 2` migration：
+- 创建 `role_cards` 表。
+- 清理旧内置 skills，仅保留唯一内置 `翻译助手`。
+- 将 `翻译助手` prompt 固定为“翻译时考虑使用者的语境、文化背景以及母语情况”的版本。
+- UI 与导航：
+- `CharacterManagementScreen` 已从占位页替换为真实角色卡管理页，支持创建、编辑、删除、激活。
+- 新增 `SkillsManagementScreen`，用于管理唯一内置翻译助手和用户自定义 skills。
+- 设置页已拆分出两个独立入口：`角色管理` 与 `Skills 管理`。
+- `MainActivity` 与 `SettingsRoutes` 已接入新页面路由与激活回调。
+- 聊天主链路：
+- `ChatViewModel` 已接入 `RoleCardRepository`、`SkillRepository` 与 `RoleCardPromptBuilder`。
+- `baseSystemPrompt` 现改为“默认基础 prompt + 激活角色卡 prompt + 激活 skill prompt”组合结果。
+- 新增 `activateRoleCard()` 与 `activateSkill()`，切换后会尝试复用现有上下文链路重建 `Conversation`，并保留当前会话消息。
+- 本轮新增测试：
+- `SkillRepositoryTest`
+- `RoleCardRepositoryTest`
+- `RoleCardPromptBuilderTest`
+- `RoleManagementViewModelTest`
+- `SkillsManagementViewModelTest`
+- 本轮本地验证结果：
+- `:app:testDebugUnitTest --tests "com.companion.chat.data.skill.*" --tests "com.companion.chat.data.role.*" --tests "com.companion.chat.ui.settings.*"` 通过。
+- `:app:testDebugUnitTest` 全量通过。
+- `:app:assembleDebug` 通过。
+- 本轮真机部署已按固定流程完成：
+- 设备 `aa972376` 在线。
+- 已卸载旧包 `com.companion.chat`。
+- 已将新 `app-debug.apk` 推送到 `/data/local/tmp/companionchat-stage5.apk` 并通过 `pm install -r -t --user 0` 安装成功。
+- 已启动一次应用创建目录。
+- 已将模型 `D:\Desktop\phone\models\gemma-4-E2B-it.litertlm` 重新推送到 `/sdcard/Android/data/com.companion.chat/files/models/gemma-4-E2B-it.litertlm`。
+- 当前下一步：
+- 进入人工真机功能复测，重点验证：
+- 设置页两个入口是否都可进入。
+- 角色卡创建/编辑/删除/激活是否正常。
+- `Skills 管理` 中是否只剩唯一内置 `翻译助手`。
+- 激活角色卡与 skill 后，回答是否同时体现人格与任务能力。
