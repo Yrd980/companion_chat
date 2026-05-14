@@ -35,7 +35,13 @@ fun RoleCardEditorDialog(
         rules: String,
         taboos: String,
         openingMessage: String,
-        exampleDialogue: String
+        exampleDialogue: String,
+        avatarImageUri: String,
+        galleryImageUris: List<String>,
+        imageStylePrompt: String,
+        voiceProfileUri: String,
+        voiceMode: String,
+        voiceDisplayName: String
     ) -> Unit
 ) {
     var name by remember(roleCard) { mutableStateOf(roleCard?.name.orEmpty()) }
@@ -48,6 +54,14 @@ fun RoleCardEditorDialog(
     var taboos by remember(roleCard) { mutableStateOf(roleCard?.taboos.orEmpty()) }
     var openingMessage by remember(roleCard) { mutableStateOf(roleCard?.openingMessage.orEmpty()) }
     var exampleDialogue by remember(roleCard) { mutableStateOf(roleCard?.exampleDialogue.orEmpty()) }
+    var avatarImageUri by remember(roleCard) { mutableStateOf(roleCard?.avatarImageUri.orEmpty()) }
+    var galleryImageUris by remember(roleCard) {
+        mutableStateOf(roleCard?.galleryImageUris?.joinToString("\n").orEmpty())
+    }
+    var imageStylePrompt by remember(roleCard) { mutableStateOf(roleCard?.imageStylePrompt.orEmpty()) }
+    var voiceProfileUri by remember(roleCard) { mutableStateOf(roleCard?.voiceProfileUri.orEmpty()) }
+    var voiceMode by remember(roleCard) { mutableStateOf(roleCard?.voiceMode ?: "SYSTEM_TTS") }
+    var voiceDisplayName by remember(roleCard) { mutableStateOf(roleCard?.voiceDisplayName.orEmpty()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -75,6 +89,17 @@ fun RoleCardEditorDialog(
                 RoleCardField(label = "禁止项", value = taboos, onValueChange = { taboos = it }, minLines = 2)
                 RoleCardField(label = "开场白", value = openingMessage, onValueChange = { openingMessage = it }, minLines = 2)
                 RoleCardField(label = "示例对话", value = exampleDialogue, onValueChange = { exampleDialogue = it }, minLines = 3)
+                RoleCardField(label = "头像图片 URI", value = avatarImageUri, onValueChange = { avatarImageUri = it })
+                RoleCardField(
+                    label = "图库图片 URI（一行一个）",
+                    value = galleryImageUris,
+                    onValueChange = { galleryImageUris = it },
+                    minLines = 3
+                )
+                RoleCardField(label = "图片风格提示词", value = imageStylePrompt, onValueChange = { imageStylePrompt = it }, minLines = 2)
+                RoleCardField(label = "语音参考音频 URI", value = voiceProfileUri, onValueChange = { voiceProfileUri = it })
+                RoleCardField(label = "语音模式（SYSTEM_TTS / CLONE）", value = voiceMode, onValueChange = { voiceMode = it })
+                RoleCardField(label = "语音显示名称", value = voiceDisplayName, onValueChange = { voiceDisplayName = it })
             }
         },
         confirmButton = {
@@ -90,7 +115,13 @@ fun RoleCardEditorDialog(
                         rules,
                         taboos,
                         openingMessage,
-                        exampleDialogue
+                        exampleDialogue,
+                        avatarImageUri,
+                        galleryImageUris.lines().map { it.trim() }.filter { it.isNotBlank() },
+                        imageStylePrompt,
+                        voiceProfileUri,
+                        voiceMode,
+                        voiceDisplayName
                     )
                 }
             ) {

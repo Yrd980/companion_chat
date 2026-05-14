@@ -52,6 +52,67 @@ class RoleCardRepositoryTest {
     }
 
     @Test
+    fun `创建和更新角色卡会保存图片与语音配置`() = runBlocking {
+        val dao = FakeRoleCardDao()
+        val repository = RoleCardRepository(dao, nowProvider = { 30L })
+
+        val id = repository.createRoleCard(
+            name = "小夏",
+            description = "",
+            avatar = "person",
+            persona = "陪伴者",
+            speakingStyle = "",
+            background = "",
+            rules = "",
+            taboos = "",
+            openingMessage = "",
+            exampleDialogue = "",
+            avatarImageUri = "file:///avatar.png",
+            galleryImageUris = listOf(" file:///a.png ", "", "file:///b.png"),
+            imageStylePrompt = "柔和日常写真",
+            voiceProfileUri = "file:///voice.wav",
+            voiceMode = "CLONE",
+            voiceDisplayName = "小夏音色"
+        )
+
+        val created = dao.getById(id)!!
+        assertEquals("file:///avatar.png", created.avatarImageUri)
+        assertEquals(listOf("file:///a.png", "file:///b.png"), created.galleryImageUris)
+        assertEquals("柔和日常写真", created.imageStylePrompt)
+        assertEquals("file:///voice.wav", created.voiceProfileUri)
+        assertEquals("CLONE", created.voiceMode)
+        assertEquals("小夏音色", created.voiceDisplayName)
+
+        repository.updateRoleCard(
+            id = id,
+            name = "小夏",
+            description = "",
+            avatar = "person",
+            persona = "陪伴者",
+            speakingStyle = "",
+            background = "",
+            rules = "",
+            taboos = "",
+            openingMessage = "",
+            exampleDialogue = "",
+            avatarImageUri = "file:///new-avatar.png",
+            galleryImageUris = listOf("file:///c.png"),
+            imageStylePrompt = "电影感",
+            voiceProfileUri = "",
+            voiceMode = "SYSTEM_TTS",
+            voiceDisplayName = "系统语音"
+        )
+
+        val updated = dao.getById(id)!!
+        assertEquals("file:///new-avatar.png", updated.avatarImageUri)
+        assertEquals(listOf("file:///c.png"), updated.galleryImageUris)
+        assertEquals("电影感", updated.imageStylePrompt)
+        assertEquals("", updated.voiceProfileUri)
+        assertEquals("SYSTEM_TTS", updated.voiceMode)
+        assertEquals("系统语音", updated.voiceDisplayName)
+    }
+
+    @Test
     fun `删除内置角色卡会被拦截`() = runBlocking {
         val dao = FakeRoleCardDao(
             mutableListOf(

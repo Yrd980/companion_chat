@@ -3,6 +3,7 @@ package com.companion.chat.data.engine
 import kotlinx.coroutines.flow.Flow
 
 sealed class VoiceInputEvent {
+    data object WarmedUp : VoiceInputEvent()
     data class PartialResult(val text: String) : VoiceInputEvent()
     data class FinalResult(val text: String) : VoiceInputEvent()
     data object Listening : VoiceInputEvent()
@@ -12,6 +13,8 @@ sealed class VoiceInputEvent {
 
 interface VoiceInputEngine {
     val events: Flow<VoiceInputEvent>
+
+    fun warmUp()
 
     fun startListening()
 

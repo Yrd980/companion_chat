@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -138,6 +139,13 @@ fun SettingsScreen(
                     icon = Icons.Default.Memory,
                     title = "上下文窗口大小",
                     subtitle = "当前保留最近 $retainedRounds 轮对话",
+                    onClick = onNavigateToModel
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                SettingsItem(
+                    icon = Icons.Default.Photo,
+                    title = "图片生成",
+                    subtitle = "配置联网图片生成 HTTP 接口",
                     onClick = onNavigateToModel
                 )
             }

@@ -147,7 +147,7 @@ fun CharacterManagementScreen(
     if (showCreateDialog) {
         RoleCardEditorDialog(
             onDismiss = { showCreateDialog = false },
-            onSave = { name, description, avatar, persona, speakingStyle, background, rules, taboos, openingMessage, exampleDialogue ->
+            onSave = { name, description, avatar, persona, speakingStyle, background, rules, taboos, openingMessage, exampleDialogue, avatarImageUri, galleryImageUris, imageStylePrompt, voiceProfileUri, voiceMode, voiceDisplayName ->
                 if (name.isBlank() || persona.isBlank()) {
                     return@RoleCardEditorDialog
                 }
@@ -161,7 +161,13 @@ fun CharacterManagementScreen(
                     rules = rules,
                     taboos = taboos,
                     openingMessage = openingMessage,
-                    exampleDialogue = exampleDialogue
+                    exampleDialogue = exampleDialogue,
+                    avatarImageUri = avatarImageUri,
+                    galleryImageUris = galleryImageUris,
+                    imageStylePrompt = imageStylePrompt,
+                    voiceProfileUri = voiceProfileUri,
+                    voiceMode = voiceMode,
+                    voiceDisplayName = voiceDisplayName
                 )
                 showCreateDialog = false
             }
@@ -172,7 +178,7 @@ fun CharacterManagementScreen(
         RoleCardEditorDialog(
             roleCard = roleCard,
             onDismiss = { editingRoleCard = null },
-            onSave = { name, description, avatar, persona, speakingStyle, background, rules, taboos, openingMessage, exampleDialogue ->
+            onSave = { name, description, avatar, persona, speakingStyle, background, rules, taboos, openingMessage, exampleDialogue, avatarImageUri, galleryImageUris, imageStylePrompt, voiceProfileUri, voiceMode, voiceDisplayName ->
                 if (name.isBlank() || persona.isBlank()) {
                     return@RoleCardEditorDialog
                 }
@@ -187,7 +193,13 @@ fun CharacterManagementScreen(
                     rules = rules,
                     taboos = taboos,
                     openingMessage = openingMessage,
-                    exampleDialogue = exampleDialogue
+                    exampleDialogue = exampleDialogue,
+                    avatarImageUri = avatarImageUri,
+                    galleryImageUris = galleryImageUris,
+                    imageStylePrompt = imageStylePrompt,
+                    voiceProfileUri = voiceProfileUri,
+                    voiceMode = voiceMode,
+                    voiceDisplayName = voiceDisplayName
                 )
                 editingRoleCard = null
             }
@@ -278,6 +290,22 @@ private fun RoleCardItem(
             if (roleCard.speakingStyle.isNotBlank()) {
                 Text(
                     text = "风格：${roleCard.speakingStyle}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (roleCard.avatarImageUri.isNotBlank() || roleCard.galleryImageUris.isNotEmpty()) {
+                Text(
+                    text = "图片：头像${if (roleCard.avatarImageUri.isNotBlank()) "已配置" else "未配置"}，图库 ${roleCard.galleryImageUris.size} 张",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (roleCard.voiceProfileUri.isNotBlank() || roleCard.voiceDisplayName.isNotBlank()) {
+                Text(
+                    text = "语音：${roleCard.voiceDisplayName.ifBlank { roleCard.voiceMode }}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

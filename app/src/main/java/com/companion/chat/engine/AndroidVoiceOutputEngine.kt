@@ -6,6 +6,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import com.companion.chat.data.engine.VoiceOutputEngine
+import com.companion.chat.data.engine.VoiceOutputConfig
 import com.companion.chat.data.engine.VoiceOutputState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,7 +53,7 @@ class AndroidVoiceOutputEngine(private val context: Context) : VoiceOutputEngine
         pendingInitCallbacks.clear()
     }
 
-    override suspend fun speak(text: String) {
+    override suspend fun speak(text: String, config: VoiceOutputConfig) {
         if (!isInitialized) {
             val ready = suspendCancellableCoroutine { cont ->
                 pendingInitCallbacks.add { success -> cont.resume(success) }

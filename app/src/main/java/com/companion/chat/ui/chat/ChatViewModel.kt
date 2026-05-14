@@ -16,6 +16,10 @@ import com.companion.chat.data.engine.EngineConfig
 import com.companion.chat.data.engine.InferenceState
 import com.companion.chat.data.engine.VoiceInputEvent
 import com.companion.chat.data.engine.VoiceOutputState
+import com.companion.chat.data.image.HttpImageGenerationEngine
+import com.companion.chat.data.image.ImageGenerationConfigRepository
+import com.companion.chat.data.image.ImageGenerationPurpose
+import com.companion.chat.data.image.ImageGenerationState
 import com.companion.chat.data.memory.MemoryPromptBuilder
 import com.companion.chat.data.memory.MemoryRepository
 import com.companion.chat.data.model.ChatMessage
@@ -38,6 +42,7 @@ import com.companion.chat.data.repository.ChatSessionRepository
 import com.companion.chat.engine.AndroidVoiceInputEngine
 import com.companion.chat.engine.AndroidVoiceOutputEngine
 import com.companion.chat.engine.LiteRTLMInferenceEngine
+import com.companion.chat.engine.RoleAwareVoiceOutputEngine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -57,7 +62,10 @@ data class ChatUiState(
     val selectedImages: List<Uri> = emptyList(),
     val isGenerating: Boolean = false,
     val isVoiceListening: Boolean = false,
+    val isVoiceWarmedUp: Boolean = false,
     val isVoiceSpeaking: Boolean = false,
+    val imageGenerationState: ImageGenerationState = ImageGenerationState.Idle,
+    val imageGenerationError: String = "",
     val engineState: InferenceState = InferenceState.Idle,
     val showVoicePermissionDialog: Boolean = false,
     val diagnosticLog: String = "",
@@ -77,7 +85,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     val inferenceEngine = LiteRTLMInferenceEngine(application)
     val voiceInputEngine = AndroidVoiceInputEngine(application)
-    val voiceOutputEngine = AndroidVoiceOutputEngine(application)
     private val database = CompanionDatabase.getInstance(application)
     private val contextConfigRepository = ContextConfigRepository(application)
     private val contextManager: ContextManager = DefaultContextManager()
@@ -92,6 +99,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val roleCardRepository = RoleCardRepository(
         roleCardDao = database.roleCardDao()
     )
+    private val androidVoiceOutputEngine = AndroidVoiceOutputEngine(application)
+    val voiceOutputEngine = RoleAwareVoiceOutputEngine(
+        fallbackEngine = androidVoiceOutputEngine,
+        roleCardRepository = roleCardRepository
+    )
+    private val imageGenerationConfigRepository = ImageGenerationConfigRepository(application)
+    private val imageGenerationEngine = HttpImageGenerationEngine(application)
     private val roleCardPromptBuilder = RoleCardPromptBuilder()
     private val skillRepository = SkillRepository(
         skillDao = database.skillDao()
@@ -118,8 +132,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         collectInferenceState()
         collectVoiceEvents()
         collectVoiceOutputState()
+        collectImageGenerationState()
         loadContextSettings()
         loadSessionsFromStorage()
+        voiceInputEngine.warmUp()
 
         viewModelScope.launch {
             refreshBaseSystemPrompt()
@@ -187,6 +203,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         voiceCollectJob = viewModelScope.launch {
             voiceInputEngine.events.collectLatest { event ->
                 when (event) {
+                    is VoiceInputEvent.WarmedUp -> {
+                        _uiState.update { it.copy(isVoiceWarmedUp = true) }
+                    }
                     is VoiceInputEvent.PartialResult -> {
                         _uiState.update { it.copy(inputText = event.text) }
                     }
@@ -228,6 +247,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun collectImageGenerationState() {
+        viewModelScope.launch {
+            imageGenerationEngine.state.collectLatest { state ->
+                _uiState.update {
+                    it.copy(
+                        imageGenerationState = state,
+                        imageGenerationError = (state as? ImageGenerationState.Error)?.message.orEmpty()
+                    )
+                }
+            }
+        }
+    }
+
     fun updateInputText(text: String) {
         _uiState.update { it.copy(inputText = text) }
     }
@@ -238,6 +270,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun removeImage(uri: Uri) {
         _uiState.update { it.copy(selectedImages = it.selectedImages - uri) }
+    }
+
+    fun generateChatSceneImage(prompt: String) {
+        viewModelScope.launch {
+            imageGenerationEngine.generate(
+                prompt = prompt,
+                config = imageGenerationConfigRepository.getConfig(),
+                purpose = ImageGenerationPurpose.CHAT_SCENE
+            ).onSuccess { uri ->
+                addImage(Uri.parse(uri))
+            }
+        }
     }
 
     fun sendMessage() {
@@ -1040,7 +1084,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
-        private const val DEFAULT_BASE_SYSTEM_PROMPT = "你是一个友善的AI助手，请用中文回答用户的问题。"
+        private const val DEFAULT_BASE_SYSTEM_PROMPT =
+            "你是 Anime Companion 的本地私密陪伴智能体。默认使用中文，像长期熟悉用户的伙伴一样自然回应：亲近但不过界，温柔但不说教，记得对话中的连续性与用户已经确认的偏好。你的记忆描述始终以用户为归属，不把用户的信息说成自己的经历。回答应简洁、有情绪承接，除非用户明确需要步骤或分析，否则少用训诫式建议。"
         private const val STAGE4_IDLE_DELAY_MILLIS = 3 * 60 * 1000L
         private const val STAGE4_THROTTLE_MILLIS = 5 * 60 * 1000L
         private const val STAGE4_SUMMARY_TIMEOUT_MILLIS = 90_000L

@@ -29,7 +29,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Skill::class,
         RoleCard::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -55,7 +55,7 @@ abstract class CompanionDatabase : RoomDatabase() {
                     CompanionDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .addCallback(DatabaseInitializationCallback())
                     .build()
                     .also { instance = it }
@@ -131,6 +131,17 @@ abstract class CompanionDatabase : RoomDatabase() {
                       AND NOT EXISTS (SELECT 1 FROM skills WHERE isActive = 1)
                     """.trimIndent()
                 )
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE role_cards ADD COLUMN avatarImageUri TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE role_cards ADD COLUMN galleryImageUris TEXT NOT NULL DEFAULT '[]'")
+                db.execSQL("ALTER TABLE role_cards ADD COLUMN imageStylePrompt TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE role_cards ADD COLUMN voiceProfileUri TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE role_cards ADD COLUMN voiceMode TEXT NOT NULL DEFAULT 'SYSTEM_TTS'")
+                db.execSQL("ALTER TABLE role_cards ADD COLUMN voiceDisplayName TEXT NOT NULL DEFAULT ''")
             }
         }
 

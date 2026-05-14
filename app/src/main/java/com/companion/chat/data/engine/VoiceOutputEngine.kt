@@ -8,10 +8,21 @@ sealed class VoiceOutputState {
     data class Error(val message: String) : VoiceOutputState()
 }
 
+enum class VoiceOutputMode {
+    SYSTEM_TTS,
+    CLONE
+}
+
+data class VoiceOutputConfig(
+    val mode: VoiceOutputMode = VoiceOutputMode.SYSTEM_TTS,
+    val referenceAudioUri: String = "",
+    val displayName: String = ""
+)
+
 interface VoiceOutputEngine {
     val state: Flow<VoiceOutputState>
 
-    suspend fun speak(text: String)
+    suspend fun speak(text: String, config: VoiceOutputConfig = VoiceOutputConfig())
 
     fun stop()
 

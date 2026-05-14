@@ -22,7 +22,13 @@ class RoleCardRepository(
         rules: String,
         taboos: String,
         openingMessage: String,
-        exampleDialogue: String
+        exampleDialogue: String,
+        avatarImageUri: String = "",
+        galleryImageUris: List<String> = emptyList(),
+        imageStylePrompt: String = "",
+        voiceProfileUri: String = "",
+        voiceMode: String = "SYSTEM_TTS",
+        voiceDisplayName: String = ""
     ): Long {
         val normalizedName = name.trim()
         val normalizedPersona = persona.trim()
@@ -42,6 +48,12 @@ class RoleCardRepository(
                 taboos = taboos.trim(),
                 openingMessage = openingMessage.trim(),
                 exampleDialogue = exampleDialogue.trim(),
+                avatarImageUri = avatarImageUri.trim(),
+                galleryImageUris = galleryImageUris.map { it.trim() }.filter { it.isNotBlank() },
+                imageStylePrompt = imageStylePrompt.trim(),
+                voiceProfileUri = voiceProfileUri.trim(),
+                voiceMode = voiceMode.trim().ifBlank { "SYSTEM_TTS" },
+                voiceDisplayName = voiceDisplayName.trim(),
                 createdAt = now,
                 updatedAt = now
             )
@@ -59,7 +71,13 @@ class RoleCardRepository(
         rules: String,
         taboos: String,
         openingMessage: String,
-        exampleDialogue: String
+        exampleDialogue: String,
+        avatarImageUri: String? = null,
+        galleryImageUris: List<String>? = null,
+        imageStylePrompt: String? = null,
+        voiceProfileUri: String? = null,
+        voiceMode: String? = null,
+        voiceDisplayName: String? = null
     ) {
         val existing = roleCardDao.getById(id) ?: error("未找到角色卡: $id")
         val normalizedName = name.trim()
@@ -79,6 +97,15 @@ class RoleCardRepository(
                 taboos = taboos.trim(),
                 openingMessage = openingMessage.trim(),
                 exampleDialogue = exampleDialogue.trim(),
+                avatarImageUri = avatarImageUri?.trim() ?: existing.avatarImageUri,
+                galleryImageUris = galleryImageUris
+                    ?.map { it.trim() }
+                    ?.filter { it.isNotBlank() }
+                    ?: existing.galleryImageUris,
+                imageStylePrompt = imageStylePrompt?.trim() ?: existing.imageStylePrompt,
+                voiceProfileUri = voiceProfileUri?.trim() ?: existing.voiceProfileUri,
+                voiceMode = voiceMode?.trim()?.ifBlank { "SYSTEM_TTS" } ?: existing.voiceMode,
+                voiceDisplayName = voiceDisplayName?.trim() ?: existing.voiceDisplayName,
                 updatedAt = nowProvider()
             )
         )
@@ -94,4 +121,5 @@ class RoleCardRepository(
         roleCardDao.deactivateAll()
         roleCardDao.activate(id, nowProvider())
     }
+
 }

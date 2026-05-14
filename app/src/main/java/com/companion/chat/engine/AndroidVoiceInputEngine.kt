@@ -26,6 +26,24 @@ class AndroidVoiceInputEngine(private val context: Context) : VoiceInputEngine {
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
 
+    override fun warmUp() {
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+            _events.tryEmit(VoiceInputEvent.Error("设备不支持语音识别"))
+            return
+        }
+        try {
+            if (speechRecognizer == null) {
+                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+                    setRecognitionListener(createListener())
+                }
+            }
+            _events.tryEmit(VoiceInputEvent.WarmedUp)
+        } catch (e: Exception) {
+            Log.e(TAG, "预热语音识别失败", e)
+            _events.tryEmit(VoiceInputEvent.Error("预热语音识别失败: ${e.message}"))
+        }
+    }
+
     override fun startListening() {
         if (isListening) return
 

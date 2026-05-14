@@ -64,7 +64,13 @@ class RoleManagementViewModel(
         rules: String,
         taboos: String,
         openingMessage: String,
-        exampleDialogue: String
+        exampleDialogue: String,
+        avatarImageUri: String = "",
+        galleryImageUris: List<String> = emptyList(),
+        imageStylePrompt: String = "",
+        voiceProfileUri: String = "",
+        voiceMode: String = "SYSTEM_TTS",
+        voiceDisplayName: String = ""
     ) {
         workerScope.launch {
             roleCardRepository.createRoleCard(
@@ -77,7 +83,13 @@ class RoleManagementViewModel(
                 rules = rules,
                 taboos = taboos,
                 openingMessage = openingMessage,
-                exampleDialogue = exampleDialogue
+                exampleDialogue = exampleDialogue,
+                avatarImageUri = avatarImageUri,
+                galleryImageUris = galleryImageUris,
+                imageStylePrompt = imageStylePrompt,
+                voiceProfileUri = voiceProfileUri,
+                voiceMode = voiceMode,
+                voiceDisplayName = voiceDisplayName
             )
             refresh()
         }
@@ -94,7 +106,13 @@ class RoleManagementViewModel(
         rules: String,
         taboos: String,
         openingMessage: String,
-        exampleDialogue: String
+        exampleDialogue: String,
+        avatarImageUri: String? = null,
+        galleryImageUris: List<String>? = null,
+        imageStylePrompt: String? = null,
+        voiceProfileUri: String? = null,
+        voiceMode: String? = null,
+        voiceDisplayName: String? = null
     ) {
         workerScope.launch {
             roleCardRepository.updateRoleCard(
@@ -108,7 +126,13 @@ class RoleManagementViewModel(
                 rules = rules,
                 taboos = taboos,
                 openingMessage = openingMessage,
-                exampleDialogue = exampleDialogue
+                exampleDialogue = exampleDialogue,
+                avatarImageUri = avatarImageUri,
+                galleryImageUris = galleryImageUris,
+                imageStylePrompt = imageStylePrompt,
+                voiceProfileUri = voiceProfileUri,
+                voiceMode = voiceMode,
+                voiceDisplayName = voiceDisplayName
             )
             refresh()
         }

@@ -20,12 +20,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -33,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.companion.chat.data.context.ContextConfigRepository
+import com.companion.chat.data.image.ImageGenerationConfig
+import com.companion.chat.data.image.ImageGenerationConfigRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,7 +46,9 @@ fun ModelConfigScreen(
 ) {
     val context = LocalContext.current
     val contextConfigRepository = remember(context) { ContextConfigRepository(context) }
+    val imageConfigRepository = remember(context) { ImageGenerationConfigRepository(context) }
     var retainedRounds by remember { mutableIntStateOf(contextConfigRepository.getSettings().retainedRounds) }
+    var imageConfig by remember { mutableStateOf(imageConfigRepository.getConfig()) }
     val options = listOf(3, 5, 10, 15, 20)
 
     Scaffold(
@@ -118,8 +124,72 @@ fun ModelConfigScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)
             )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 20.dp)
+            ) {
+                Text(
+                    text = "图片生成 HTTP 配置",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                ImageConfigField("Base URL", imageConfig.baseUrl) {
+                    imageConfig = imageConfig.copy(baseUrl = it)
+                    imageConfigRepository.updateConfig(imageConfig)
+                }
+                ImageConfigField("API Key", imageConfig.apiKey) {
+                    imageConfig = imageConfig.copy(apiKey = it)
+                    imageConfigRepository.updateConfig(imageConfig)
+                }
+                ImageConfigField("Model", imageConfig.model) {
+                    imageConfig = imageConfig.copy(model = it)
+                    imageConfigRepository.updateConfig(imageConfig)
+                }
+                ImageConfigField("Request Template", imageConfig.requestTemplate, minLines = 3) {
+                    imageConfig = imageConfig.copy(requestTemplate = it.ifBlank { ImageGenerationConfig.DEFAULT_REQUEST_TEMPLATE })
+                    imageConfigRepository.updateConfig(imageConfig)
+                }
+                ImageConfigField("Response Image Field Path", imageConfig.responseImageFieldPath) {
+                    imageConfig = imageConfig.copy(responseImageFieldPath = it.ifBlank { ImageGenerationConfig.DEFAULT_RESPONSE_FIELD_PATH })
+                    imageConfigRepository.updateConfig(imageConfig)
+                }
+                ImageConfigField("Timeout Millis", imageConfig.timeoutMillis.toString()) {
+                    val timeout = it.toIntOrNull() ?: imageConfig.timeoutMillis
+                    imageConfig = imageConfig.copy(timeoutMillis = timeout)
+                    imageConfigRepository.updateConfig(imageConfig)
+                }
+                Text(
+                    text = "模板支持 {{model}} 与 {{prompt}}。响应字段示例：data.0.url 或 data.0.b64_json。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun ImageConfigField(
+    label: String,
+    value: String,
+    minLines: Int = 1,
+    onValueChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        minLines = minLines,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+    )
 }
 
 @Composable

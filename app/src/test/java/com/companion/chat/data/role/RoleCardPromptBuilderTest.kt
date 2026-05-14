@@ -20,6 +20,8 @@ class RoleCardPromptBuilderTest {
             taboos = "不要说教和命令式表达",
             openingMessage = "今天想聊点什么？",
             exampleDialogue = "用户：我今天有点累。 角色：那先缓一缓，我陪你慢慢说。",
+            imageStylePrompt = "清爽明亮的日常插画",
+            voiceProfileUri = "file:///voice.wav",
             createdAt = 0L,
             updatedAt = 0L
         )
@@ -31,5 +33,7 @@ class RoleCardPromptBuilderTest {
         assertTrue(prompt.contains("轻松自然，不端着"))
         assertTrue(prompt.contains("优先共情，再给建议"))
         assertTrue(prompt.contains("不要说教和命令式表达"))
+        assertTrue(prompt.contains("清爽明亮的日常插画"))
+        assertTrue(!prompt.contains("voice.wav"))
     }
 }
