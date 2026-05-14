@@ -440,3 +440,83 @@
 - 角色卡创建/编辑/删除/激活是否正常。
 - `Skills 管理` 中是否只剩唯一内置 `翻译助手`。
 - 激活角色卡与 skill 后，回答是否同时体现人格与任务能力。
+- 2026-05-14 阶段六“语音模型、语音克隆与图片生成”第一版代码已完成：
+- 工程边界：
+- 本阶段只修改根目录当前有效源码 `app/`，未使用旧 `CompanionChat/app/` 作为实现目标。
+- 新增阶段六设计与实施记录：
+- `docs/plans/2026-05-14-stage6-voice-image-generation-design.md`
+- `docs/plans/2026-05-14-stage6-voice-image-generation-plan.md`
+- 数据层：
+- `CompanionDatabase` 已升级到 `version = 3`，新增 `2 -> 3` migration。
+- `RoleCard` 已增加 `avatarImageUri`、`galleryImageUris`、`imageStylePrompt`、`voiceProfileUri`、`voiceMode`、`voiceDisplayName`。
+- `RoleCardRepository` 创建和更新接口已支持图片与语音字段。
+- Prompt：
+- `ChatViewModel.DEFAULT_BASE_SYSTEM_PROMPT` 已调整为更贴近 Anime Companion 的本地私密、长期陪伴、自然亲密、中文优先、少说教风格。
+- `RoleCardPromptBuilder` 已把 `imageStylePrompt` 纳入角色设定摘要，同时保持语音 URI 不进入 LLM prompt。
+- 语音：
+- `VoiceInputEngine` 已新增 `warmUp()` 和 `WarmedUp` 状态。
+- `AndroidVoiceInputEngine` 已支持进入对话页后预热语音组件，但不自动录音。
+- `VoiceOutputEngine` 已新增 `VoiceOutputConfig` 与 `VoiceOutputMode`。
+- 新增 `RoleAwareVoiceOutputEngine`，播放回复时读取激活角色卡语音配置；真实克隆后端未接入时自动回退 Android TTS。
+- 图片生成：
+- 新增 `ImageGenerationEngine`、`ImageGenerationConfig`、`ImageGenerationState`、`ImageGenerationPurpose`、`ImageGenerationConfigRepository`、`HttpImageGenerationEngine`。
+- HTTP 图片生成配置支持 Base URL、API Key、model、request template、response image field path、timeout。
+- 生成结果支持 URL、data URL、base64，并保存到应用私有目录 `files/generated_images/...`。
+- UI：
+- `ModelConfigScreen` 已增加图片生成 HTTP 配置区。
+- `SettingsScreen` 已增加“图片生成”入口说明。
+- `VoiceSettingsScreen` 已从占位页升级为语音预热、语音输出模式和 TTS 回退说明页。
+- `RoleCardEditorDialog` 已增加图片 URI、图片风格提示词、语音参考音频 URI、语音模式、语音显示名称字段。
+- `CharacterManagementScreen` 已展示角色图片和语音配置摘要。
+- 本轮新增/更新测试：
+- `RoleCardRepositoryTest`
+- `RoleCardPromptBuilderTest`
+- 本轮本地验证结果：
+- `./gradlew :app:testDebugUnitTest` 通过。
+- `./gradlew :app:assembleDebug` 通过。
+- 验证准备：
+- 已为当前根工程新增 `local.properties`，指向 `/home/yrd/Android/Sdk`。
+- 已给根目录 `gradlew` 增加执行权限。
+- 当前已知限制：
+- 本阶段未接入 sherpa-onnx/Whisper 等端侧 ASR 模型。
+- 本阶段未接入真实语音克隆后端，`CLONE` 配置当前仍回退系统 TTS。
+- 图片生成依赖用户配置联网 HTTP 服务，尚未做真机联网生成端到端复测。
+- 2026-05-14 阶段六无线真机调试记录：
+- 已通过无线调试配对并连接设备 `192.168.1.24:33817`。
+- 已将当前 `app-debug.apk` 推送到 `/data/local/tmp/companionchat-stage6.apk` 并通过 `pm install -r -t` 安装成功。
+- 应用可启动，`pidof com.companion.chat` 有进程，未在本轮 logcat 中发现 `AndroidRuntime` / `FATAL EXCEPTION`。
+- `app_init_log.txt` 显示应用初始化、旧 JSON 迁移跳过、记忆生命周期维护均完成。
+- 当前设备模型目录只有旧 `.gguf`：`Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf`。
+- 当前阶段六包默认寻找 `/storage/emulated/0/Android/data/com.companion.chat/files/models/gemma-4-E2B-it.litertlm`，设备上不存在，因此 `engine.initialize` 返回 `Error(message=模型文件不存在或为空...)`。
+- 已确认阶段六新增 UI 可进入：
+- 设置页显示“图片生成”入口。
+- 模型配置页显示“图片生成 HTTP 配置”、`Base URL`、`API Key`、`Model`、`Request Template`、`Response Image Field Path`、`Timeout Millis`。
+- 语音设置页显示“预热但不自动录音”“系统 TTS / 角色克隆配置”“克隆后端未接入时回退系统 TTS”等说明。
+- 角色卡编辑弹窗显示“头像图片 URI”“图库图片 URI”“图片风格提示词”“语音参考音频 URI”“语音模式（SYSTEM_TTS / CLONE）”“语音显示名称”。
+- 当前真机剩余限制：
+- 因缺少 `.litertlm` 模型文件，本轮未验证真实聊天生成。
+- 未配置联网图片生成 HTTP 服务，本轮未做图片生成端到端请求。
+- 2026-05-14 阶段六无线真机继续调试：
+- 已定位 Edge Gallery 下载的 Gemma4 E2B 模型：
+- `/sdcard/Android/data/com.google.ai.edge.gallery/files/Gemma_4_E2B_it/20260325/gemma4_2b_v09_obfus_fix_all_modalities_thinking.litertlm`
+- 已复制到 CompanionChat 默认模型路径：
+- `/sdcard/Android/data/com.companion.chat/files/models/gemma-4-E2B-it.litertlm`
+- 重启应用后 `viewmodel_log.txt` 确认：
+- 模型文件存在。
+- 文件大小 `2538766336 bytes`。
+- `engine.initialize 返回, state = Ready`。
+- 真机聊天验证：
+- 发送 `hello` 后模型正常返回中文回复，页面回到“已就绪”。
+- 通过数据库插入阶段六测试角色卡 `Mika`，包含头像图片 URI、图库 2 张、`CLONE` 语音模式、语音显示名称。
+- 角色管理页已显示：
+- `图片：头像已配置，图库 2 张`
+- `语音：Mika voice`
+- 激活角色卡后发送 `who_are_you`，模型回复“我是 Mika”，说明角色 prompt 链路生效。
+- 输入法调试：
+- 用户要求不要微信输入法、不要百度输入法。
+- 已找到 vivo 系统安全键盘组件 `com.vivo.secime.service/.SecIME`。
+- 普通 `ime enable/set` 会提示 `Unknown input method`，但通过 secure settings 写入后，默认输入法可指向该组件。
+- 使用安全键盘默认状态输入 `test_secure_ime` 后，聊天发送与模型回复均正常。
+- 本轮发现的待查项：
+- 点击聊天页麦克风按钮后，本轮未观察到 `VoiceInputEngine` / `SpeechRecognizer` logcat 记录，也未看到“正在听...”状态变化；设备上 `RECORD_AUDIO` 权限已授予。后续需要继续定位是点击坐标/Compose 命中问题，还是语音入口回调未触发。
+- 图片生成 HTTP 端到端仍待配置真实服务后复测。
