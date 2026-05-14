@@ -125,6 +125,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var generateJob: Job? = null
     private var voiceCollectJob: Job? = null
     private var preferenceSummaryDelayJob: Job? = null
+    private var shouldSpeakNextAssistantResponse = false
     private val lastSummaryTimestamps = mutableMapOf<String, Long>()
 
     init {
@@ -210,6 +211,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _uiState.update { it.copy(inputText = event.text) }
                     }
                     is VoiceInputEvent.FinalResult -> {
+                        shouldSpeakNextAssistantResponse = true
                         _uiState.update {
                             it.copy(
                                 inputText = event.text,
@@ -486,9 +488,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val lastMessage = _uiState.value.messages.lastOrNull()
-        if (lastMessage?.role == MessageRole.ASSISTANT && lastMessage.content.isNotBlank()) {
+        if (
+            shouldSpeakNextAssistantResponse &&
+            lastMessage?.role == MessageRole.ASSISTANT &&
+            lastMessage.content.isNotBlank()
+        ) {
             speakMessage(lastMessage.content)
         }
+        shouldSpeakNextAssistantResponse = false
 
         saveCurrentSession()
         schedulePreferenceSummaryAfterDelay()
@@ -525,6 +532,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         generateJob?.cancel()
         inferenceEngine.cancel()
         secondEngineManager.cancelRunningSummary()
+        shouldSpeakNextAssistantResponse = false
         _uiState.update { it.copy(isGenerating = false) }
     }
 
