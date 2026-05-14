@@ -60,9 +60,11 @@ data class ChatUiState(
     val inputText: String = "",
     val selectedImages: List<Uri> = emptyList(),
     val isGenerating: Boolean = false,
+    val isVoiceStarting: Boolean = false,
     val isVoiceListening: Boolean = false,
     val isVoiceWarmedUp: Boolean = false,
     val isVoiceSpeaking: Boolean = false,
+    val voiceInputError: String = "",
     val imageGenerationState: ImageGenerationState = ImageGenerationState.Idle,
     val imageGenerationError: String = "",
     val engineState: InferenceState = InferenceState.Idle,
@@ -75,7 +77,14 @@ data class ChatUiState(
     val dateFilter: DateFilter = DateFilter.ALL,
     val editingSessionId: String = "",
     val editingTitle: String = ""
-)
+) {
+    val hasSpeakableAssistantMessage: Boolean
+        get() = messages.any { message ->
+            message.role == MessageRole.ASSISTANT &&
+                !message.isStreaming &&
+                message.content.isNotBlank()
+        }
+}
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -212,29 +221,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _uiState.update { it.copy(isVoiceWarmedUp = true) }
                     }
                     is VoiceInputEvent.PartialResult -> {
-                        _uiState.update { it.copy(inputText = event.text) }
+                        _uiState.update { it.copy(inputText = event.text, voiceInputError = "") }
                     }
                     is VoiceInputEvent.FinalResult -> {
-                        shouldSpeakNextAssistantResponse = true
                         _uiState.update {
                             it.copy(
                                 inputText = event.text,
-                                isVoiceListening = false
+                                isVoiceStarting = false,
+                                isVoiceListening = false,
+                                voiceInputError = ""
                             )
                         }
-                        sendMessage()
                     }
                     is VoiceInputEvent.Listening -> {
-                        _uiState.update { it.copy(isVoiceListening = true) }
+                        _uiState.update {
+                            it.copy(
+                                isVoiceStarting = false,
+                                isVoiceListening = true,
+                                voiceInputError = ""
+                            )
+                        }
                     }
                     is VoiceInputEvent.NotListening -> {
-                        _uiState.update { it.copy(isVoiceListening = false) }
+                        _uiState.update { it.copy(isVoiceStarting = false, isVoiceListening = false) }
                     }
                     is VoiceInputEvent.Error -> {
                         _uiState.update {
                             it.copy(
+                                isVoiceStarting = false,
                                 isVoiceListening = false,
-                                inputText = ""
+                                voiceInputError = event.message
                             )
                         }
                     }
@@ -506,10 +522,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleVoiceListening() {
-        if (_uiState.value.isVoiceListening) {
+        if (_uiState.value.isVoiceListening || _uiState.value.isVoiceStarting) {
             voiceInputEngine.stopListening()
+            _uiState.update {
+                it.copy(
+                    isVoiceStarting = false,
+                    isVoiceListening = false,
+                    showVoicePermissionDialog = false
+                )
+            }
         } else {
-            _uiState.update { it.copy(showVoicePermissionDialog = true) }
+            _uiState.update {
+                it.copy(
+                    isVoiceStarting = true,
+                    voiceInputError = "",
+                    showVoicePermissionDialog = true
+                )
+            }
         }
     }
 
@@ -519,13 +548,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onVoicePermissionDenied() {
-        _uiState.update { it.copy(showVoicePermissionDialog = false) }
+        _uiState.update {
+            it.copy(
+                isVoiceStarting = false,
+                showVoicePermissionDialog = false,
+                voiceInputError = "缺少录音权限，无法使用语音输入"
+            )
+        }
+    }
+
+    fun clearVoiceInputError() {
+        _uiState.update { it.copy(voiceInputError = "") }
     }
 
     fun speakMessage(text: String) {
         viewModelScope.launch {
             voiceOutputEngine.speak(text)
         }
+    }
+
+    fun speakLatestAssistantMessage() {
+        val latestAssistantMessage = _uiState.value.messages.lastOrNull { message ->
+            message.role == MessageRole.ASSISTANT &&
+                !message.isStreaming &&
+                message.content.isNotBlank()
+        } ?: return
+
+        speakMessage(latestAssistantMessage.content)
     }
 
     fun stopSpeaking() {

@@ -1,5 +1,30 @@
 # 项目进度
 
+## 2026-05-15 - 聊天栏语音输入与语音输出按钮分离
+
+### 完成内容
+- 将聊天输入栏右侧从单个动作按钮拆分为两个固定控制位：
+  - 主输入按钮：有文字或图片时发送，空输入时作为麦克风语音输入。
+  - 语音输出按钮：位于主输入按钮右侧，负责朗读最近一条助手回复。
+- 语音输出按钮在未播放时显示朗读图标，播放中切换为停止图标并调用停止播放。
+- 无可朗读助手回复时禁用语音输出按钮，避免空操作。
+- 输入框 placeholder 只保留输入相关状态：启动语音识别、正在听、输入消息；不再用“正在播放...”占用输入语义。
+- `ChatViewModel` 新增最近可朗读助手消息判断，并提供 `speakLatestAssistantMessage()`，只朗读非 streaming 且内容非空的最近助手消息。
+- `ChatScreen` 已完成新按钮参数接线。
+
+### 验证
+- `./gradlew :app:testDebugUnitTest` 通过。
+- `./gradlew :app:assembleDebug` 通过。
+- `./gradlew :app:compileDebugKotlin` 通过。
+- 构建过程中仍存在既有 AGP 8.5.2 与 compileSdk 35 兼容性提示，不影响本次构建结果。
+
+### 关键文件
+- 输入栏：`app/src/main/java/com/companion/chat/ui/chat/components/ChatInputBar.kt`
+- 聊天页面：`app/src/main/java/com/companion/chat/ui/chat/ChatScreen.kt`
+- ViewModel：`app/src/main/java/com/companion/chat/ui/chat/ChatViewModel.kt`
+
+---
+
 ## 2026-05-11 - CompanionChat v0.1.0 UI骨架
 
 ### 完成内容

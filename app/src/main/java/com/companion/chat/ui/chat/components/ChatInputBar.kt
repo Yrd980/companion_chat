@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
@@ -46,8 +47,11 @@ fun ChatInputBar(
     onVoiceInput: () -> Unit,
     selectedImages: List<Uri>,
     onRemoveImage: (Uri) -> Unit,
+    isVoiceStarting: Boolean = false,
     isVoiceListening: Boolean,
     isVoiceSpeaking: Boolean = false,
+    canVoiceOutput: Boolean = false,
+    onVoiceOutput: () -> Unit = {},
     onStopSpeaking: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -114,8 +118,8 @@ fun ChatInputBar(
                     placeholder = {
                         Text(
                             text = when {
+                                isVoiceStarting -> "正在启动语音识别..."
                                 isVoiceListening -> "正在听..."
-                                isVoiceSpeaking -> "正在播放..."
                                 else -> "输入消息..."
                             },
                             style = MaterialTheme.typography.bodyMedium
@@ -125,19 +129,7 @@ fun ChatInputBar(
                     maxLines = 4
                 )
 
-                if (isVoiceSpeaking) {
-                    FilledIconButton(
-                        onClick = onStopSpeaking,
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Stop,
-                            contentDescription = "停止播放"
-                        )
-                    }
-                } else if (inputText.isNotBlank() || selectedImages.isNotEmpty()) {
+                if (inputText.isNotBlank() || selectedImages.isNotEmpty()) {
                     FilledIconButton(
                         onClick = onSend,
                         colors = IconButtonDefaults.filledIconButtonColors(
@@ -153,7 +145,7 @@ fun ChatInputBar(
                     IconButton(
                         onClick = onVoiceInput,
                         colors = IconButtonDefaults.iconButtonColors(
-                            contentColor = if (isVoiceListening)
+                            contentColor = if (isVoiceListening || isVoiceStarting)
                                 MaterialTheme.colorScheme.error
                             else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -163,6 +155,33 @@ fun ChatInputBar(
                             contentDescription = "语音输入"
                         )
                     }
+                }
+
+                IconButton(
+                    onClick = {
+                        if (isVoiceSpeaking) {
+                            onStopSpeaking()
+                        } else {
+                            onVoiceOutput()
+                        }
+                    },
+                    enabled = isVoiceSpeaking || canVoiceOutput,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = if (isVoiceSpeaking)
+                            MaterialTheme.colorScheme.error
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    )
+                ) {
+                    Icon(
+                        imageVector = if (isVoiceSpeaking) {
+                            Icons.Default.Stop
+                        } else {
+                            Icons.AutoMirrored.Filled.VolumeUp
+                        },
+                        contentDescription = if (isVoiceSpeaking) "停止播放" else "朗读最近回复"
+                    )
                 }
             }
         }

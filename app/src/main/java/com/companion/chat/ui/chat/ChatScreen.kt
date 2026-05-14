@@ -95,6 +95,13 @@ fun ChatScreen(
         }
     }
 
+    LaunchedEffect(uiState.voiceInputError) {
+        if (uiState.voiceInputError.isNotBlank()) {
+            snackbarHostState.showSnackbar(uiState.voiceInputError)
+            viewModel.clearVoiceInputError()
+        }
+    }
+
     // 启动时初始化模型引擎
     var showDiagnostic by remember { mutableStateOf(true) }
     // ViewModel init 中已自动调用 initializeEngine，这里不再重复调用
@@ -237,8 +244,11 @@ fun ChatScreen(
                 onVoiceInput = viewModel::toggleVoiceListening,
                 selectedImages = uiState.selectedImages,
                 onRemoveImage = viewModel::removeImage,
+                isVoiceStarting = uiState.isVoiceStarting,
                 isVoiceListening = uiState.isVoiceListening,
                 isVoiceSpeaking = uiState.isVoiceSpeaking,
+                canVoiceOutput = uiState.hasSpeakableAssistantMessage,
+                onVoiceOutput = viewModel::speakLatestAssistantMessage,
                 onStopSpeaking = viewModel::stopSpeaking
             )
         }
