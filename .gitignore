@@ -1,7 +1,11 @@
 # Models
 *.gguf
 *.litertlm
+/local_models/
 CompanionChat/app/src/main/assets/models/
+
+# Local Android AAR cache
+app/libs/*.aar
 
 # Gradle
 .gradle/

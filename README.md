@@ -131,7 +131,25 @@ Default local ASR model directory:
 /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice
 ```
 
-Required files:
+Local project model cache:
+
+```text
+local_models/asr/sensevoice/
+├── model.int8.onnx
+├── tokens.txt
+└── silero_vad.onnx
+```
+
+`local_models/` is ignored by Git and is only used as a local cache. Push the files to the device with:
+
+```bash
+adb shell 'mkdir -p /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice'
+adb push local_models/asr/sensevoice/model.int8.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/model.int8.onnx
+adb push local_models/asr/sensevoice/tokens.txt /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/tokens.txt
+adb push local_models/asr/sensevoice/silero_vad.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/silero_vad.onnx
+```
+
+The device directory must contain:
 
 ```text
 model.int8.onnx
@@ -139,7 +157,7 @@ tokens.txt
 silero_vad.onnx
 ```
 
-Device builds require the official k2-fsa `sherpa-onnx-1.13.0.aar` in `app/libs/`. When loading models from external absolute paths, the app passes `null` for sherpa-onnx's `AssetManager`; passing a non-null asset manager for SD-card model paths can make sherpa-onnx terminate the process from native code.
+Device builds require the official k2-fsa `sherpa-onnx-1.13.0.aar` in `app/libs/`. `app/libs/*.aar` is ignored by Git so the large binary dependency is not committed. When loading models from external absolute paths, the app passes `null` for sherpa-onnx's `AssetManager`; passing a non-null asset manager for SD-card model paths can make sherpa-onnx terminate the process from native code.
 
 ### 3. Context management
 

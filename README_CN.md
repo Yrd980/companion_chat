@@ -144,7 +144,25 @@ Anime Companion 想解决的正是这些问题。
 /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice
 ```
 
-需要放置以下文件：
+项目本机模型缓存目录：
+
+```text
+local_models/asr/sensevoice/
+├── model.int8.onnx
+├── tokens.txt
+└── silero_vad.onnx
+```
+
+`local_models/` 已加入 `.gitignore`，只用于本机缓存，不提交大模型文件。推送到设备：
+
+```bash
+adb shell 'mkdir -p /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice'
+adb push local_models/asr/sensevoice/model.int8.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/model.int8.onnx
+adb push local_models/asr/sensevoice/tokens.txt /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/tokens.txt
+adb push local_models/asr/sensevoice/silero_vad.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/silero_vad.onnx
+```
+
+设备目录最终需要包含：
 
 ```text
 model.int8.onnx
@@ -152,7 +170,7 @@ tokens.txt
 silero_vad.onnx
 ```
 
-设备构建需要把 k2-fsa 官方 `sherpa-onnx-1.13.0.aar` 放入 `app/libs/`。代码从外部文件路径加载模型时会向 sherpa-onnx 传入 `null AssetManager`，避免 native 层因绝对路径读取模型文件直接退出进程。
+设备构建需要把 k2-fsa 官方 `sherpa-onnx-1.13.0.aar` 放入 `app/libs/`。`app/libs/*.aar` 已加入 `.gitignore`，不提交大二进制依赖。代码从外部文件路径加载模型时会向 sherpa-onnx 传入 `null AssetManager`，避免 native 层因绝对路径读取模型文件直接退出进程。
 
 ### 3. 上下文管理
 
