@@ -1,7 +1,7 @@
 # Models
 *.gguf
 *.litertlm
-/local_models/
+third_party/models/
 CompanionChat/app/src/main/assets/models/
 
 # Local Android AAR cache

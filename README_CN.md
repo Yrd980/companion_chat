@@ -147,19 +147,19 @@ Anime Companion 想解决的正是这些问题。
 项目本机模型缓存目录：
 
 ```text
-local_models/asr/sensevoice/
+third_party/models/asr/sensevoice/
 ├── model.int8.onnx
 ├── tokens.txt
 └── silero_vad.onnx
 ```
 
-`local_models/` 已加入 `.gitignore`，只用于本机缓存，不提交大模型文件。推送到设备：
+`third_party/models/` 已加入 `.gitignore`，只用于本机缓存，不提交大模型文件。推送到设备：
 
 ```bash
 adb shell 'mkdir -p /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice'
-adb push local_models/asr/sensevoice/model.int8.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/model.int8.onnx
-adb push local_models/asr/sensevoice/tokens.txt /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/tokens.txt
-adb push local_models/asr/sensevoice/silero_vad.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/silero_vad.onnx
+adb push third_party/models/asr/sensevoice/model.int8.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/model.int8.onnx
+adb push third_party/models/asr/sensevoice/tokens.txt /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/tokens.txt
+adb push third_party/models/asr/sensevoice/silero_vad.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/silero_vad.onnx
 ```
 
 设备目录最终需要包含：

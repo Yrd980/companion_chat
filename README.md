@@ -134,19 +134,19 @@ Default local ASR model directory:
 Local project model cache:
 
 ```text
-local_models/asr/sensevoice/
+third_party/models/asr/sensevoice/
 ├── model.int8.onnx
 ├── tokens.txt
 └── silero_vad.onnx
 ```
 
-`local_models/` is ignored by Git and is only used as a local cache. Push the files to the device with:
+`third_party/models/` is ignored by Git and is only used as a local cache. Push the files to the device with:
 
 ```bash
 adb shell 'mkdir -p /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice'
-adb push local_models/asr/sensevoice/model.int8.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/model.int8.onnx
-adb push local_models/asr/sensevoice/tokens.txt /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/tokens.txt
-adb push local_models/asr/sensevoice/silero_vad.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/silero_vad.onnx
+adb push third_party/models/asr/sensevoice/model.int8.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/model.int8.onnx
+adb push third_party/models/asr/sensevoice/tokens.txt /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/tokens.txt
+adb push third_party/models/asr/sensevoice/silero_vad.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/silero_vad.onnx
 ```
 
 The device directory must contain:
