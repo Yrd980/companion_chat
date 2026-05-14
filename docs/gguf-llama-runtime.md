@@ -20,6 +20,7 @@ Place the model on the device:
 ```bash
 adb shell mkdir -p /sdcard/Android/data/com.companion.chat/files/models
 adb push Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf /sdcard/Android/data/com.companion.chat/files/models/
+adb push mmproj-Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-f16.gguf /sdcard/Android/data/com.companion.chat/files/models/
 ```
 
 Default GGUF runtime path:
@@ -28,13 +29,27 @@ Default GGUF runtime path:
 /sdcard/Android/data/com.companion.chat/files/models/Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf
 ```
 
+Default Gemma 4 multimodal projector path:
+
+```text
+/sdcard/Android/data/com.companion.chat/files/models/mmproj-Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-f16.gguf
+```
+
 Optional LiteRT-LM runtime path:
 
 ```text
 /sdcard/Android/data/com.companion.chat/files/models/gemma-4-E2B-it.litertlm
 ```
 
-If an old checkout still has `CompanionChat/app/src/main/assets/models/*.gguf`, move it to a local ignored cache such as `third_party/models/gguf/` and push it to the device from there. Do not keep GGUF files under Android assets.
+If an old checkout still has `CompanionChat/app/src/main/assets/models/*.gguf`, move it to a local ignored cache such as `third_party/models/gguf/` and push it to the device from there. Do not keep GGUF or mmproj files under Android assets.
+
+The uncensored Gemma 4 projector can be fetched with:
+
+```bash
+uvx hf download HauhauCS/Gemma-4-E2B-Uncensored-HauhauCS-Aggressive \
+  mmproj-Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-f16.gguf \
+  --local-dir third_party/models/gguf
+```
 
 ## Build
 
@@ -68,4 +83,4 @@ viewmodel_log.txt
 
 Generation logs include prompt token count, prompt decode time, first token latency, generated token count, and tokens per second.
 
-Images are not sent to the GGUF runtime in this first text-only version; image messages return a clear unsupported-input response.
+Images are not sent to the GGUF runtime in this first text-only version; image messages return a clear unsupported-input response. The matching `mmproj` file is documented and staged in the device model directory for the next `libmtmd` integration pass.
