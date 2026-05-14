@@ -23,7 +23,7 @@ internal class SherpaOnnxSenseVoiceRecognizer(
 
             offlineStreamClass
                 .getMethod("acceptWaveform", FloatArray::class.java, Int::class.javaPrimitiveType)
-                .invoke(stream, audio.pcm16.toFloatArray(), audio.sampleRate)
+                .invoke(stream, AudioPcmConverter.pcm16ToFloatArray(audio.pcm16), audio.sampleRate)
             offlineRecognizerClass
                 .getMethod("decode", offlineStreamClass)
                 .invoke(recognizer, stream)
@@ -39,10 +39,6 @@ internal class SherpaOnnxSenseVoiceRecognizer(
             Log.e(TAG, "sherpa-onnx SenseVoice 识别失败", throwable)
             throw IllegalStateException("本地 SenseVoice 识别失败: ${throwable.message}", throwable)
         }
-    }
-
-    private fun ShortArray.toFloatArray(): FloatArray {
-        return FloatArray(size) { index -> this[index] / Short.MAX_VALUE.toFloat() }
     }
 
     private fun buildOfflineRecognizerConfig(): Any {

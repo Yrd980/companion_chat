@@ -134,6 +134,7 @@ Anime Companion 想解决的正是这些问题。
 - 语音输入默认使用本地 `sherpa-onnx + SenseVoiceSmall int8`
 - 不再依赖 Android `SpeechRecognizer`、Google 语音服务或系统语音识别服务
 - SenseVoice 模型文件从 App 外部目录读取，不打包进 APK
+- `silero_vad.onnx` 会被 sherpa-onnx Silero VAD 实际用于端侧语音切段，再交给 SenseVoice 识别，不只是校验文件
 - 云端 ASR 保留为手动选择的通用 HTTP 后端，不作为默认回退路径
 - 支持语音播报回复
 - 与聊天页主流程整合

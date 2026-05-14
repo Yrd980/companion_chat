@@ -121,6 +121,7 @@ The current implementation already covers the main product loop:
 - Voice input defaults to local `sherpa-onnx + SenseVoiceSmall int8`
 - It no longer depends on Android `SpeechRecognizer`, Google speech services, or system recognition services
 - SenseVoice model files are loaded from the app external files directory instead of being bundled into the APK
+- `silero_vad.onnx` is used by sherpa-onnx Silero VAD for on-device speech segmentation before SenseVoice transcription; it is not just a presence-check file
 - Cloud ASR remains available as a manually selected generic HTTP backend, not as an automatic fallback path
 - Text-to-speech for assistant responses
 - Integrated into the main chat screen
@@ -157,7 +158,7 @@ tokens.txt
 silero_vad.onnx
 ```
 
-Device builds require the official k2-fsa `sherpa-onnx-1.13.0.aar` in `app/libs/`. `app/libs/*.aar` is ignored by Git so the large binary dependency is not committed. When loading models from external absolute paths, the app passes `null` for sherpa-onnx's `AssetManager`; passing a non-null asset manager for SD-card model paths can make sherpa-onnx terminate the process from native code.
+Device builds require the official k2-fsa `sherpa-onnx-1.13.0.aar` in `app/libs/`. `app/libs/*.aar` is ignored by Git so the large binary dependency is not committed. When loading SenseVoice and Silero VAD models from external absolute paths, the app passes `null` for sherpa-onnx's `AssetManager`; passing a non-null asset manager for SD-card model paths can make sherpa-onnx terminate the process from native code.
 
 ### 3. Context management
 

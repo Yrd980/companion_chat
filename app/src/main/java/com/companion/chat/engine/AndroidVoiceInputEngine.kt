@@ -13,6 +13,7 @@ import com.companion.chat.data.engine.VoiceInputEvent
 import com.companion.chat.data.voice.CloudAsrConfigRepository
 import com.companion.chat.data.voice.LocalSenseVoiceModelStatus
 import com.companion.chat.data.voice.VoiceInputBackend
+import com.companion.chat.data.voice.VoiceInputConfig
 import com.companion.chat.data.voice.VoiceInputConfigRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,10 +25,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import kotlin.math.abs
 import kotlin.math.max
 
 class AndroidVoiceInputEngine(
@@ -64,17 +61,15 @@ class AndroidVoiceInputEngine(
         }
 
         val config = configRepository.getConfig()
-        if (config.backend == VoiceInputBackend.LOCAL_SENSEVOICE) {
-            when (val status = configRepository.getLocalSenseVoiceModelStatus(config)) {
-                LocalSenseVoiceModelStatus.Ready -> Unit
-                LocalSenseVoiceModelStatus.DirectoryNotConfigured -> {
-                    _events.tryEmit(VoiceInputEvent.Error("本地 SenseVoice 模型未配置"))
-                    return
-                }
-                is LocalSenseVoiceModelStatus.MissingFiles -> {
-                    _events.tryEmit(VoiceInputEvent.Error("本地 SenseVoice 模型文件缺失: ${status.fileNames.joinToString()}"))
-                    return
-                }
+        when (val status = configRepository.getLocalSenseVoiceModelStatus(config)) {
+            LocalSenseVoiceModelStatus.Ready -> Unit
+            LocalSenseVoiceModelStatus.DirectoryNotConfigured -> {
+                _events.tryEmit(VoiceInputEvent.Error("本地 SenseVoice 模型未配置"))
+                return
+            }
+            is LocalSenseVoiceModelStatus.MissingFiles -> {
+                _events.tryEmit(VoiceInputEvent.Error("本地 SenseVoice 模型文件缺失: ${status.fileNames.joinToString()}"))
+                return
             }
         }
 
@@ -83,7 +78,7 @@ class AndroidVoiceInputEngine(
         _events.tryEmit(VoiceInputEvent.Listening)
         scope.launch {
             runCatching {
-                val audio = recordUntilSilence()
+                val audio = recordUntilSilence(config)
                 if (stopRequested) {
                     return@launch
                 }
@@ -108,6 +103,9 @@ class AndroidVoiceInputEngine(
                     _events.tryEmit(VoiceInputEvent.FinalResult(text))
                 }
             }.getOrElse { throwable ->
+                if (stopRequested) {
+                    return@launch
+                }
                 Log.e(TAG, "语音输入失败", throwable)
                 _events.tryEmit(VoiceInputEvent.Error(throwable.message ?: "语音输入失败"))
             }
@@ -131,7 +129,7 @@ class AndroidVoiceInputEngine(
         scope.cancel()
     }
 
-    private fun recordUntilSilence(): RecordedAudio {
+    private fun recordUntilSilence(config: VoiceInputConfig): RecordedAudio {
         val minBufferSize = AudioRecord.getMinBufferSize(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO,
@@ -147,43 +145,44 @@ class AndroidVoiceInputEngine(
         )
         recorder = audioRecord
 
-        val captured = ByteArrayOutputStream()
         val buffer = ShortArray(FRAME_SAMPLES)
-        var voicedFrames = 0
-        var silentFramesAfterSpeech = 0
         var totalFrames = 0
+        val vad = SherpaOnnxSileroVad(
+            assetManager = null,
+            configValues = SileroVadConfigValues(
+                model = resolveSenseVoiceModelFiles(config.localSenseVoiceModelDirectory).vad
+            )
+        )
 
         try {
             audioRecord.startRecording()
+            while (!stopRequested && isListening && totalFrames < MAX_FRAMES && scope.isActive) {
+                val read = audioRecord.read(buffer, 0, buffer.size)
+                if (read <= 0) continue
+
+                totalFrames += 1
+                vad.acceptWaveform(AudioPcmConverter.pcm16ToFloatArray(buffer, read))
+                val segment = vad.drainSegments().firstOrNull { audio -> !audio.isEmpty }
+                if (segment != null) {
+                    return segment
+                }
+            }
+            vad.flush()
+            return vad.drainSegments().firstOrNull { audio -> !audio.isEmpty }
+                ?: RecordedAudio(ShortArray(0), SAMPLE_RATE)
         } catch (e: IllegalStateException) {
-            throw IllegalStateException("启动录音失败: ${e.message}", e)
+            if (stopRequested) {
+                return RecordedAudio(ShortArray(0), SAMPLE_RATE)
+            }
+            throw e
+        } catch (e: Exception) {
+            if (stopRequested) {
+                return RecordedAudio(ShortArray(0), SAMPLE_RATE)
+            }
+            throw IllegalStateException(e.message ?: "语音录制失败", e)
+        } finally {
+            vad.release()
         }
-        while (!stopRequested && isListening && totalFrames < MAX_FRAMES && scope.isActive) {
-            val read = audioRecord.read(buffer, 0, buffer.size)
-            if (read <= 0) continue
-
-            totalFrames += 1
-            val frameEnergy = buffer.averageAbs(read)
-            val hasSpeech = frameEnergy >= ENERGY_THRESHOLD
-            if (hasSpeech) {
-                voicedFrames += 1
-                silentFramesAfterSpeech = 0
-            } else if (voicedFrames > 0) {
-                silentFramesAfterSpeech += 1
-            }
-
-            if (voicedFrames > 0) {
-                captured.writeShorts(buffer, read)
-            }
-            if (voicedFrames >= MIN_VOICED_FRAMES && silentFramesAfterSpeech >= SILENCE_END_FRAMES) {
-                break
-            }
-        }
-
-        val bytes = captured.toByteArray()
-        val shorts = ShortArray(bytes.size / Short.SIZE_BYTES)
-        ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(shorts)
-        return RecordedAudio(shorts, SAMPLE_RATE)
     }
 
     private fun releaseRecorder() {
@@ -199,29 +198,10 @@ class AndroidVoiceInputEngine(
         }
     }
 
-    private fun ShortArray.averageAbs(length: Int): Int {
-        var sum = 0L
-        for (index in 0 until length) {
-            sum += abs(this[index].toInt())
-        }
-        return (sum / length.coerceAtLeast(1)).toInt()
-    }
-
-    private fun ByteArrayOutputStream.writeShorts(values: ShortArray, length: Int) {
-        for (index in 0 until length) {
-            val value = values[index].toInt()
-            write(value and 0xff)
-            write((value shr 8) and 0xff)
-        }
-    }
-
     private companion object {
         const val TAG = "VoiceInputEngine"
         const val SAMPLE_RATE = 16_000
         const val FRAME_SAMPLES = 512
-        const val ENERGY_THRESHOLD = 700
-        const val MIN_VOICED_FRAMES = 3
-        const val SILENCE_END_FRAMES = 20
         const val MAX_RECORDING_MILLIS = 15_000
         const val MAX_FRAMES = MAX_RECORDING_MILLIS / (FRAME_SAMPLES * 1000 / SAMPLE_RATE)
     }
