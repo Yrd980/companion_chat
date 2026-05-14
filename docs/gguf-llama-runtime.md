@@ -1,6 +1,6 @@
 # GGUF llama.cpp Runtime
 
-The root `app/` module is the canonical Android app. It can use a CPU-only llama.cpp runtime for GGUF text chat, with LiteRT-LM kept as an optional backend. The first supported native ABI is `arm64-v8a`.
+The root `app/` module is the canonical Android app. It can use a CPU-only llama.cpp runtime for GGUF text and image chat through `libmtmd`, with LiteRT-LM kept as an optional backend. The first supported native ABI is `arm64-v8a`.
 
 ## Repository Setup
 
@@ -62,7 +62,7 @@ The native build is configured through root `app/src/main/cpp/CMakeLists.txt` an
 Default runtime settings favor shorter, faster responses:
 
 ```text
-contextSize=2048
+contextSize=2048 for text-only, automatically at least 8192 for GGUF image input
 maxTokens=256
 temperature=0.7
 topK=40
@@ -81,6 +81,6 @@ llama_engine_log.txt
 viewmodel_log.txt
 ```
 
-Generation logs include prompt token count, prompt decode time, first token latency, generated token count, and tokens per second.
+Generation logs include prompt token count or multimodal prompt positions, prompt decode time, first token latency, generated token count, and tokens per second.
 
-Images are not sent to the GGUF runtime in this first text-only version; image messages return a clear unsupported-input response. The matching `mmproj` file is documented and staged in the device model directory for the next `libmtmd` integration pass.
+GGUF image input is v1 vision-only multimodal support. It requires the matching `mmproj` file; if that file is missing or unreadable, image requests fail with a clear missing-projector message instead of falling back to LiteRT.

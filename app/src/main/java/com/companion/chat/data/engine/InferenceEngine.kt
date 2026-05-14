@@ -16,6 +16,7 @@ enum class ModelRuntime {
 
 data class EngineConfig(
     val modelPath: String,
+    val mmprojPath: String = "",
     val runtime: ModelRuntime = ModelRuntime.LLAMA_CPP_GGUF,
     val backend: BackendType = BackendType.CPU,
     val contextSize: Int = 2048,

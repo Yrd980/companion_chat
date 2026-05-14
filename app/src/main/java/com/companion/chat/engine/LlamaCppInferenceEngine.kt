@@ -1,6 +1,7 @@
 package com.companion.chat.engine
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import com.companion.chat.data.engine.DefaultModelConfig
 import com.companion.chat.data.engine.EngineConfig
@@ -28,7 +29,8 @@ import java.util.concurrent.Executors
 class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
     companion object {
         private const val TAG = "LlamaCppEngine"
-        private const val UnsupportedImageMessage = "当前 GGUF 文本模型不支持图片输入。"
+        private const val MissingMmprojMessage = "GGUF 图片输入需要 mmproj 文件，请先推送: "
+        private const val MultimodalContextSize = 8192
         private val StopMarkers = listOf("<end_of_turn>", "<start_of_turn>")
     }
 
@@ -65,9 +67,29 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         }
     }
 
+    private fun defaultMmprojPath(): String {
+        val externalDir = context.getExternalFilesDir(DefaultModelConfig.ExternalModelsDir)
+        return if (externalDir != null) {
+            File(externalDir, DefaultModelConfig.GgufMmprojFileName).absolutePath
+        } else {
+            File(File(context.filesDir, DefaultModelConfig.ExternalModelsDir), DefaultModelConfig.GgufMmprojFileName).absolutePath
+        }
+    }
+
+    private fun readImageBytes(uri: Uri): ByteArray? {
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        } catch (error: Exception) {
+            logToFile("读取图片失败: $uri, error=${error.message}")
+            null
+        }
+    }
+
     override suspend fun initialize(config: EngineConfig) = withContext(runtimeDispatcher) {
         val resolvedConfig = config.copy(
             modelPath = config.modelPath.ifBlank { defaultModelPath() },
+            mmprojPath = config.mmprojPath.ifBlank { defaultMmprojPath() },
+            contextSize = config.contextSize.coerceAtLeast(MultimodalContextSize),
             systemPrompt = config.systemPrompt.ifBlank { DefaultModelConfig.DefaultSystemPrompt }
         )
         if (_state.value is InferenceState.Ready && currentConfig == resolvedConfig) {
@@ -81,6 +103,7 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         logToFile("=== 开始初始化 llama.cpp 引擎 ===")
         logToFile("llama.cpp systemInfo: ${LlamaCppNative.systemInfo()}")
         logToFile("模型路径: ${modelFile.absolutePath}")
+        logToFile("mmproj路径: ${resolvedConfig.mmprojPath}")
         logToFile("模型文件存在: ${modelFile.exists()}")
         logToFile("模型可读: ${modelFile.canRead()}")
         logToFile("模型文件大小: ${modelFile.length()} bytes")
@@ -109,6 +132,7 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         try {
             handle = LlamaCppNative.loadModel(
                 resolvedConfig.modelPath,
+                resolvedConfig.mmprojPath,
                 resolvedConfig.contextSize,
                 resolvedConfig.systemPrompt
             )
@@ -132,53 +156,75 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
             return@callbackFlow
         }
 
-        val userMessagesWithImages = messages.filter { it.role == MessageRole.USER && it.images.isNotEmpty() }
-        if (userMessagesWithImages.isNotEmpty()) {
-            logToFile("检测到图片输入，当前 GGUF 文本模型不支持")
-            trySend(UnsupportedImageMessage)
-            close()
-            return@callbackFlow
-        }
-
         val promptMessages = messages.toPromptMessages()
         if (promptMessages.none { it.role == MessageRole.USER }) {
             close(IllegalStateException("没有可发送的用户文本消息"))
             return@callbackFlow
         }
 
+        val lastUserMessage = promptMessages.lastOrNull { it.role == MessageRole.USER }
+        val imageBytes = lastUserMessage?.images.orEmpty().mapNotNull(::readImageBytes)
+        if (lastUserMessage?.images?.isNotEmpty() == true && imageBytes.size != lastUserMessage.images.size) {
+            trySend("[图片读取失败，请重新选择图片]")
+            close()
+            return@callbackFlow
+        }
+
         val roles = promptMessages.map { it.role.toNativeRole() }.toTypedArray()
         val contents = promptMessages.map { it.content }.toTypedArray()
         val config = currentConfig ?: EngineConfig(modelPath = "")
+        val mmprojFile = File(config.mmprojPath.ifBlank { defaultMmprojPath() })
+        if (imageBytes.isNotEmpty() && (!mmprojFile.exists() || !mmprojFile.canRead() || mmprojFile.length() <= 0L)) {
+            val message = MissingMmprojMessage + mmprojFile.absolutePath
+            logToFile(message)
+            trySend("[$message]")
+            close()
+            return@callbackFlow
+        }
         logToFile("发送推理请求: promptMessages=${promptMessages.size}, maxTokens=${config.maxTokens}, contextSize=${config.contextSize}")
 
         _state.value = InferenceState.Generating()
         val tokenSanitizer = TemplateTokenSanitizer(StopMarkers)
         val job = launch(runtimeDispatcher) {
             try {
-                LlamaCppNative.generate(
-                    activeHandle,
-                    roles,
-                    contents,
-                    config.maxTokens,
-                    config.temperature,
-                    config.topK,
-                    config.topP,
-                    object : LlamaCppNative.TokenCallback {
-                        override fun onTokenBytes(bytes: ByteArray) {
-                            val sanitized = tokenSanitizer.append(bytes.toString(Charsets.UTF_8))
-                            if (sanitized.text.isNotEmpty()) {
-                                trySend(sanitized.text)
-                            }
-                            if (sanitized.shouldStop) {
-                                LlamaCppNative.cancel(activeHandle)
-                            }
+                val callback = object : LlamaCppNative.TokenCallback {
+                    override fun onTokenBytes(bytes: ByteArray) {
+                        val sanitized = tokenSanitizer.append(bytes.toString(Charsets.UTF_8))
+                        if (sanitized.text.isNotEmpty()) {
+                            trySend(sanitized.text)
                         }
-
-                        override fun onPerformanceLog(message: String) {
-                            logToFile(message)
+                        if (sanitized.shouldStop) {
+                            LlamaCppNative.cancel(activeHandle)
                         }
                     }
-                )
+
+                    override fun onPerformanceLog(message: String) {
+                        logToFile(message)
+                    }
+                }
+                if (imageBytes.isNotEmpty()) {
+                    LlamaCppNative.generateMultimodal(
+                        activeHandle,
+                        buildMultimodalPrompt(lastUserMessage?.content.orEmpty(), imageBytes.size),
+                        imageBytes.toTypedArray(),
+                        config.maxTokens,
+                        config.temperature,
+                        config.topK,
+                        config.topP,
+                        callback
+                    )
+                } else {
+                    LlamaCppNative.generate(
+                        activeHandle,
+                        roles,
+                        contents,
+                        config.maxTokens,
+                        config.temperature,
+                        config.topK,
+                        config.topP,
+                        callback
+                    )
+                }
                 val tail = tokenSanitizer.flush()
                 if (tail.isNotEmpty()) {
                     trySend(tail)
@@ -225,6 +271,17 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         MessageRole.USER -> "user"
         MessageRole.ASSISTANT -> "assistant"
         MessageRole.SYSTEM -> "system"
+    }
+
+    private fun buildMultimodalPrompt(userText: String, imageCount: Int): String {
+        val markerPrefix = buildString {
+            repeat(imageCount) {
+                append("<__media__>")
+                append('\n')
+            }
+        }
+        val text = userText.ifBlank { "请描述这张图片。" }
+        return markerPrefix + text
     }
 
     private data class SanitizedToken(

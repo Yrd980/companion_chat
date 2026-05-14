@@ -40,6 +40,7 @@ import com.companion.chat.data.engine.ModelConfigRepository
 import com.companion.chat.data.engine.ModelRuntime
 import com.companion.chat.data.image.ImageGenerationConfig
 import com.companion.chat.data.image.ImageGenerationConfigRepository
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +58,10 @@ fun ModelConfigScreen(
     var imageConfig by remember { mutableStateOf(imageConfigRepository.getConfig()) }
     val options = listOf(3, 5, 10, 15, 20)
     val resolvedModelPath = remember(modelConfig) { modelConfigRepository.resolveModelPath(modelConfig) }
+    val resolvedMmprojPath = remember(modelConfig) { modelConfigRepository.resolveMmprojPath() }
+    val mmprojReady = remember(resolvedMmprojPath) {
+        File(resolvedMmprojPath).let { it.exists() && it.canRead() && it.length() > 0L }
+    }
 
     Scaffold(
         modifier = modifier,
@@ -161,6 +166,16 @@ fun ModelConfigScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
+                )
+                Text(
+                    text = "图片 projector：${if (mmprojReady) "已就绪" else "缺失"}\n$resolvedMmprojPath",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (mmprojReady) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                    modifier = Modifier.padding(top = 8.dp)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))

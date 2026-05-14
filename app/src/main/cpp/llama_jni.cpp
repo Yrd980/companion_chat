@@ -2,6 +2,8 @@
 
 #include <android/log.h>
 #include <llama.h>
+#include <mtmd.h>
+#include <mtmd-helper.h>
 
 #include <atomic>
 #include <algorithm>
@@ -25,6 +27,7 @@ constexpr int32_t kDecodeSafetyTokens = 8;
 struct LlamaRuntime {
     llama_model * model = nullptr;
     llama_context * ctx = nullptr;
+    mtmd_context * mtmd = nullptr;
     const llama_vocab * vocab = nullptr;
     std::string system_prompt;
     std::atomic_bool canceled{false};
@@ -77,6 +80,33 @@ std::vector<std::string> to_string_vector(JNIEnv * env, jobjectArray values) {
         auto value = static_cast<jstring>(env->GetObjectArrayElement(values, i));
         result.push_back(to_string(env, value));
         env->DeleteLocalRef(value);
+    }
+    return result;
+}
+
+std::vector<std::vector<uint8_t>> to_byte_vectors(JNIEnv * env, jobjectArray values) {
+    std::vector<std::vector<uint8_t>> result;
+    if (values == nullptr) {
+        return result;
+    }
+    const jsize size = env->GetArrayLength(values);
+    result.reserve(static_cast<size_t>(size));
+    for (jsize i = 0; i < size; ++i) {
+        auto value = static_cast<jbyteArray>(env->GetObjectArrayElement(values, i));
+        if (value == nullptr) {
+            result.emplace_back();
+            continue;
+        }
+        const jsize length = env->GetArrayLength(value);
+        std::vector<uint8_t> bytes(static_cast<size_t>(length));
+        env->GetByteArrayRegion(
+            value,
+            0,
+            length,
+            reinterpret_cast<jbyte *>(bytes.data())
+        );
+        env->DeleteLocalRef(value);
+        result.push_back(std::move(bytes));
     }
     return result;
 }
@@ -260,6 +290,112 @@ llama_sampler * create_sampler(float temperature, int32_t top_k, float top_p) {
     return chain;
 }
 
+void generate_from_context(JNIEnv * env,
+                           LlamaRuntime * runtime,
+                           jobject callback,
+                           jmethodID on_token,
+                           jmethodID on_log,
+                           int32_t prompt_positions,
+                           int32_t max_tokens,
+                           float temperature,
+                           int32_t top_k,
+                           float top_p,
+                           int64_t t_start) {
+    const uint32_t n_ctx = llama_n_ctx(runtime->ctx);
+    const int32_t available_tokens = static_cast<int32_t>(
+        std::max<int64_t>(
+            0,
+            static_cast<int64_t>(n_ctx) -
+                static_cast<int64_t>(prompt_positions) -
+                static_cast<int64_t>(kDecodeSafetyTokens)
+        )
+    );
+    const int32_t generation_limit = std::min<int32_t>(
+        std::max<int32_t>(max_tokens, 0),
+        available_tokens
+    );
+    if (generation_limit <= 0) {
+        emit_performance_log(
+            env,
+            callback,
+            on_log,
+            "生成提前结束: context 剩余 token 不足, prompt_positions=" +
+                std::to_string(prompt_positions) +
+                ", context_size=" + std::to_string(n_ctx)
+        );
+        return;
+    }
+
+    llama_sampler * sampler = create_sampler(temperature, top_k, top_p);
+    std::unique_ptr<llama_sampler, decltype(&llama_sampler_free)> sampler_guard(sampler, llama_sampler_free);
+
+    llama_token next = llama_sampler_sample(sampler, runtime->ctx, -1);
+    int32_t n_past = prompt_positions;
+    int32_t generated_tokens = 0;
+    int64_t t_first_token = 0;
+    for (int32_t i = 0; i < generation_limit; ++i) {
+        if (runtime->canceled.load() || llama_vocab_is_eog(runtime->vocab, next)) {
+            break;
+        }
+        llama_sampler_accept(sampler, next);
+
+        if (generated_tokens == 0) {
+            t_first_token = llama_time_us();
+            emit_performance_log(
+                env,
+                callback,
+                on_log,
+                "性能: first_token_ms=" + fixed_2(elapsed_ms(t_start, t_first_token))
+            );
+        }
+        std::vector<char> piece = token_to_piece(runtime, next);
+        const std::string piece_text(piece.begin(), piece.end());
+        if (contains_turn_marker(piece_text)) {
+            break;
+        }
+        emit_token(env, callback, on_token, piece);
+        generated_tokens += 1;
+
+        llama_batch batch = llama_batch_init(1, 0, 1);
+        batch.n_tokens = 1;
+        batch.token[0] = next;
+        batch.pos[0] = n_past++;
+        batch.n_seq_id[0] = 1;
+        batch.seq_id[0][0] = 0;
+        batch.logits[0] = 1;
+        const int32_t result = llama_decode(runtime->ctx, batch);
+        llama_batch_free(batch);
+        if (result != 0) {
+            emit_performance_log(
+                env,
+                callback,
+                on_log,
+                "生成提前结束: token decode 返回 " + std::to_string(result) +
+                    ", generated_tokens=" + std::to_string(generated_tokens) +
+                    ", generation_limit=" + std::to_string(generation_limit)
+            );
+            break;
+        }
+        next = llama_sampler_sample(sampler, runtime->ctx, -1);
+    }
+    const int64_t t_end = llama_time_us();
+    const double generation_ms = generated_tokens > 0 && t_first_token > 0
+        ? elapsed_ms(t_first_token, t_end)
+        : 0.0;
+    const double tokens_per_second = generation_ms > 0.0
+        ? static_cast<double>(generated_tokens) * 1000.0 / generation_ms
+        : 0.0;
+    emit_performance_log(
+        env,
+        callback,
+        on_log,
+        "性能: generated_tokens=" + std::to_string(generated_tokens) +
+            ", total_ms=" + fixed_2(elapsed_ms(t_start, t_end)) +
+            ", generation_ms=" + fixed_2(generation_ms) +
+            ", tokens_per_second=" + fixed_2(tokens_per_second)
+    );
+}
+
 } // namespace
 
 extern "C" JNIEXPORT jlong JNICALL
@@ -267,6 +403,7 @@ Java_com_companion_chat_engine_LlamaCppNative_loadModel(
     JNIEnv * env,
     jobject,
     jstring model_path,
+    jstring mmproj_path,
     jint context_size,
     jstring system_prompt
 ) {
@@ -276,6 +413,7 @@ Java_com_companion_chat_engine_LlamaCppNative_loadModel(
         });
 
         std::string path = to_string(env, model_path);
+        std::string projector_path = to_string(env, mmproj_path);
         auto runtime = std::make_unique<LlamaRuntime>();
         runtime->system_prompt = to_string(env, system_prompt);
 
@@ -306,6 +444,20 @@ Java_com_companion_chat_engine_LlamaCppNative_loadModel(
         runtime->vocab = llama_model_get_vocab(runtime->model);
         if (runtime->vocab == nullptr) {
             throw std::runtime_error("模型 vocab 不可用");
+        }
+
+        if (!projector_path.empty()) {
+            mtmd_context_params mtmd_params = mtmd_context_params_default();
+            mtmd_params.use_gpu = false;
+            mtmd_params.n_threads = context_params.n_threads;
+            mtmd_params.print_timings = false;
+            mtmd_params.warmup = false;
+            runtime->mtmd = mtmd_init_from_file(projector_path.c_str(), runtime->model, mtmd_params);
+            if (runtime->mtmd == nullptr) {
+                log_info("mmproj 加载失败，GGUF 图片输入将不可用: " + projector_path);
+            } else {
+                log_info("mmproj model loaded");
+            }
         }
 
         log_info("llama.cpp model loaded");
@@ -371,9 +523,6 @@ Java_com_companion_chat_engine_LlamaCppNative_generate(
                 ", template_tokenize_ms=" + fixed_2(elapsed_ms(t_start, t_prompt_ready))
         );
 
-        llama_sampler * sampler = create_sampler(temperature, top_k, top_p);
-        std::unique_ptr<llama_sampler, decltype(&llama_sampler_free)> sampler_guard(sampler, llama_sampler_free);
-
         const int32_t n_batch = static_cast<int32_t>(std::max(1u, llama_n_batch(runtime->ctx)));
         for (size_t offset = 0; offset < prompt_tokens.size(); offset += static_cast<size_t>(n_batch)) {
             if (runtime->canceled.load()) {
@@ -396,85 +545,148 @@ Java_com_companion_chat_engine_LlamaCppNative_generate(
             "性能: prompt_decode_ms=" + fixed_2(elapsed_ms(t_prompt_ready, t_prompt_decoded))
         );
 
-        const int32_t available_tokens = static_cast<int32_t>(
-            std::max<int64_t>(
-                0,
-                static_cast<int64_t>(n_ctx) -
-                    static_cast<int64_t>(prompt_tokens.size()) -
-                    static_cast<int64_t>(kDecodeSafetyTokens)
-            )
+        generate_from_context(
+            env,
+            runtime,
+            callback,
+            on_token,
+            on_log,
+            static_cast<int32_t>(prompt_tokens.size()),
+            max_tokens,
+            temperature,
+            top_k,
+            top_p,
+            t_start
         );
-        const int32_t generation_limit = std::min<int32_t>(
-            std::max<int32_t>(max_tokens, 0),
-            available_tokens
-        );
-        if (generation_limit <= 0) {
-            emit_performance_log(
-                env,
-                callback,
-                on_log,
-                "生成提前结束: context 剩余 token 不足, prompt_tokens=" +
-                    std::to_string(prompt_tokens.size()) +
-                    ", context_size=" + std::to_string(n_ctx)
+    } catch (const std::exception & e) {
+        if (!env->ExceptionCheck()) {
+            throw_java(env, "java/lang/RuntimeException", e.what());
+        }
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_companion_chat_engine_LlamaCppNative_generateMultimodal(
+    JNIEnv * env,
+    jobject,
+    jlong handle,
+    jstring prompt_text,
+    jobjectArray image_bytes_array,
+    jint max_tokens,
+    jfloat temperature,
+    jint top_k,
+    jfloat top_p,
+    jobject callback
+) {
+    LlamaRuntime * runtime = from_handle(handle);
+    if (runtime == nullptr || runtime->ctx == nullptr || runtime->model == nullptr) {
+        throw_java(env, "java/lang/IllegalStateException", "llama.cpp runtime is not initialized");
+        return;
+    }
+    if (runtime->mtmd == nullptr) {
+        throw_java(env, "java/lang/IllegalStateException", "mmproj runtime is not initialized");
+        return;
+    }
+
+    try {
+        jclass callback_class = env->GetObjectClass(callback);
+        jmethodID on_token = env->GetMethodID(callback_class, "onTokenBytes", "([B)V");
+        jmethodID on_log = env->GetMethodID(callback_class, "onPerformanceLog", "(Ljava/lang/String;)V");
+        env->DeleteLocalRef(callback_class);
+        if (on_token == nullptr) {
+            throw std::runtime_error("找不到 token 回调方法");
+        }
+
+        runtime->canceled.store(false);
+        llama_memory_clear(llama_get_memory(runtime->ctx), true);
+
+        const int64_t t_start = llama_time_us();
+        std::string prompt = to_string(env, prompt_text);
+        std::vector<std::vector<uint8_t>> image_bytes = to_byte_vectors(env, image_bytes_array);
+        if (image_bytes.empty()) {
+            throw std::runtime_error("图片输入为空");
+        }
+
+        std::vector<std::unique_ptr<mtmd_bitmap, decltype(&mtmd_bitmap_free)>> bitmaps;
+        std::vector<const mtmd_bitmap *> bitmap_ptrs;
+        bitmaps.reserve(image_bytes.size());
+        bitmap_ptrs.reserve(image_bytes.size());
+        for (const auto & bytes : image_bytes) {
+            if (bytes.empty()) {
+                throw std::runtime_error("图片字节为空");
+            }
+            mtmd_bitmap * bitmap = mtmd_helper_bitmap_init_from_buf(
+                runtime->mtmd,
+                bytes.data(),
+                bytes.size()
             );
-            return;
+            if (bitmap == nullptr) {
+                throw std::runtime_error("图片预处理失败");
+            }
+            bitmaps.emplace_back(bitmap, mtmd_bitmap_free);
+            bitmap_ptrs.push_back(bitmap);
         }
 
-        llama_token next = llama_sampler_sample(sampler, runtime->ctx, -1);
-        int32_t generated_tokens = 0;
-        int64_t t_first_token = 0;
-        for (int32_t i = 0; i < generation_limit; ++i) {
-            if (runtime->canceled.load() || llama_vocab_is_eog(runtime->vocab, next)) {
-                break;
-            }
-
-            if (generated_tokens == 0) {
-                t_first_token = llama_time_us();
-                emit_performance_log(
-                    env,
-                    callback,
-                    on_log,
-                    "性能: first_token_ms=" + fixed_2(elapsed_ms(t_start, t_first_token))
-                );
-            }
-            std::vector<char> piece = token_to_piece(runtime, next);
-            const std::string piece_text(piece.begin(), piece.end());
-            if (contains_turn_marker(piece_text)) {
-                break;
-            }
-            emit_token(env, callback, on_token, piece);
-            generated_tokens += 1;
-
-            llama_batch batch = llama_batch_get_one(&next, 1);
-            const int32_t result = llama_decode(runtime->ctx, batch);
-            if (result != 0) {
-                emit_performance_log(
-                    env,
-                    callback,
-                    on_log,
-                    "生成提前结束: token decode 返回 " + std::to_string(result) +
-                        ", generated_tokens=" + std::to_string(generated_tokens) +
-                        ", generation_limit=" + std::to_string(generation_limit)
-                );
-                break;
-            }
-            next = llama_sampler_sample(sampler, runtime->ctx, -1);
+        mtmd_input_text text {
+            prompt.c_str(),
+            true,
+            true
+        };
+        std::unique_ptr<mtmd_input_chunks, decltype(&mtmd_input_chunks_free)> chunks(
+            mtmd_input_chunks_init(),
+            mtmd_input_chunks_free
+        );
+        if (!chunks) {
+            throw std::runtime_error("无法创建多模态 chunks");
         }
-        const int64_t t_end = llama_time_us();
-        const double generation_ms = generated_tokens > 0 && t_first_token > 0
-            ? elapsed_ms(t_first_token, t_end)
-            : 0.0;
-        const double tokens_per_second = generation_ms > 0.0
-            ? static_cast<double>(generated_tokens) * 1000.0 / generation_ms
-            : 0.0;
+        int32_t tokenize_result = mtmd_tokenize(
+            runtime->mtmd,
+            chunks.get(),
+            &text,
+            bitmap_ptrs.data(),
+            bitmap_ptrs.size()
+        );
+        if (tokenize_result != 0) {
+            throw std::runtime_error("多模态 tokenize 失败: " + std::to_string(tokenize_result));
+        }
+
+        const int32_t n_batch = static_cast<int32_t>(std::max(1u, llama_n_batch(runtime->ctx)));
+        llama_pos new_n_past = 0;
+        int32_t eval_result = mtmd_helper_eval_chunks(
+            runtime->mtmd,
+            runtime->ctx,
+            chunks.get(),
+            0,
+            0,
+            n_batch,
+            true,
+            &new_n_past
+        );
+        if (eval_result != 0) {
+            throw std::runtime_error("多模态 prompt eval 失败: " + std::to_string(eval_result));
+        }
+        const int64_t t_prompt_decoded = llama_time_us();
         emit_performance_log(
             env,
             callback,
             on_log,
-            "性能: generated_tokens=" + std::to_string(generated_tokens) +
-                ", total_ms=" + fixed_2(elapsed_ms(t_start, t_end)) +
-                ", generation_ms=" + fixed_2(generation_ms) +
-                ", tokens_per_second=" + fixed_2(tokens_per_second)
+            "性能: multimodal_prompt_positions=" + std::to_string(new_n_past) +
+                ", context_size=" + std::to_string(llama_n_ctx(runtime->ctx)) +
+                ", multimodal_eval_ms=" + fixed_2(elapsed_ms(t_start, t_prompt_decoded))
+        );
+
+        generate_from_context(
+            env,
+            runtime,
+            callback,
+            on_token,
+            on_log,
+            static_cast<int32_t>(new_n_past),
+            max_tokens,
+            temperature,
+            top_k,
+            top_p,
+            t_start
         );
     } catch (const std::exception & e) {
         if (!env->ExceptionCheck()) {
@@ -498,6 +710,9 @@ Java_com_companion_chat_engine_LlamaCppNative_releaseModel(JNIEnv *, jobject, jl
         return;
     }
     runtime->canceled.store(true);
+    if (runtime->mtmd != nullptr) {
+        mtmd_free(runtime->mtmd);
+    }
     if (runtime->ctx != nullptr) {
         llama_free(runtime->ctx);
     }

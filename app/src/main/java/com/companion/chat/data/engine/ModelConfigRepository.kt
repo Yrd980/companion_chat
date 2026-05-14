@@ -73,6 +73,15 @@ class ModelConfigRepository(
         }
     }
 
+    fun resolveMmprojPath(): String {
+        val externalDir = appContext.getExternalFilesDir(DefaultModelConfig.ExternalModelsDir)
+        return if (externalDir != null) {
+            File(externalDir, DefaultModelConfig.GgufMmprojFileName).absolutePath
+        } else {
+            File(File(appContext.filesDir, DefaultModelConfig.ExternalModelsDir), DefaultModelConfig.GgufMmprojFileName).absolutePath
+        }
+    }
+
     fun toEngineConfig(
         systemPrompt: String,
         config: ModelConfig = getConfig()
@@ -80,6 +89,7 @@ class ModelConfigRepository(
         val normalized = config.normalized()
         return EngineConfig(
             modelPath = resolveModelPath(normalized),
+            mmprojPath = if (normalized.runtime == ModelRuntime.LLAMA_CPP_GGUF) resolveMmprojPath() else "",
             runtime = normalized.runtime,
             backend = normalized.backend,
             contextSize = normalized.contextSize,

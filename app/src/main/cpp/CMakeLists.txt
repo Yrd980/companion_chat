@@ -20,15 +20,72 @@ set(GGML_BLAS OFF CACHE BOOL "Disable BLAS" FORCE)
 set(GGML_LLAMAFILE OFF CACHE BOOL "Disable llamafile" FORCE)
 
 add_subdirectory("${LLAMA_CPP_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/llama.cpp")
+if (NOT DEFINED LLAMA_INSTALL_VERSION)
+    set(LLAMA_INSTALL_VERSION "0.0.0")
+endif()
+
+find_package(Threads REQUIRED)
+
+set(MTMD_DIR "${LLAMA_CPP_DIR}/tools/mtmd")
+add_library(mtmd STATIC
+    "${MTMD_DIR}/mtmd.cpp"
+    "${MTMD_DIR}/mtmd-audio.cpp"
+    "${MTMD_DIR}/mtmd-image.cpp"
+    "${MTMD_DIR}/mtmd-helper.cpp"
+    "${MTMD_DIR}/clip.cpp"
+    "${MTMD_DIR}/models/cogvlm.cpp"
+    "${MTMD_DIR}/models/conformer.cpp"
+    "${MTMD_DIR}/models/dotsocr.cpp"
+    "${MTMD_DIR}/models/gemma4a.cpp"
+    "${MTMD_DIR}/models/gemma4v.cpp"
+    "${MTMD_DIR}/models/glm4v.cpp"
+    "${MTMD_DIR}/models/granite-speech.cpp"
+    "${MTMD_DIR}/models/hunyuanocr.cpp"
+    "${MTMD_DIR}/models/internvl.cpp"
+    "${MTMD_DIR}/models/kimivl.cpp"
+    "${MTMD_DIR}/models/kimik25.cpp"
+    "${MTMD_DIR}/models/nemotron-v2-vl.cpp"
+    "${MTMD_DIR}/models/llama4.cpp"
+    "${MTMD_DIR}/models/llava.cpp"
+    "${MTMD_DIR}/models/minicpmv.cpp"
+    "${MTMD_DIR}/models/paddleocr.cpp"
+    "${MTMD_DIR}/models/pixtral.cpp"
+    "${MTMD_DIR}/models/qwen2vl.cpp"
+    "${MTMD_DIR}/models/qwen3vl.cpp"
+    "${MTMD_DIR}/models/qwen3a.cpp"
+    "${MTMD_DIR}/models/step3vl.cpp"
+    "${MTMD_DIR}/models/siglip.cpp"
+    "${MTMD_DIR}/models/whisper-enc.cpp"
+    "${MTMD_DIR}/models/deepseekocr.cpp"
+    "${MTMD_DIR}/models/mobilenetv5.cpp"
+    "${MTMD_DIR}/models/youtuvl.cpp"
+    "${MTMD_DIR}/models/yasa2.cpp"
+)
+
+target_include_directories(mtmd PUBLIC "${MTMD_DIR}")
+target_include_directories(mtmd PRIVATE "${LLAMA_CPP_DIR}" "${LLAMA_CPP_DIR}/vendor")
+target_link_libraries(mtmd PUBLIC ggml llama)
+target_link_libraries(mtmd PRIVATE Threads::Threads)
+target_compile_features(mtmd PRIVATE cxx_std_17)
+
+if (NOT MSVC)
+    target_compile_options(mtmd PRIVATE -Wno-cast-qual)
+endif()
+
+if (ANDROID)
+    target_compile_options(mtmd PRIVATE -Wno-missing-prototypes)
+endif()
 
 add_library(companion_llama SHARED llama_jni.cpp)
 
 target_include_directories(companion_llama PRIVATE
     "${LLAMA_CPP_DIR}/include"
+    "${LLAMA_CPP_DIR}/tools/mtmd"
 )
 
 target_link_libraries(companion_llama
     llama
+    mtmd
     android
     log
 )
