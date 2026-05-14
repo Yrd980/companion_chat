@@ -1,6 +1,6 @@
 # GGUF llama.cpp Runtime
 
-The app now uses a CPU-only llama.cpp runtime for text chat. The first supported ABI is `arm64-v8a`.
+The root `app/` module is the canonical Android app. It can use a CPU-only llama.cpp runtime for GGUF text chat, with LiteRT-LM kept as an optional backend. The first supported native ABI is `arm64-v8a`.
 
 ## Repository Setup
 
@@ -22,31 +22,40 @@ adb shell mkdir -p /sdcard/Android/data/com.companion.chat/files/models
 adb push Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf /sdcard/Android/data/com.companion.chat/files/models/
 ```
 
-Default runtime path:
+Default GGUF runtime path:
 
 ```text
 /sdcard/Android/data/com.companion.chat/files/models/Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf
 ```
 
+Optional LiteRT-LM runtime path:
+
+```text
+/sdcard/Android/data/com.companion.chat/files/models/gemma-4-E2B-it.litertlm
+```
+
+If an old checkout still has `CompanionChat/app/src/main/assets/models/*.gguf`, move it to a local ignored cache such as `third_party/models/gguf/` and push it to the device from there. Do not keep GGUF files under Android assets.
+
 ## Build
 
 ```bash
-cd CompanionChat
 ./gradlew :app:assembleDebug
 ```
 
-The native build is configured through `app/src/main/cpp/CMakeLists.txt` and links llama.cpp as CPU-only with `n_gpu_layers=0`.
+The native build is configured through root `app/src/main/cpp/CMakeLists.txt` and links `third_party/llama.cpp` as CPU-only with `n_gpu_layers=0`.
 
 Default runtime settings favor shorter, faster responses:
 
 ```text
 contextSize=2048
-maxTokens=512
+maxTokens=256
 temperature=0.7
 topK=40
 topP=0.95
 recentPromptMessages=6
 ```
+
+The GGUF runtime clamps each response to the remaining context window before decoding. If `llama_decode` returns a non-zero status during token generation, the runtime logs the status and ends the current response instead of surfacing a hard chat error. Generated Gemma turn markers such as `<end_of_turn>` and `<start_of_turn>` are treated as stop markers and are filtered from the chat UI.
 
 ## Diagnostics
 

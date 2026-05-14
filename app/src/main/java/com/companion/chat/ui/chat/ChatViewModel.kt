@@ -11,9 +11,8 @@ import com.companion.chat.data.context.ContextManager
 import com.companion.chat.data.context.ContextSettings
 import com.companion.chat.data.context.DefaultContextManager
 import com.companion.chat.data.context.PromptAssembler
-import com.companion.chat.data.engine.BackendType
-import com.companion.chat.data.engine.EngineConfig
 import com.companion.chat.data.engine.InferenceState
+import com.companion.chat.data.engine.ModelConfigRepository
 import com.companion.chat.data.engine.VoiceInputEvent
 import com.companion.chat.data.engine.VoiceOutputState
 import com.companion.chat.data.image.HttpImageGenerationEngine
@@ -41,7 +40,7 @@ import com.companion.chat.data.preferences.UnifiedExtractionPromptBuilder
 import com.companion.chat.data.repository.ChatSessionRepository
 import com.companion.chat.engine.AndroidVoiceInputEngine
 import com.companion.chat.engine.AndroidVoiceOutputEngine
-import com.companion.chat.engine.LiteRTLMInferenceEngine
+import com.companion.chat.engine.InferenceEngineFactory
 import com.companion.chat.engine.RoleAwareVoiceOutputEngine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -83,7 +82,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    val inferenceEngine = LiteRTLMInferenceEngine(application)
+    private val modelConfigRepository = ModelConfigRepository(application)
+    private val inferenceEngineFactory = InferenceEngineFactory(application)
+    var inferenceEngine = inferenceEngineFactory.create(modelConfigRepository.getConfig().runtime)
+        private set
     val voiceInputEngine = AndroidVoiceInputEngine(application)
     private val database = CompanionDatabase.getInstance(application)
     private val contextConfigRepository = ContextConfigRepository(application)
@@ -116,7 +118,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val unifiedExtractionParser = UnifiedExtractionParser()
     private val secondEngineManager = SecondEngineManager(
         primaryEngineStateProvider = { inferenceEngine.state.value },
-        engineFactory = { LiteRTLMInferenceEngine(application) },
+        engineFactory = { inferenceEngineFactory.create(modelConfigRepository.getConfig().runtime) },
         timeoutMillis = STAGE4_SUMMARY_TIMEOUT_MILLIS
     )
     private var contextSettings: ContextSettings = ContextConfigRepository.DEFAULT_SETTINGS
@@ -124,6 +126,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private var generateJob: Job? = null
     private var voiceCollectJob: Job? = null
+    private var inferenceStateJob: Job? = null
     private var preferenceSummaryDelayJob: Job? = null
     private var shouldSpeakNextAssistantResponse = false
     private val lastSummaryTimestamps = mutableMapOf<String, Long>()
@@ -190,7 +193,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     internal fun debugBaseSystemPrompt(): String = baseSystemPrompt
 
     private fun collectInferenceState() {
-        viewModelScope.launch {
+        inferenceStateJob?.cancel()
+        inferenceStateJob = viewModelScope.launch {
             inferenceEngine.state.collectLatest { state ->
                 _uiState.update { it.copy(engineState = state) }
                 if (state is InferenceState.Idle) {
@@ -539,24 +543,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun initializeEngine(modelPath: String = "", systemPrompt: String = "") {
         viewModelScope.launch {
             try {
-                val app = getApplication<Application>()
-                val modelsDir = app.getExternalFilesDir("models")
-                val defaultPath = if (modelsDir != null) {
-                    "${modelsDir.absolutePath}/gemma-4-E2B-it.litertlm"
-                } else {
-                    "${app.filesDir.absolutePath}/models/gemma-4-E2B-it.litertlm"
+                if (inferenceEngine.state.value is InferenceState.Generating) {
+                    generateJob?.cancel()
+                    inferenceEngine.cancel()
+                    secondEngineManager.cancelRunningSummary()
+                    _uiState.update { it.copy(isGenerating = false) }
+                    logToFile("模型配置变更: 已取消当前生成并准备重建引擎")
                 }
-                val actualPath = modelPath.ifBlank { defaultPath }
+
+                val app = getApplication<Application>()
+                val modelConfig = modelConfigRepository.getConfig()
+                val actualPath = modelPath.ifBlank { modelConfigRepository.resolveModelPath(modelConfig) }
                 val file = java.io.File(actualPath)
 
-                logToFile("getExternalFilesDir('models') = ${modelsDir?.absolutePath}")
+                logToFile("getExternalFilesDir('models') = ${app.getExternalFilesDir("models")?.absolutePath}")
                 logToFile("filesDir = ${app.filesDir.absolutePath}")
+                logToFile("模型运行时 = ${modelConfig.runtime}")
                 logToFile("实际模型路径 = $actualPath")
                 logToFile("文件存在 = ${file.exists()}")
                 logToFile("文件大小 = ${file.length()} bytes")
 
-                // 列出 models 目录下的文件
-                modelsDir?.listFiles()?.forEach { f ->
+                app.getExternalFilesDir("models")?.listFiles()?.forEach { f ->
                     logToFile("models目录: ${f.name} (${f.length()} bytes)")
                 }
 
@@ -564,10 +571,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     baseSystemPrompt.ifBlank { DEFAULT_BASE_SYSTEM_PROMPT }
                 }
                 baseSystemPrompt = resolvedSystemPrompt
-                val config = EngineConfig(
-                    modelPath = actualPath,
+                val config = modelConfigRepository.toEngineConfig(
                     systemPrompt = resolvedSystemPrompt
-                )
+                ).copy(modelPath = actualPath)
+                if (config.runtime != inferenceEngine.getCurrentConfig()?.runtime) {
+                    logToFile("切换模型运行时: ${inferenceEngine.getCurrentConfig()?.runtime} -> ${config.runtime}")
+                    inferenceEngine.release()
+                    inferenceEngine = inferenceEngineFactory.create(config.runtime)
+                    collectInferenceState()
+                }
                 logToFile("开始调用 engine.initialize...")
                 inferenceEngine.initialize(config)
                 logToFile("engine.initialize 返回, state = ${inferenceEngine.state.value}")
@@ -584,6 +596,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
         generateJob?.cancel()
         voiceCollectJob?.cancel()
+        inferenceStateJob?.cancel()
         preferenceSummaryDelayJob?.cancel()
         secondEngineManager.release()
         inferenceEngine.release()

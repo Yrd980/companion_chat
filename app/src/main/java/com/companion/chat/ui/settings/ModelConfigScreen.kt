@@ -13,6 +13,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.companion.chat.data.context.ContextConfigRepository
+import com.companion.chat.data.engine.ModelConfigRepository
+import com.companion.chat.data.engine.ModelRuntime
 import com.companion.chat.data.image.ImageGenerationConfig
 import com.companion.chat.data.image.ImageGenerationConfigRepository
 
@@ -42,14 +45,18 @@ import com.companion.chat.data.image.ImageGenerationConfigRepository
 @Composable
 fun ModelConfigScreen(
     modifier: Modifier = Modifier,
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onModelConfigChanged: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val contextConfigRepository = remember(context) { ContextConfigRepository(context) }
+    val modelConfigRepository = remember(context) { ModelConfigRepository(context) }
     val imageConfigRepository = remember(context) { ImageGenerationConfigRepository(context) }
     var retainedRounds by remember { mutableIntStateOf(contextConfigRepository.getSettings().retainedRounds) }
+    var modelConfig by remember { mutableStateOf(modelConfigRepository.getConfig()) }
     var imageConfig by remember { mutableStateOf(imageConfigRepository.getConfig()) }
     val options = listOf(3, 5, 10, 15, 20)
+    val resolvedModelPath = remember(modelConfig) { modelConfigRepository.resolveModelPath(modelConfig) }
 
     Scaffold(
         modifier = modifier,
@@ -102,6 +109,87 @@ fun ModelConfigScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 20.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "推理后端",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 10.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                ModelRuntimeOptionItem(
+                    title = "llama.cpp GGUF",
+                    description = "默认文本后端，读取外部 GGUF uncensor 模型。",
+                    selected = modelConfig.runtime == ModelRuntime.LLAMA_CPP_GGUF,
+                    onClick = {
+                        modelConfig = modelConfig.copy(runtime = ModelRuntime.LLAMA_CPP_GGUF, modelPath = "")
+                        modelConfigRepository.updateConfig(modelConfig)
+                        onModelConfigChanged()
+                    }
+                )
+                ModelRuntimeOptionItem(
+                    title = "LiteRT-LM",
+                    description = "可选多模态后端，继续支持图片输入链路。",
+                    selected = modelConfig.runtime == ModelRuntime.LITERT_LM,
+                    onClick = {
+                        modelConfig = modelConfig.copy(runtime = ModelRuntime.LITERT_LM, modelPath = "")
+                        modelConfigRepository.updateConfig(modelConfig)
+                        onModelConfigChanged()
+                    }
+                )
+                ModelConfigField("模型路径", modelConfig.modelPath) {
+                    modelConfig = modelConfig.copy(modelPath = it)
+                    modelConfigRepository.updateConfig(modelConfig)
+                }
+                Text(
+                    text = "留空使用默认路径：$resolvedModelPath",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+                ModelConfigField("Context Size", modelConfig.contextSize.toString()) {
+                    modelConfig = modelConfig.copy(contextSize = it.toIntOrNull() ?: modelConfig.contextSize)
+                    modelConfigRepository.updateConfig(modelConfig)
+                }
+                ModelConfigField("Max Tokens", modelConfig.maxTokens.toString()) {
+                    modelConfig = modelConfig.copy(maxTokens = it.toIntOrNull() ?: modelConfig.maxTokens)
+                    modelConfigRepository.updateConfig(modelConfig)
+                }
+                ModelConfigField("Temperature", modelConfig.temperature.toString()) {
+                    modelConfig = modelConfig.copy(temperature = it.toFloatOrNull() ?: modelConfig.temperature)
+                    modelConfigRepository.updateConfig(modelConfig)
+                }
+                ModelConfigField("Top K", modelConfig.topK.toString()) {
+                    modelConfig = modelConfig.copy(topK = it.toIntOrNull() ?: modelConfig.topK)
+                    modelConfigRepository.updateConfig(modelConfig)
+                }
+                ModelConfigField("Top P", modelConfig.topP.toString()) {
+                    modelConfig = modelConfig.copy(topP = it.toFloatOrNull() ?: modelConfig.topP)
+                    modelConfigRepository.updateConfig(modelConfig)
+                }
+                androidx.compose.material3.Button(
+                    onClick = onModelConfigChanged,
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text("应用模型配置")
+                }
             }
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -190,6 +278,59 @@ private fun ImageConfigField(
             .fillMaxWidth()
             .padding(vertical = 6.dp)
     )
+}
+
+@Composable
+private fun ModelConfigField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+    )
+}
+
+@Composable
+private fun ModelRuntimeOptionItem(
+    title: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                onClick = onClick
+            )
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = null
+        )
+        Column(modifier = Modifier.padding(start = 12.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }
 
 @Composable

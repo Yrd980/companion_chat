@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
 import com.companion.chat.data.engine.BackendType
+import com.companion.chat.data.engine.DefaultModelConfig
 import com.companion.chat.data.engine.EngineConfig
 import com.companion.chat.data.engine.InferenceEngine
 import com.companion.chat.data.engine.InferenceState
@@ -41,7 +42,7 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
 
     companion object {
         private const val TAG = "LiteRTLMEngine"
-        private const val DEFAULT_MODEL_FILE = "gemma-4-E2B-it.litertlm"
+        private const val DEFAULT_MODEL_FILE = DefaultModelConfig.LiteRtModelFileName
     }
 
     private val _state = MutableStateFlow<InferenceState>(InferenceState.Idle)
@@ -60,9 +61,9 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
             systemInstruction = Contents.of(systemPrompt),
             initialMessages = initialMessages,
             samplerConfig = SamplerConfig(
-                topK = 40,
-                topP = 0.95,
-                temperature = 0.7
+                topK = currentConfig?.topK ?: DefaultModelConfig.DefaultTopK,
+                topP = (currentConfig?.topP ?: DefaultModelConfig.DefaultTopP).toDouble(),
+                temperature = (currentConfig?.temperature ?: DefaultModelConfig.DefaultTemperature).toDouble()
             )
         )
     }

@@ -9,10 +9,20 @@ enum class BackendType {
     GPU
 }
 
+enum class ModelRuntime {
+    LITERT_LM,
+    LLAMA_CPP_GGUF
+}
+
 data class EngineConfig(
     val modelPath: String,
+    val runtime: ModelRuntime = ModelRuntime.LLAMA_CPP_GGUF,
     val backend: BackendType = BackendType.CPU,
-    val maxTokens: Int = 2048,
+    val contextSize: Int = 2048,
+    val maxTokens: Int = 256,
+    val temperature: Float = 0.7f,
+    val topK: Int = 40,
+    val topP: Float = 0.95f,
     val systemPrompt: String = ""
 )
 

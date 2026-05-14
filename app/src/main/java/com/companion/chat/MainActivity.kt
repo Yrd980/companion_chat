@@ -156,7 +156,10 @@ fun MainApp() {
                 )
             }
             composable(SettingsRoutes.MODEL) {
-                ModelConfigScreen(onBack = { navController.popBackStack() })
+                ModelConfigScreen(
+                    onBack = { navController.popBackStack() },
+                    onModelConfigChanged = { chatViewModel.initializeEngine() }
+                )
             }
             composable(SettingsRoutes.VOICE) {
                 VoiceSettingsScreen(onBack = { navController.popBackStack() })
