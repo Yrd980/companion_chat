@@ -18,6 +18,8 @@ The hardware vision is a head-worn companion device for private interaction scen
 
 This repository currently focuses on the mobile/software side of that vision: the Android local AI stack, memory system, prompt system, role cards, and skill management.
 
+The root `app/` module is the only current Android application source. The old nested `CompanionChat/` Android project directory has been removed; the `CompanionChat` name remains the product/repository name.
+
 ## Software Overview
 
 Anime Companion is a local AI private companion application designed for mobile usage scenarios.
