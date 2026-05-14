@@ -131,9 +131,28 @@ Anime Companion 想解决的正是这些问题。
 
 ### 2. 语音交互
 
-- 支持语音输入
+- 语音输入默认使用本地 `sherpa-onnx + SenseVoiceSmall int8`
+- 不再依赖 Android `SpeechRecognizer`、Google 语音服务或系统语音识别服务
+- SenseVoice 模型文件从 App 外部目录读取，不打包进 APK
+- 云端 ASR 保留为手动选择的通用 HTTP 后端，不作为默认回退路径
 - 支持语音播报回复
 - 与聊天页主流程整合
+
+本地 ASR 默认模型目录：
+
+```text
+/sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice
+```
+
+需要放置以下文件：
+
+```text
+model.int8.onnx
+tokens.txt
+silero_vad.onnx
+```
+
+设备构建需要把 k2-fsa 官方 `sherpa-onnx-1.13.0.aar` 放入 `app/libs/`。代码从外部文件路径加载模型时会向 sherpa-onnx 传入 `null AssetManager`，避免 native 层因绝对路径读取模型文件直接退出进程。
 
 ### 3. 上下文管理
 

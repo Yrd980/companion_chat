@@ -118,9 +118,28 @@ The current implementation already covers the main product loop:
 
 ### 2. Voice input and output
 
-- Speech recognition for user input
+- Voice input defaults to local `sherpa-onnx + SenseVoiceSmall int8`
+- It no longer depends on Android `SpeechRecognizer`, Google speech services, or system recognition services
+- SenseVoice model files are loaded from the app external files directory instead of being bundled into the APK
+- Cloud ASR remains available as a manually selected generic HTTP backend, not as an automatic fallback path
 - Text-to-speech for assistant responses
 - Integrated into the main chat screen
+
+Default local ASR model directory:
+
+```text
+/sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice
+```
+
+Required files:
+
+```text
+model.int8.onnx
+tokens.txt
+silero_vad.onnx
+```
+
+Device builds require the official k2-fsa `sherpa-onnx-1.13.0.aar` in `app/libs/`. When loading models from external absolute paths, the app passes `null` for sherpa-onnx's `AssetManager`; passing a non-null asset manager for SD-card model paths can make sherpa-onnx terminate the process from native code.
 
 ### 3. Context management
 
