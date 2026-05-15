@@ -132,6 +132,24 @@ class RoleCardRepositoryTest {
         assertEquals(1, dao.roleCards.size)
     }
 
+    @Test
+    fun `追加生成图片会写入图库并在头像为空时设为头像`() = runBlocking {
+        val dao = FakeRoleCardDao(
+            mutableListOf(roleCard(id = 1L, name = "小夏"))
+        )
+        val repository = RoleCardRepository(dao, nowProvider = { 60L })
+
+        val appended = repository.appendGalleryImage(1L, " file:///generated.png ")
+        val duplicate = repository.appendGalleryImage(1L, "file:///generated.png")
+
+        assertTrue(appended)
+        assertTrue(duplicate)
+        val roleCard = dao.getById(1L)!!
+        assertEquals("file:///generated.png", roleCard.avatarImageUri)
+        assertEquals(listOf("file:///generated.png"), roleCard.galleryImageUris)
+        assertEquals(60L, roleCard.updatedAt)
+    }
+
     private fun roleCard(
         id: Long,
         name: String,

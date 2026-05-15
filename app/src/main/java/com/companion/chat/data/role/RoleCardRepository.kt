@@ -12,6 +12,8 @@ class RoleCardRepository(
 
     suspend fun getActiveRoleCard(): RoleCard? = roleCardDao.getActive()
 
+    suspend fun getRoleCard(id: Long): RoleCard? = roleCardDao.getById(id)
+
     suspend fun createRoleCard(
         name: String,
         description: String,
@@ -120,6 +122,27 @@ class RoleCardRepository(
     suspend fun activateRoleCard(id: Long) {
         roleCardDao.deactivateAll()
         roleCardDao.activate(id, nowProvider())
+    }
+
+    suspend fun appendGalleryImage(id: Long, imageUri: String, useAsAvatarWhenEmpty: Boolean = true): Boolean {
+        val normalizedUri = imageUri.trim()
+        if (normalizedUri.isBlank()) {
+            return false
+        }
+        val existing = roleCardDao.getById(id) ?: return false
+        val nextGallery = (existing.galleryImageUris + normalizedUri).distinct()
+        roleCardDao.update(
+            existing.copy(
+                avatarImageUri = if (useAsAvatarWhenEmpty && existing.avatarImageUri.isBlank()) {
+                    normalizedUri
+                } else {
+                    existing.avatarImageUri
+                },
+                galleryImageUris = nextGallery,
+                updatedAt = nowProvider()
+            )
+        )
+        return true
     }
 
 }

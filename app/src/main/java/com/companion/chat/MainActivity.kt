@@ -19,20 +19,25 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.companion.chat.ui.chat.ChatScreen
 import com.companion.chat.ui.chat.ChatViewModel
+import com.companion.chat.ui.home.DiscoverRoleDetailScreen
 import com.companion.chat.ui.home.HomeScreen
 import com.companion.chat.ui.memory.MemoryScreen
+import com.companion.chat.ui.navigation.DiscoverRoutes
 import com.companion.chat.ui.navigation.Screen
 import com.companion.chat.ui.navigation.SettingsRoutes
 import com.companion.chat.ui.settings.AboutScreen
@@ -44,6 +49,7 @@ import com.companion.chat.ui.settings.SettingsScreen
 import com.companion.chat.ui.settings.SkillsManagementScreen
 import com.companion.chat.ui.settings.VoiceSettingsScreen
 import com.companion.chat.ui.theme.CompanionChatTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,6 +73,7 @@ fun MainApp() {
     val navController = rememberNavController()
     val lifecycleOwner = LocalLifecycleOwner.current
     val chatViewModel: ChatViewModel = viewModel()
+    val coroutineScope = rememberCoroutineScope()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -128,7 +135,34 @@ fun MainApp() {
             startDestination = Screen.HOME.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.HOME.route) { HomeScreen() }
+            composable(Screen.HOME.route) {
+                HomeScreen(
+                    onOpenRole = { roleId -> navController.navigate(DiscoverRoutes.detail(roleId)) },
+                    onCreateRole = { navController.navigate(SettingsRoutes.CHARACTER) }
+                )
+            }
+            composable(
+                route = DiscoverRoutes.DETAIL,
+                arguments = listOf(navArgument("roleId") { type = NavType.StringType })
+            ) { entry ->
+                val roleId = entry.arguments?.getString("roleId").orEmpty()
+                DiscoverRoleDetailScreen(
+                    roleId = roleId,
+                    onBack = { navController.popBackStack() },
+                    onStartChat = { importedRoleId ->
+                        coroutineScope.launch {
+                            chatViewModel.activateRoleCard(importedRoleId)
+                            navController.navigate(Screen.CHAT.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    }
+                )
+            }
             composable(Screen.CHAT.route) { ChatScreen(viewModel = chatViewModel) }
             composable(Screen.MEMORY.route) { MemoryScreen() }
             composable(Screen.SETTINGS.route) {
