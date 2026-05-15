@@ -10,10 +10,15 @@ import org.junit.Test
 class ImageGenerationEngineSelectorTest {
 
     @Test
-    fun `HTTP 配置存在时选择 HTTP provider`() {
+    fun `显式 HTTP provider 且配置存在时选择 HTTP`() {
         val selector = ImageGenerationEngineSelector(FakeImageEngine("http://image.png"), FakeImageEngine("local://image.png"))
 
-        val provider = selector.chooseProvider(ImageGenerationConfig(baseUrl = "https://example.com"))
+        val provider = selector.chooseProvider(
+            ImageGenerationConfig(
+                baseUrl = "https://example.com",
+                provider = ImageGenerationProvider.HTTP
+            )
+        )
 
         assertEquals(ImageGenerationProvider.HTTP, provider)
     }

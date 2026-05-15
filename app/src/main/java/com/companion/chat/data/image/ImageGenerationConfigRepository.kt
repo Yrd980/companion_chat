@@ -22,9 +22,12 @@ class ImageGenerationConfigRepository(
     fun getConfig(): ImageGenerationConfig {
         val provider = runCatching {
             ImageGenerationProvider.valueOf(
-                sharedPreferences.getString(KEY_PROVIDER, ImageGenerationProvider.HTTP.name).orEmpty()
+                sharedPreferences.getString(
+                    KEY_PROVIDER,
+                    ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP.name
+                ).orEmpty()
             )
-        }.getOrDefault(ImageGenerationProvider.HTTP)
+        }.getOrDefault(ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP)
         return ImageGenerationConfig(
             baseUrl = sharedPreferences.getString(KEY_BASE_URL, "").orEmpty(),
             apiKey = sharedPreferences.getString(KEY_API_KEY, "").orEmpty(),

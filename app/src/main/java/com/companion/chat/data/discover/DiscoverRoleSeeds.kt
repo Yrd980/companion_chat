@@ -17,7 +17,7 @@ object DiscoverRoleSeeds {
             imageStyle = "soft urban anime portrait, warm phone-light, natural expression",
             voiceSummary = "柔和女声，系统 TTS 回退",
             generationPreset = RoleGenerationPreset(
-                imageProvider = "HTTP",
+                imageProvider = "LOCAL_STABLE_DIFFUSION_CPP",
                 defaultPrompt = "小夏，温柔城市日常感，手机暖光，半身头像，精致二次元",
                 negativePrompt = "low quality, extra fingers, distorted face"
             )
@@ -37,7 +37,7 @@ object DiscoverRoleSeeds {
             imageStyle = "cinematic quiet male portrait, night radio room, subtle rim light",
             voiceSummary = "低沉男声，系统 TTS 回退",
             generationPreset = RoleGenerationPreset(
-                imageProvider = "LOCAL_DREAMLITE",
+                imageProvider = "LOCAL_STABLE_DIFFUSION_CPP",
                 defaultPrompt = "阿澈，冷静男性角色，深夜电台，电影感侧光，二次元头像",
                 negativePrompt = "blurry, noisy, deformed"
             )
@@ -57,7 +57,7 @@ object DiscoverRoleSeeds {
             imageStyle = "adventurous anime cartographer, daylight, travel notebook",
             voiceSummary = "English system TTS",
             generationPreset = RoleGenerationPreset(
-                imageProvider = "HTTP",
+                imageProvider = "LOCAL_STABLE_DIFFUSION_CPP",
                 defaultPrompt = "Mira, adventurous anime cartographer, travel notebook, daylight portrait",
                 negativePrompt = "bad anatomy, low detail"
             )
@@ -78,7 +78,7 @@ object DiscoverRoleSeeds {
             imageStyle = "mature anime photographer, intimate indoor portrait, elegant shadows",
             voiceSummary = "克隆占位，系统 TTS 回退",
             generationPreset = RoleGenerationPreset(
-                imageProvider = "HTTP",
+                imageProvider = "LOCAL_STABLE_DIFFUSION_CPP",
                 defaultPrompt = "凛，成熟摄影师，室内暖光，优雅二次元头像",
                 negativePrompt = "explicit, low quality, distorted"
             )
@@ -98,7 +98,7 @@ object DiscoverRoleSeeds {
             imageStyle = "bright anime sidekick, harbor city, expressive eyes",
             voiceSummary = "活泼系统 TTS",
             generationPreset = RoleGenerationPreset(
-                imageProvider = "LOCAL_DREAMLITE",
+                imageProvider = "LOCAL_STABLE_DIFFUSION_CPP",
                 defaultPrompt = "Niko，元气二次元搭档，港口城市，明亮头像",
                 negativePrompt = "flat lighting, messy lines"
             )

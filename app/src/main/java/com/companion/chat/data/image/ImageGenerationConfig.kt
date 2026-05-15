@@ -4,7 +4,7 @@ data class ImageGenerationConfig(
     val baseUrl: String = "",
     val apiKey: String = "",
     val model: String = "",
-    val provider: ImageGenerationProvider = ImageGenerationProvider.HTTP,
+    val provider: ImageGenerationProvider = ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP,
     val localModelPath: String = "",
     val localWidth: Int = 512,
     val localHeight: Int = 512,
