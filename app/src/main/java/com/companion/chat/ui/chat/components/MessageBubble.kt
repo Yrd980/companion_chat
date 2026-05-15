@@ -10,9 +10,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -60,7 +60,9 @@ fun MessageBubble(
         if (!isUser) {
             AvatarIcon(isUser = false)
             Column(
-                modifier = Modifier.padding(start = 8.dp),
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .fillMaxWidth(0.82f),
                 horizontalAlignment = Alignment.Start
             ) {
                 BubbleContent(
@@ -73,7 +75,9 @@ fun MessageBubble(
 
         if (isUser) {
             Column(
-                modifier = Modifier.padding(end = 8.dp),
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .fillMaxWidth(0.82f),
                 horizontalAlignment = Alignment.End
             ) {
                 BubbleContent(
@@ -110,19 +114,23 @@ fun MessageBubble(
 private fun AvatarIcon(isUser: Boolean) {
     Box(
         modifier = Modifier
-            .size(32.dp)
+            .size(30.dp)
             .clip(CircleShape)
             .background(
-                if (isUser) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.tertiary
+                if (isUser) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceVariant
             ),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = if (isUser) Icons.Default.Person else Icons.Default.SmartToy,
             contentDescription = if (isUser) "用户" else "AI",
-            tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(18.dp)
+            tint = if (isUser) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.size(17.dp)
         )
     }
 }
@@ -142,10 +150,11 @@ private fun BubbleContent(
             bottomEnd = if (isUser) 4.dp else 16.dp
         ),
         color = if (isUser) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.secondaryContainer,
-        tonalElevation = 1.dp
+        else MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = if (isUser) 0.dp else 1.dp,
+        modifier = Modifier.widthIn(max = 320.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             if (message.images.isNotEmpty()) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -174,13 +183,13 @@ private fun BubbleContent(
             val contentColor = if (isUser) {
                 MaterialTheme.colorScheme.onPrimary
             } else {
-                MaterialTheme.colorScheme.onSecondaryContainer
+                MaterialTheme.colorScheme.onSurface
             }
             if (isUser) {
                 Text(
                     text = contentText,
                     color = contentColor,
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.bodyMedium
                 )
             } else {
                 MarkdownMessageText(
@@ -194,7 +203,7 @@ private fun BubbleContent(
                     text = formatTime(message.timestamp),
                     style = MaterialTheme.typography.labelSmall,
                     color = (if (isUser) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSecondaryContainer).copy(alpha = 0.6f),
+                    else MaterialTheme.colorScheme.onSurface).copy(alpha = 0.48f),
                     modifier = Modifier
                         .align(Alignment.End)
                         .padding(top = 4.dp)

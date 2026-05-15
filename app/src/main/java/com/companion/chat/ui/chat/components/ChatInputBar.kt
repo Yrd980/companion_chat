@@ -7,14 +7,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -27,13 +30,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -59,130 +62,199 @@ fun ChatInputBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        tonalElevation = 3.dp,
+        tonalElevation = 2.dp,
+        color = MaterialTheme.colorScheme.surface,
         modifier = modifier
             .fillMaxWidth()
             .imePadding()
     ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            if (selectedImages.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(bottom = 8.dp)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(26.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 1.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (selectedImages.isNotEmpty()) {
+                    SelectedImagePreviewRow(
+                        selectedImages = selectedImages,
+                        onRemoveImage = onRemoveImage
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Bottom
                 ) {
-                    selectedImages.forEach { uri ->
-                        Box(
-                            modifier = Modifier
-                                .size(60.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                        ) {
-                            AsyncImage(
-                                model = uri,
-                                contentDescription = "选中的图片",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                            IconButton(
-                                onClick = { onRemoveImage(uri) },
-                                modifier = Modifier.align(Alignment.TopEnd)
-                            ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "移除图片",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                    ChatToolIconButton(
+                        onClick = onPickImage,
+                        icon = Icons.Default.AddPhotoAlternate,
+                        contentDescription = "上传图片"
+                    )
+                    Spacer(Modifier.width(2.dp))
+                    BasicTextField(
+                        value = inputText,
+                        onValueChange = onInputChange,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 44.dp, max = 112.dp)
+                            .padding(horizontal = 4.dp, vertical = 11.dp),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        maxLines = 4,
+                        decorationBox = { innerTextField ->
+                            Box {
+                                if (inputText.isEmpty()) {
+                                    Text(
+                                        text = inputPlaceholder(
+                                            isVoiceStarting = isVoiceStarting,
+                                            isVoiceListening = isVoiceListening,
+                                            isVoiceAutoSending = isVoiceAutoSending
+                                        ),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f)
+                                    )
+                                }
+                                innerTextField()
                             }
                         }
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                IconButton(onClick = onPickImage) {
-                    Icon(
-                        imageVector = Icons.Default.AddPhotoAlternate,
-                        contentDescription = "上传图片",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-
-                OutlinedTextField(
-                    value = inputText,
-                    onValueChange = onInputChange,
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 48.dp, max = 104.dp),
-                    placeholder = {
-                        Text(
-                            text = when {
-                                isVoiceStarting -> "正在启动语音识别..."
-                                isVoiceListening -> "正在听..."
-                                isVoiceAutoSending -> "正在发送语音..."
-                                else -> "输入消息..."
-                            },
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    },
-                    shape = RoundedCornerShape(24.dp),
-                    maxLines = 3
-                )
-
-                if (inputText.isNotBlank() || selectedImages.isNotEmpty()) {
-                    FilledIconButton(
-                        onClick = onSend,
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "发送"
-                        )
-                    }
-                } else {
-                    VoicePrimaryButton(
-                        isVoiceStarting = isVoiceStarting,
-                        isVoiceListening = isVoiceListening,
-                        isVoiceAutoSending = isVoiceAutoSending,
-                        isGenerating = isGenerating,
-                        onVoiceInput = onVoiceInput
-                    )
-                }
-
-                IconButton(
-                    onClick = {
-                        if (isVoiceSpeaking) {
-                            onStopSpeaking()
-                        } else {
-                            onVoiceOutput()
-                        }
-                    },
-                    enabled = isVoiceSpeaking || canVoiceOutput,
-                    colors = IconButtonDefaults.iconButtonColors(
-                        contentColor = if (isVoiceSpeaking)
-                            MaterialTheme.colorScheme.error
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                    )
-                ) {
-                    Icon(
-                        imageVector = if (isVoiceSpeaking) {
+                    ChatToolIconButton(
+                        onClick = {
+                            if (isVoiceSpeaking) {
+                                onStopSpeaking()
+                            } else {
+                                onVoiceOutput()
+                            }
+                        },
+                        enabled = isVoiceSpeaking || canVoiceOutput,
+                        icon = if (isVoiceSpeaking) {
                             Icons.Default.Stop
                         } else {
                             Icons.AutoMirrored.Filled.VolumeUp
                         },
-                        contentDescription = if (isVoiceSpeaking) "停止播放" else "朗读最近回复"
+                        contentDescription = if (isVoiceSpeaking) "停止播放" else "朗读最近回复",
+                        active = isVoiceSpeaking
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    if (inputText.isNotBlank() || selectedImages.isNotEmpty()) {
+                        FilledIconButton(
+                            onClick = onSend,
+                            modifier = Modifier.size(44.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "发送"
+                            )
+                        }
+                    } else {
+                        VoicePrimaryButton(
+                            isVoiceStarting = isVoiceStarting,
+                            isVoiceListening = isVoiceListening,
+                            isVoiceAutoSending = isVoiceAutoSending,
+                            isGenerating = isGenerating,
+                            onVoiceInput = onVoiceInput
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectedImagePreviewRow(
+    selectedImages: List<Uri>,
+    onRemoveImage: (Uri) -> Unit
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(horizontal = 4.dp)
+    ) {
+        selectedImages.forEach { uri ->
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(10.dp))
+            ) {
+                AsyncImage(
+                    model = uri,
+                    contentDescription = "选中的图片",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                FilledIconButton(
+                    onClick = { onRemoveImage(uri) },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(2.dp)
+                        .size(24.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "移除图片",
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ChatToolIconButton(
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    enabled: Boolean = true,
+    active: Boolean = false
+) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(44.dp),
+        colors = IconButtonDefaults.iconButtonColors(
+            contentColor = if (active) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+        )
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+
+private fun inputPlaceholder(
+    isVoiceStarting: Boolean,
+    isVoiceListening: Boolean,
+    isVoiceAutoSending: Boolean
+): String {
+    return when {
+        isVoiceStarting -> "正在启动语音识别..."
+        isVoiceListening -> "正在听..."
+        isVoiceAutoSending -> "正在发送语音..."
+        else -> "输入消息..."
     }
 }
 
@@ -198,7 +270,7 @@ private fun VoicePrimaryButton(
 
     FilledIconButton(
         onClick = onVoiceInput,
-        modifier = Modifier.size(48.dp),
+        modifier = Modifier.size(44.dp),
         enabled = !isVoiceAutoSending && !isGenerating,
         shape = CircleShape,
         colors = IconButtonDefaults.filledIconButtonColors(

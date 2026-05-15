@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -117,13 +116,13 @@ fun ChatScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "对话",
-                            style = MaterialTheme.typography.titleLarge
+                            style = MaterialTheme.typography.titleMedium
                         )
                         val engineLabel = when (val s = uiState.engineState) {
                             is InferenceState.Idle -> "未连接"
-                            is InferenceState.Initializing -> "模型加载中..."
+                            is InferenceState.Initializing -> "模型加载中"
                             is InferenceState.Ready -> "已就绪"
-                            is InferenceState.Generating -> "生成中..."
+                            is InferenceState.Generating -> "生成中"
                             is InferenceState.Error -> "错误"
                         }
                         Text(
@@ -154,9 +153,9 @@ fun ChatScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "还没有对话，点击左上角菜单新建会话，或直接输入第一条消息开始。",
-                        modifier = Modifier.padding(horizontal = 24.dp),
-                        style = MaterialTheme.typography.bodyLarge,
+                        text = "直接输入第一条消息，或从左上角打开会话列表。",
+                        modifier = Modifier.padding(horizontal = 32.dp),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -166,8 +165,8 @@ fun ChatScreen(
                         .weight(1f)
                         .fillMaxWidth(),
                     state = listState,
-                    contentPadding = PaddingValues(vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     items(
                         items = uiState.messages,

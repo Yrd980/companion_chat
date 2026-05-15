@@ -260,6 +260,7 @@ The project has completed the main implementation for:
 - Stage 4: preference extraction and prompt injection
 - Stage 5: role card and skills separation
 - Stage 6: discover catalog, image generation providers, role media, DreamLite package status, and local MOSS voice clone fallback
+- Stage 7 UI pass: quieter Material 3 chat input panel, lighter message rhythm, and consistency cleanup for discover, memory, and settings surfaces
 
 The current build has passed:
 
@@ -267,6 +268,7 @@ The current build has passed:
 - full unit test run
 - `assembleDebug`
 - device install + model push + manual functional validation
+- UI refresh verification with `:app:compileDebugKotlin`, `:app:assembleDebug`, device install, and manual screenshot checks across the four main tabs
 
 ## Build Notes
 
@@ -330,9 +332,9 @@ app/
       voice/          # ASR/TTS/voice clone configuration and fallback selection
     engine/           # LiteRT-LM and voice engine implementations
     ui/
-      chat/           # chat screen and ChatViewModel
-      memory/         # memory management UI
-      settings/       # settings, role management, skills management
+      chat/           # chat screen, ChatViewModel, quiet input panel, message components
+      memory/         # memory management UI with filters, lightweight tags, and compact actions
+      settings/       # settings, role management, skills management, grouped Material rows
 docs/plans/          # design and implementation documents
 jindu.md             # progress log
 ```

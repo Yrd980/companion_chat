@@ -24,12 +24,14 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,7 +42,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -131,7 +132,7 @@ fun MemoryScreen(
                 uiState.memories.isEmpty() -> {
                     EmptyState(
                         title = "还没有记忆",
-                        message = "还没有记忆，对话中说“记住...”会自动保存"
+                        message = "在对话里说“记住...”，或点右上角新增一条。"
                     )
                 }
 
@@ -213,7 +214,8 @@ private fun MemoryFilterRow(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         MemoryFilter.entries.forEach { filter ->
-            AssistChip(
+            FilterChip(
+                selected = filter == selected,
                 onClick = { onSelected(filter) },
                 label = { Text(filterLabel(filter)) },
                 leadingIcon = if (filter == selected) {
@@ -239,7 +241,13 @@ private fun MemoryCard(
     onDelete: () -> Unit,
     onPromote: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = memory.content,
@@ -253,15 +261,11 @@ private fun MemoryCard(
             ) {
                 MemoryTag(
                     text = categoryLabel(memory.category),
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    emphatic = true
                 )
                 MemoryTag(
                     text = layerLabel(memory.layer),
-                    containerColor = if (memory.layer == "long_term") {
-                        Color(0xFFD8F3DC)
-                    } else {
-                        Color(0xFFFFE8CC)
-                    }
+                    emphatic = memory.layer == "long_term"
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -273,23 +277,19 @@ private fun MemoryCard(
             Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.End
             ) {
-                FilledTonalButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = null)
-                    Spacer(modifier = Modifier.size(6.dp))
-                    Text("编辑")
+                FilledTonalIconButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, contentDescription = "编辑记忆")
                 }
-                FilledTonalButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = null)
-                    Spacer(modifier = Modifier.size(6.dp))
-                    Text("删除")
+                Spacer(modifier = Modifier.size(8.dp))
+                FilledTonalIconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "删除记忆")
                 }
                 if (memory.layer == "short_term") {
-                    FilledTonalButton(onClick = onPromote) {
-                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = null)
-                        Spacer(modifier = Modifier.size(6.dp))
-                        Text("提升")
+                    Spacer(modifier = Modifier.size(8.dp))
+                    FilledTonalIconButton(onClick = onPromote) {
+                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "提升为长期记忆")
                     }
                 }
             }
@@ -300,9 +300,21 @@ private fun MemoryCard(
 @Composable
 private fun MemoryTag(
     text: String,
-    containerColor: Color
+    emphatic: Boolean
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = containerColor)) {
+    Surface(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+        color = if (emphatic) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        contentColor = if (emphatic) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
+    ) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
