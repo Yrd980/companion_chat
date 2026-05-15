@@ -6,9 +6,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,25 +23,19 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -52,7 +43,6 @@ import com.companion.chat.data.engine.InferenceState
 import com.companion.chat.ui.chat.components.ChatInputBar
 import com.companion.chat.ui.chat.components.ConversationDrawerSheet
 import com.companion.chat.ui.chat.components.MessageBubble
-import com.companion.chat.ui.chat.components.TypingIndicator
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,10 +91,6 @@ fun ChatScreen(
             viewModel.clearVoiceInputError()
         }
     }
-
-    // 启动时初始化模型引擎
-    var showDiagnostic by remember { mutableStateOf(true) }
-    // ViewModel init 中已自动调用 initializeEngine，这里不再重复调用
 
     // 自动滚动到底部
     LaunchedEffect(uiState.messages.size, uiState.messages.lastOrNull()?.content) {
@@ -159,37 +145,6 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // 模型加载进度条
-            AnimatedVisibility(
-                visible = uiState.engineState is InferenceState.Initializing,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            // 诊断日志（初始化期间显示，加载完成后自动隐藏）
-            AnimatedVisibility(
-                visible = showDiagnostic && uiState.diagnosticLog.isNotEmpty() &&
-                        uiState.engineState !is InferenceState.Ready,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                TextButton(onClick = { showDiagnostic = false }) {
-                    Text(
-                        text = uiState.diagnosticLog,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
             // 消息列表
             if (uiState.currentSessionId.isBlank() && uiState.messages.isEmpty()) {
                 Box(
@@ -221,13 +176,6 @@ fun ChatScreen(
                         MessageBubble(message = message)
                     }
 
-                    if (uiState.isGenerating) {
-                        item {
-                            TypingIndicator(
-                                modifier = Modifier.padding(start = 52.dp)
-                            )
-                        }
-                    }
                 }
             }
 
@@ -246,6 +194,8 @@ fun ChatScreen(
                 onRemoveImage = viewModel::removeImage,
                 isVoiceStarting = uiState.isVoiceStarting,
                 isVoiceListening = uiState.isVoiceListening,
+                isVoiceAutoSending = uiState.isVoiceAutoSending,
+                isGenerating = uiState.isGenerating,
                 isVoiceSpeaking = uiState.isVoiceSpeaking,
                 canVoiceOutput = uiState.hasSpeakableAssistantMessage,
                 onVoiceOutput = viewModel::speakLatestAssistantMessage,

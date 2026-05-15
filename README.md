@@ -101,7 +101,7 @@ This is especially important for companionship scenarios, where users often care
 The current implementation already covers the main product loop:
 
 - local chat
-- voice interaction
+- voice-first chat interaction
 - context compression
 - memory retrieval and storage
 - background preference extraction
@@ -125,6 +125,9 @@ The current implementation already covers the main product loop:
 - SenseVoice model files are loaded from the app external files directory instead of being bundled into the APK
 - `silero_vad.onnx` is used by sherpa-onnx Silero VAD for on-device speech segmentation before SenseVoice transcription; it is not just a presence-check file
 - Cloud ASR remains available as a manually selected generic HTTP backend, not as an automatic fallback path
+- When Cloud ASR is selected, voice capture no longer depends on local SenseVoice model files; it records a short fixed window and sends the resulting audio to the configured HTTP backend
+- The chat screen is voice-first: tapping the compact microphone button records speech, inserts the recognized transcript, automatically sends it, and automatically reads the assistant response for that voice-triggered turn
+- Text input, image upload, and manual replay of the latest assistant response remain available as secondary controls
 - Text-to-speech for assistant responses
 - Integrated into the main chat screen
 
@@ -211,6 +214,12 @@ The current build has passed:
 - full unit test run
 - `assembleDebug`
 - device install + model push + manual functional validation
+
+## Build Notes
+
+- Android Gradle Plugin is managed through `gradle/libs.versions.toml` and is currently set to `8.6.0`
+- The Gradle wrapper uses Gradle `8.7`, matching the AGP 8.6.x compatibility requirements
+- The app targets `compileSdk = 35`
 
 ## Business And Market
 

@@ -112,7 +112,7 @@ Anime Companion 想解决的正是这些问题。
 当前版本已经覆盖以下主能力：
 
 - 本地模型聊天
-- 语音输入输出
+- 语音优先聊天交互
 - 会话持久化
 - 长对话上下文压缩
 - 记忆提取与检索
@@ -138,6 +138,9 @@ Anime Companion 想解决的正是这些问题。
 - SenseVoice 模型文件从 App 外部目录读取，不打包进 APK
 - `silero_vad.onnx` 会被 sherpa-onnx Silero VAD 实际用于端侧语音切段，再交给 SenseVoice 识别，不只是校验文件
 - 云端 ASR 保留为手动选择的通用 HTTP 后端，不作为默认回退路径
+- 当选择云端 ASR 时，录音不再依赖本地 SenseVoice 模型文件；应用会录制一个短固定窗口，再把音频交给配置好的 HTTP 后端识别
+- 聊天页现在采用语音优先交互：点击紧凑麦克风按钮后录音，识别出的文本会自动填入并发送；由语音触发的这一轮回复生成完成后会自动朗读
+- 文字输入、图片上传、最近回复手动重听仍保留为辅助入口
 - 支持语音播报回复
 - 与聊天页主流程整合
 
@@ -227,6 +230,12 @@ silero_vad.onnx
 - 全量单元测试通过
 - `assembleDebug` 编译通过
 - 真机安装、推送模型、人工功能复测通过
+
+## 构建说明
+
+- Android Gradle Plugin 版本通过 `gradle/libs.versions.toml` 管理，当前为 `8.6.0`
+- Gradle Wrapper 当前使用 Gradle `8.7`，与 AGP 8.6.x 的兼容要求匹配
+- Android 应用当前使用 `compileSdk = 35`
 
 ## 商业化与市场
 

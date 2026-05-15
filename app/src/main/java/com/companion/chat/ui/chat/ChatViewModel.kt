@@ -64,7 +64,9 @@ data class ChatUiState(
     val isVoiceListening: Boolean = false,
     val isVoiceWarmedUp: Boolean = false,
     val isVoiceSpeaking: Boolean = false,
+    val isVoiceAutoSending: Boolean = false,
     val voiceInputError: String = "",
+    val lastVoiceTranscript: String = "",
     val imageGenerationState: ImageGenerationState = ImageGenerationState.Idle,
     val imageGenerationError: String = "",
     val engineState: InferenceState = InferenceState.Idle,
@@ -224,14 +226,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _uiState.update { it.copy(inputText = event.text, voiceInputError = "") }
                     }
                     is VoiceInputEvent.FinalResult -> {
+                        val transcript = event.text.trim()
                         _uiState.update {
                             it.copy(
-                                inputText = event.text,
+                                inputText = transcript,
                                 isVoiceStarting = false,
                                 isVoiceListening = false,
-                                voiceInputError = ""
+                                voiceInputError = "",
+                                lastVoiceTranscript = transcript
                             )
                         }
+                        handleVoiceTranscript(transcript)
                     }
                     is VoiceInputEvent.Listening -> {
                         _uiState.update {
@@ -307,9 +312,44 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendMessage() {
+        submitCurrentMessage(autoSpeakResponse = false)
+    }
+
+    private fun handleVoiceTranscript(transcript: String) {
+        when (
+            val decision = VoiceDrivenChatPolicy.evaluateTranscript(
+                transcript = transcript,
+                isGenerating = _uiState.value.isGenerating,
+                isEngineReady = inferenceEngine.state.value is InferenceState.Ready
+            )
+        ) {
+            VoiceTranscriptDecision.AutoSend -> {
+                submitCurrentMessage(autoSpeakResponse = true)
+            }
+            is VoiceTranscriptDecision.HoldForUser -> {
+                _uiState.update {
+                    it.copy(
+                        voiceInputError = decision.message,
+                        isVoiceAutoSending = false
+                    )
+                }
+            }
+        }
+    }
+
+    private fun submitCurrentMessage(autoSpeakResponse: Boolean) {
+        if (!autoSpeakResponse) {
+            shouldSpeakNextAssistantResponse = false
+        }
         var state = _uiState.value
-        if (state.inputText.isBlank() && state.selectedImages.isEmpty()) return
-        if (state.isGenerating) return
+        if (state.inputText.isBlank() && state.selectedImages.isEmpty()) {
+            _uiState.update { it.copy(isVoiceAutoSending = false) }
+            return
+        }
+        if (state.isGenerating) {
+            _uiState.update { it.copy(isVoiceAutoSending = false) }
+            return
+        }
         secondEngineManager.cancelRunningSummary()
 
         if (state.currentSessionId.isBlank()) {
@@ -342,12 +382,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 messages = it.messages + userMessage + assistantPlaceholder,
                 inputText = "",
                 selectedImages = emptyList(),
-                isGenerating = true
+                isGenerating = true,
+                isVoiceAutoSending = autoSpeakResponse
             )
         }
         saveCurrentSession()
 
         generateJob?.cancel()
+        shouldSpeakNextAssistantResponse = autoSpeakResponse
         generateJob = viewModelScope.launch {
             if (!contextConfigRepository.getAutoPreferenceLearningEnabled()) {
                 storeRuleBasedMemoriesForMessage(userMessage)
@@ -491,7 +533,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     isStreaming = false
                 )
             }
-            state.copy(messages = updatedMessages, isGenerating = false)
+            state.copy(messages = updatedMessages, isGenerating = false, isVoiceAutoSending = false)
         }
     }
 
@@ -504,7 +546,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     isStreaming = false
                 )
             }
-            state.copy(messages = updatedMessages, isGenerating = false)
+            state.copy(messages = updatedMessages, isGenerating = false, isVoiceAutoSending = false)
         }
 
         val lastMessage = _uiState.value.messages.lastOrNull()
@@ -586,7 +628,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         inferenceEngine.cancel()
         secondEngineManager.cancelRunningSummary()
         shouldSpeakNextAssistantResponse = false
-        _uiState.update { it.copy(isGenerating = false) }
+        _uiState.update { it.copy(isGenerating = false, isVoiceAutoSending = false) }
     }
 
     fun initializeEngine(modelPath: String = "", systemPrompt: String = "") {

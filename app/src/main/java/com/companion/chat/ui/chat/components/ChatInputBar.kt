@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -49,6 +50,8 @@ fun ChatInputBar(
     onRemoveImage: (Uri) -> Unit,
     isVoiceStarting: Boolean = false,
     isVoiceListening: Boolean,
+    isVoiceAutoSending: Boolean = false,
+    isGenerating: Boolean = false,
     isVoiceSpeaking: Boolean = false,
     canVoiceOutput: Boolean = false,
     onVoiceOutput: () -> Unit = {},
@@ -99,7 +102,7 @@ fun ChatInputBar(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 IconButton(onClick = onPickImage) {
                     Icon(
@@ -114,19 +117,20 @@ fun ChatInputBar(
                     onValueChange = onInputChange,
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 48.dp, max = 120.dp),
+                        .heightIn(min = 48.dp, max = 104.dp),
                     placeholder = {
                         Text(
                             text = when {
                                 isVoiceStarting -> "正在启动语音识别..."
                                 isVoiceListening -> "正在听..."
+                                isVoiceAutoSending -> "正在发送语音..."
                                 else -> "输入消息..."
                             },
                             style = MaterialTheme.typography.bodyMedium
                         )
                     },
                     shape = RoundedCornerShape(24.dp),
-                    maxLines = 4
+                    maxLines = 3
                 )
 
                 if (inputText.isNotBlank() || selectedImages.isNotEmpty()) {
@@ -142,19 +146,13 @@ fun ChatInputBar(
                         )
                     }
                 } else {
-                    IconButton(
-                        onClick = onVoiceInput,
-                        colors = IconButtonDefaults.iconButtonColors(
-                            contentColor = if (isVoiceListening || isVoiceStarting)
-                                MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Mic,
-                            contentDescription = "语音输入"
-                        )
-                    }
+                    VoicePrimaryButton(
+                        isVoiceStarting = isVoiceStarting,
+                        isVoiceListening = isVoiceListening,
+                        isVoiceAutoSending = isVoiceAutoSending,
+                        isGenerating = isGenerating,
+                        onVoiceInput = onVoiceInput
+                    )
                 }
 
                 IconButton(
@@ -185,5 +183,47 @@ fun ChatInputBar(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VoicePrimaryButton(
+    isVoiceStarting: Boolean,
+    isVoiceListening: Boolean,
+    isVoiceAutoSending: Boolean,
+    isGenerating: Boolean,
+    onVoiceInput: () -> Unit
+) {
+    val active = isVoiceStarting || isVoiceListening
+
+    FilledIconButton(
+        onClick = onVoiceInput,
+        modifier = Modifier.size(48.dp),
+        enabled = !isVoiceAutoSending && !isGenerating,
+        shape = CircleShape,
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = if (active) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
+            contentColor = if (active) {
+                MaterialTheme.colorScheme.onErrorContainer
+            } else {
+                MaterialTheme.colorScheme.onPrimary
+            },
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    ) {
+        Icon(
+            imageVector = if (active) Icons.Default.Stop else Icons.Default.Mic,
+            contentDescription = when {
+                active -> "停止语音输入"
+                isVoiceAutoSending -> "正在发送语音"
+                isGenerating -> "正在生成回复"
+                else -> "开始语音输入"
+            }
+        )
     }
 }
