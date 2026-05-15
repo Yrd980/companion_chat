@@ -94,7 +94,10 @@ fun ChatScreen(
     // 自动滚动到底部
     LaunchedEffect(uiState.messages.size, uiState.messages.lastOrNull()?.content) {
         if (uiState.messages.isNotEmpty()) {
-            listState.animateScrollToItem(uiState.messages.lastIndex)
+            listState.animateScrollToItem(
+                index = uiState.messages.lastIndex,
+                scrollOffset = Int.MAX_VALUE
+            )
         }
     }
 

@@ -261,6 +261,7 @@ The project has completed the main implementation for:
 - Stage 5: role card and skills separation
 - Stage 6: discover catalog, image generation providers, role media, DreamLite package status, and local MOSS voice clone fallback
 - Stage 7 UI pass: quieter Material 3 chat input panel, lighter message rhythm, and consistency cleanup for discover, memory, and settings surfaces
+- Stage 8 chat hardening: role-card chat starts a fresh role session, long chat replies scroll to the latest content, llama.cpp repeated-output loops are guarded, and GGUF image prompts are more explicit
 
 The current build has passed:
 
@@ -269,6 +270,7 @@ The current build has passed:
 - `assembleDebug`
 - device install + model push + manual functional validation
 - UI refresh verification with `:app:compileDebugKotlin`, `:app:assembleDebug`, device install, and manual screenshot checks across the four main tabs
+- chat hardening verification with `:app:compileDebugKotlin`, `:app:assembleDebug`, targeted RoleAware voice output tests, targeted MOSS model-package tests, device install, and device MOSS file presence checks
 
 ## Build Notes
 

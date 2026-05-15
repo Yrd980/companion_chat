@@ -93,3 +93,7 @@ viewmodel_log.txt
 Generation logs include prompt token count or multimodal prompt positions, prompt decode time, first token latency, generated token count, and tokens per second.
 
 GGUF image input is v1 vision-only multimodal support. It requires the matching `mmproj` file; if that file is missing or unreadable, image requests fail with a clear missing-projector message instead of falling back to LiteRT.
+
+Image chat prompts are wrapped with explicit visual grounding instructions before entering `mtmd`: the model is told to answer only from the image, identify the main subject first, then add key details. Ambiguous user text such as "这是" is treated as "what is in this image" to reduce meaningless location-like replies.
+
+The llama.cpp stream path also includes a local repetition guard. If the model starts repeating the same short line or sentence several times, generation is cancelled early and the partial answer is kept instead of allowing long loops such as repeated "这里是这里" output to fill the chat.

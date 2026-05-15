@@ -151,7 +151,7 @@ fun MainApp() {
                     onBack = { navController.popBackStack() },
                     onStartChat = { importedRoleId ->
                         coroutineScope.launch {
-                            chatViewModel.activateRoleCard(importedRoleId)
+                            chatViewModel.startRoleConversation(importedRoleId)
                             navController.navigate(Screen.CHAT.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
@@ -180,7 +180,19 @@ fun MainApp() {
             composable(SettingsRoutes.CHARACTER) {
                 CharacterManagementScreen(
                     onBack = { navController.popBackStack() },
-                    onActivateRoleCard = { roleId -> chatViewModel.activateRoleCard(roleId) }
+                    onActivateRoleCard = { roleId -> chatViewModel.activateRoleCard(roleId) },
+                    onStartChat = { roleId ->
+                        coroutineScope.launch {
+                            chatViewModel.startRoleConversation(roleId)
+                            navController.navigate(Screen.CHAT.route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    }
                 )
             }
             composable(SettingsRoutes.SKILLS) {

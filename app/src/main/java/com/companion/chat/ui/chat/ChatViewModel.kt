@@ -30,7 +30,6 @@ import com.companion.chat.data.model.DEFAULT_SESSION_TITLE
 import com.companion.chat.data.model.DEFAULT_WELCOME_MESSAGE
 import com.companion.chat.data.model.MessageRole
 import com.companion.chat.data.model.createDefaultSession
-import com.companion.chat.data.model.createWelcomeMessage
 import com.companion.chat.data.role.RoleCardPromptBuilder
 import com.companion.chat.data.role.RoleCardRepository
 import com.companion.chat.data.skill.SkillRepository
@@ -750,6 +749,47 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         persistSession(newSession)
+    }
+
+    suspend fun startRoleConversation(roleId: Long) {
+        if (_uiState.value.currentSessionId.isNotBlank()) {
+            triggerPreferenceSummaryNow(reason = "角色对话前")
+            saveCurrentSession()
+        }
+        roleCardRepository.activateRoleCard(roleId)
+        val roleCard = roleCardRepository.getRoleCard(roleId)
+        refreshBaseSystemPrompt()
+
+        val openingMessage = roleCard?.openingMessage
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: DEFAULT_WELCOME_MESSAGE
+        val now = System.currentTimeMillis()
+        val newSession = ConversationSession(
+            title = roleCard?.name?.takeIf { it.isNotBlank() } ?: DEFAULT_SESSION_TITLE,
+            messages = listOf(
+                ChatMessage(
+                    role = MessageRole.ASSISTANT,
+                    content = openingMessage,
+                    timestamp = now
+                )
+            ),
+            createdAt = now,
+            updatedAt = now
+        )
+        _uiState.update {
+            it.copy(
+                sessions = listOf(newSession) + it.sessions,
+                currentSessionId = newSession.id,
+                messages = newSession.messages,
+                showSessionDrawer = false,
+                sessionSearchQuery = "",
+                inputText = "",
+                selectedImages = emptyList()
+            )
+        }
+        persistSession(newSession)
+        rebuildConversationForPromptChange(reason = "角色对话开始")
     }
 
     fun setDateFilter(filter: DateFilter) {

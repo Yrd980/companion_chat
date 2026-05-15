@@ -1,5 +1,6 @@
 package com.companion.chat.engine
 
+import android.util.Log
 import com.companion.chat.data.engine.VoiceOutputConfig
 import com.companion.chat.data.engine.VoiceOutputEngine
 import com.companion.chat.data.engine.VoiceOutputMode
@@ -17,6 +18,19 @@ class RoleAwareVoiceOutputEngine(
     private val localAudioPlaybackEngine: GeneratedAudioPlayer? = null,
     private val activeRoleConfigProvider: (suspend () -> VoiceOutputConfig?)? = null
 ) : VoiceOutputEngine {
+    private companion object {
+        const val TAG = "RoleAwareVoiceOutput"
+
+        fun safeLog(message: String, warning: Boolean = false) {
+            runCatching {
+                if (warning) {
+                    Log.w(TAG, message)
+                } else {
+                    Log.i(TAG, message)
+                }
+            }
+        }
+    }
 
     override val state: Flow<VoiceOutputState> = if (localAudioPlaybackEngine == null) {
         fallbackEngine.state
@@ -56,12 +70,15 @@ class RoleAwareVoiceOutputEngine(
                 displayName = roleConfig.displayName
             )
         ).getOrElse {
+            safeLog("语音克隆异常，回退系统 TTS: ${it.message}", warning = true)
             null
         }
 
         if (cloneResult?.fallbackToSystemTts == false && !cloneResult.audioUri.isNullOrBlank()) {
+            safeLog("语音克隆成功，播放生成音频: ${cloneResult.message}")
             localAudioPlaybackEngine.play(cloneResult.audioUri)
         } else {
+            safeLog("语音克隆不可用，回退系统 TTS: ${cloneResult?.message.orEmpty()}")
             fallbackEngine.speak(text, roleConfig.copy(mode = VoiceOutputMode.SYSTEM_TTS))
         }
     }

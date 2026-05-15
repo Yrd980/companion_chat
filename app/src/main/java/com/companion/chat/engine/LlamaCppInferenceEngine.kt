@@ -208,11 +208,17 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         )
         val job = launch(runtimeDispatcher) {
             try {
+                val repetitionGuard = RepetitionGuard()
                 val callback = object : LlamaCppNative.TokenCallback {
                     override fun onTokenBytes(bytes: ByteArray) {
                         val sanitized = tokenSanitizer.append(bytes.toString(Charsets.UTF_8))
                         if (sanitized.text.isNotEmpty()) {
                             trySend(sanitized.text)
+                            if (repetitionGuard.shouldStop(sanitized.text)) {
+                                logToFile("检测到重复生成，提前停止")
+                                LlamaCppNative.cancel(activeHandle)
+                                return
+                            }
                         }
                         if (sanitized.shouldStop) {
                             LlamaCppNative.cancel(activeHandle)
@@ -301,8 +307,17 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
                 append('\n')
             }
         }
-        val text = userText.ifBlank { "请描述这张图片。" }
-        return markerPrefix + text
+        val question = userText.ifBlank { "请描述这张图片。" }
+        return buildString {
+            append("<start_of_turn>user\n")
+            append(markerPrefix)
+            append("请只根据图片内容回答，不要猜测图片之外的信息。")
+            append("先说你看到的主体，再补充关键细节。")
+            append("如果用户的问题含糊，请把它理解为“这张图里是什么”。\n")
+            append("用户问题：")
+            append(question)
+            append("\n<end_of_turn>\n<start_of_turn>model\n")
+        }
     }
 
     override fun cancel() {
@@ -349,5 +364,50 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         }
         handle = 0L
         currentConfig = null
+    }
+}
+
+private class RepetitionGuard {
+    private val generated = StringBuilder()
+
+    fun shouldStop(chunk: String): Boolean {
+        generated.append(chunk)
+        if (generated.length > MaxTrackedChars) {
+            generated.delete(0, generated.length - MaxTrackedChars)
+        }
+
+        val normalizedLines = generated
+            .lineSequence()
+            .map { it.trim() }
+            .filter { it.length >= 3 }
+            .toList()
+        val lastLine = normalizedLines.lastOrNull() ?: return false
+        val trailingSameLineCount = normalizedLines
+            .asReversed()
+            .takeWhile { it == lastLine }
+            .count()
+        if (trailingSameLineCount >= MaxSameTrailingLines) {
+            return true
+        }
+
+        val repeatedSentenceCount = generated
+            .toString()
+            .takeLast(RepeatedTailWindow)
+            .split('。', '？', '！', '\n')
+            .map { it.trim() }
+            .filter { it.length >= 3 }
+            .groupingBy { it }
+            .eachCount()
+            .values
+            .maxOrNull()
+            ?: 0
+        return repeatedSentenceCount >= MaxRepeatedSentenceCount
+    }
+
+    private companion object {
+        const val MaxTrackedChars = 1200
+        const val RepeatedTailWindow = 700
+        const val MaxSameTrailingLines = 4
+        const val MaxRepeatedSentenceCount = 6
     }
 }

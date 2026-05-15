@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
@@ -46,7 +47,8 @@ import kotlinx.coroutines.launch
 fun CharacterManagementScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onActivateRoleCard: suspend (Long) -> Unit = {}
+    onActivateRoleCard: suspend (Long) -> Unit = {},
+    onStartChat: (Long) -> Unit = {}
 ) {
     val roleManagementViewModel: RoleManagementViewModel = viewModel()
     val uiState by roleManagementViewModel.uiState.collectAsState()
@@ -108,6 +110,7 @@ fun CharacterManagementScreen(
                         roleCard = activeRole,
                         isActive = true,
                         onActivate = {},
+                        onStartChat = { onStartChat(activeRole.id) },
                         onEdit = { editingRoleCard = activeRole },
                         onDelete = if (activeRole.isBuiltIn) null else ({ deletingRoleCard = activeRole })
                     )
@@ -136,6 +139,7 @@ fun CharacterManagementScreen(
                                 roleManagementViewModel.refresh()
                             }
                         },
+                        onStartChat = { onStartChat(roleCard.id) },
                         onEdit = { editingRoleCard = roleCard },
                         onDelete = if (roleCard.isBuiltIn) null else ({ deletingRoleCard = roleCard })
                     )
@@ -245,6 +249,7 @@ private fun RoleCardItem(
     roleCard: RoleCard,
     isActive: Boolean,
     onActivate: () -> Unit,
+    onStartChat: () -> Unit,
     onEdit: () -> Unit,
     onDelete: (() -> Unit)?
 ) {
@@ -312,6 +317,10 @@ private fun RoleCardItem(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onStartChat) {
+                    Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
+                    Text("对话")
+                }
                 if (!isActive) {
                     TextButton(onClick = onActivate) {
                         Text("启用")
