@@ -24,6 +24,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
@@ -50,10 +51,11 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         )
     }
 
-    private val runtimeDispatcher: CoroutineDispatcher =
+    private val runtimeExecutor: ExecutorService =
         Executors.newSingleThreadExecutor { runnable ->
             Thread(runnable, "llama-cpp-runtime").apply { isDaemon = true }
-        }.asCoroutineDispatcher()
+        }
+    private val runtimeDispatcher: CoroutineDispatcher = runtimeExecutor.asCoroutineDispatcher()
 
     private val _state = MutableStateFlow<InferenceState>(InferenceState.Idle)
     override val state: StateFlow<InferenceState> = _state.asStateFlow()
@@ -332,6 +334,7 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
 
     override fun release() {
         releaseLoadedModel()
+        runtimeExecutor.shutdown()
         _state.value = InferenceState.Idle
     }
 

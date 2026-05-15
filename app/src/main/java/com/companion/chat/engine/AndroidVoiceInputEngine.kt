@@ -44,12 +44,29 @@ class AndroidVoiceInputEngine(
     private var stopRequested = false
 
     override fun warmUp() {
-        when (val status = configRepository.getLocalSenseVoiceModelStatus()) {
-            LocalSenseVoiceModelStatus.Ready -> _events.tryEmit(VoiceInputEvent.WarmedUp)
-            LocalSenseVoiceModelStatus.DirectoryNotConfigured ->
+        val config = configRepository.getConfig()
+        if (config.backend == VoiceInputBackend.CLOUD_HTTP_ASR) {
+            _events.tryEmit(VoiceInputEvent.WarmedUp)
+            return
+        }
+
+        emitLocalModelStatus(config)
+    }
+
+    private fun emitLocalModelStatus(config: VoiceInputConfig): Boolean {
+        return when (val status = configRepository.getLocalSenseVoiceModelStatus(config)) {
+            LocalSenseVoiceModelStatus.Ready -> {
+                _events.tryEmit(VoiceInputEvent.WarmedUp)
+                true
+            }
+            LocalSenseVoiceModelStatus.DirectoryNotConfigured -> {
                 _events.tryEmit(VoiceInputEvent.Error("本地 SenseVoice 模型未配置"))
-            is LocalSenseVoiceModelStatus.MissingFiles ->
+                false
+            }
+            is LocalSenseVoiceModelStatus.MissingFiles -> {
                 _events.tryEmit(VoiceInputEvent.Error("本地 SenseVoice 模型文件缺失: ${status.fileNames.joinToString()}"))
+                false
+            }
         }
     }
 
@@ -61,16 +78,8 @@ class AndroidVoiceInputEngine(
         }
 
         val config = configRepository.getConfig()
-        when (val status = configRepository.getLocalSenseVoiceModelStatus(config)) {
-            LocalSenseVoiceModelStatus.Ready -> Unit
-            LocalSenseVoiceModelStatus.DirectoryNotConfigured -> {
-                _events.tryEmit(VoiceInputEvent.Error("本地 SenseVoice 模型未配置"))
-                return
-            }
-            is LocalSenseVoiceModelStatus.MissingFiles -> {
-                _events.tryEmit(VoiceInputEvent.Error("本地 SenseVoice 模型文件缺失: ${status.fileNames.joinToString()}"))
-                return
-            }
+        if (config.backend == VoiceInputBackend.LOCAL_SENSEVOICE && !emitLocalModelStatus(config)) {
+            return
         }
 
         isListening = true
@@ -130,6 +139,10 @@ class AndroidVoiceInputEngine(
     }
 
     private fun recordUntilSilence(config: VoiceInputConfig): RecordedAudio {
+        if (config.backend == VoiceInputBackend.CLOUD_HTTP_ASR) {
+            return recordFixedWindow()
+        }
+
         val minBufferSize = AudioRecord.getMinBufferSize(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO,
@@ -185,6 +198,51 @@ class AndroidVoiceInputEngine(
         }
     }
 
+    private fun recordFixedWindow(): RecordedAudio {
+        val minBufferSize = AudioRecord.getMinBufferSize(
+            SAMPLE_RATE,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT
+        )
+        val bufferSize = max(minBufferSize, SAMPLE_RATE / 2)
+        val audioRecord = AudioRecord(
+            MediaRecorder.AudioSource.MIC,
+            SAMPLE_RATE,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+            bufferSize
+        )
+        recorder = audioRecord
+
+        val buffer = ShortArray(FRAME_SAMPLES)
+        val samples = mutableListOf<Short>()
+        var totalFrames = 0
+
+        try {
+            audioRecord.startRecording()
+            while (!stopRequested && isListening && totalFrames < CLOUD_MAX_FRAMES && scope.isActive) {
+                val read = audioRecord.read(buffer, 0, buffer.size)
+                if (read <= 0) continue
+
+                totalFrames += 1
+                repeat(read) { index ->
+                    samples += buffer[index]
+                }
+            }
+            return RecordedAudio(samples.toShortArray(), SAMPLE_RATE)
+        } catch (e: IllegalStateException) {
+            if (stopRequested) {
+                return RecordedAudio(ShortArray(0), SAMPLE_RATE)
+            }
+            throw e
+        } catch (e: Exception) {
+            if (stopRequested) {
+                return RecordedAudio(ShortArray(0), SAMPLE_RATE)
+            }
+            throw IllegalStateException(e.message ?: "语音录制失败", e)
+        }
+    }
+
     private fun releaseRecorder() {
         val audioRecord = recorder
         recorder = null
@@ -204,5 +262,7 @@ class AndroidVoiceInputEngine(
         const val FRAME_SAMPLES = 512
         const val MAX_RECORDING_MILLIS = 15_000
         const val MAX_FRAMES = MAX_RECORDING_MILLIS / (FRAME_SAMPLES * 1000 / SAMPLE_RATE)
+        const val CLOUD_RECORDING_MILLIS = 5_000
+        const val CLOUD_MAX_FRAMES = CLOUD_RECORDING_MILLIS / (FRAME_SAMPLES * 1000 / SAMPLE_RATE)
     }
 }

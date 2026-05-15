@@ -356,6 +356,14 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
         val imageBytesList = lastUserMessage.images.mapNotNull { uri ->
             uriToImageBytes(uri)
         }
+        if (lastUserMessage.images.isNotEmpty() && imageBytesList.size != lastUserMessage.images.size) {
+            val message = "图片读取失败，请重新选择图片"
+            logToFile(message)
+            trySend("[$message]")
+            _state.value = InferenceState.Ready
+            close()
+            return@callbackFlow
+        }
         if (imageBytesList.isNotEmpty()) {
             logToFile("检测到 ${imageBytesList.size} 张图片，构建多模态消息")
         }
