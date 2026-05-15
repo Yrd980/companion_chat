@@ -45,7 +45,7 @@ class DiscoverViewModel(
     private val imageConfigRepository: ImageGenerationConfigRepository = ImageGenerationConfigRepository(application),
     private val imageEngineSelector: ImageGenerationEngineSelector = ImageGenerationEngineSelector(
         httpEngine = HttpImageGenerationEngine(application),
-        localEngine = LocalImageGenerationEngine()
+        localEngine = LocalImageGenerationEngine(application)
     ),
     private val roleCardRepository: RoleCardRepository = RoleCardRepository(
         CompanionDatabase.getInstance(application).roleCardDao()
@@ -195,7 +195,7 @@ private fun defaultImageGenerationEngineSelector(application: Application): Imag
         .getOrElse {
             ImageGenerationEngineSelector(
                 httpEngine = HttpImageGenerationEngine(application),
-                localEngine = LocalImageGenerationEngine()
+                localEngine = LocalImageGenerationEngine(application)
             )
         }
 }

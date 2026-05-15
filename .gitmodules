@@ -7,3 +7,12 @@
 [submodule "third_party/MOSS-TTS-Nano-Reader"]
 	path = third_party/MOSS-TTS-Nano-Reader
 	url = https://github.com/OpenMOSS/MOSS-TTS-Nano-Reader.git
+[submodule "third_party/stable-diffusion.cpp"]
+	path = third_party/stable-diffusion.cpp
+	url = https://github.com/leejet/stable-diffusion.cpp.git
+[submodule "third_party/Vulkan-Headers"]
+	path = third_party/Vulkan-Headers
+	url = https://github.com/KhronosGroup/Vulkan-Headers.git
+[submodule "third_party/SPIRV-Headers"]
+	path = third_party/SPIRV-Headers
+	url = https://github.com/KhronosGroup/SPIRV-Headers.git

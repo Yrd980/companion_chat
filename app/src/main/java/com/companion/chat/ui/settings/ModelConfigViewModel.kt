@@ -9,6 +9,7 @@ import com.companion.chat.data.image.DreamLiteModelStatus
 import com.companion.chat.data.image.ImageGenerationConfig
 import com.companion.chat.data.image.ImageGenerationConfigRepository
 import com.companion.chat.data.image.ImageGenerationProvider
+import com.companion.chat.data.image.StableDiffusionModelStatus
 import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,7 @@ data class ModelConfigUiState(
     val modelConfig: ModelConfig,
     val imageConfig: ImageGenerationConfig,
     val dreamLiteModelStatus: DreamLiteModelStatus,
+    val stableDiffusionModelStatus: StableDiffusionModelStatus,
     val resolvedModelPath: String,
     val resolvedMmprojPath: String,
     val isMmprojReady: Boolean
@@ -73,6 +75,30 @@ class ModelConfigViewModel(
 
     fun updateLocalModelPath(path: String) {
         updateImageConfig(_uiState.value.imageConfig.copy(localModelPath = path))
+    }
+
+    fun updateLocalWidth(value: String) {
+        updateImageConfig(_uiState.value.imageConfig.copy(localWidth = value.toIntOrNull() ?: return))
+    }
+
+    fun updateLocalHeight(value: String) {
+        updateImageConfig(_uiState.value.imageConfig.copy(localHeight = value.toIntOrNull() ?: return))
+    }
+
+    fun updateLocalSteps(value: String) {
+        updateImageConfig(_uiState.value.imageConfig.copy(localSteps = value.toIntOrNull() ?: return))
+    }
+
+    fun updateLocalCfgScale(value: String) {
+        updateImageConfig(_uiState.value.imageConfig.copy(localCfgScale = value.toFloatOrNull() ?: return))
+    }
+
+    fun updateLocalSeed(value: String) {
+        updateImageConfig(_uiState.value.imageConfig.copy(localSeed = value.toLongOrNull()))
+    }
+
+    fun setLocalUseVulkan(enabled: Boolean) {
+        updateImageConfig(_uiState.value.imageConfig.copy(localUseVulkan = enabled))
     }
 
     fun updateImageBaseUrl(baseUrl: String) {
@@ -130,6 +156,7 @@ class ModelConfigViewModel(
             modelConfig = modelConfig,
             imageConfig = imageConfig,
             dreamLiteModelStatus = imageConfigRepository.getDreamLiteModelStatus(imageConfig),
+            stableDiffusionModelStatus = imageConfigRepository.getStableDiffusionModelStatus(imageConfig),
             resolvedModelPath = modelConfigRepository.resolveModelPath(modelConfig),
             resolvedMmprojPath = resolvedMmprojPath,
             isMmprojReady = File(resolvedMmprojPath).let { it.exists() && it.canRead() && it.length() > 0L }

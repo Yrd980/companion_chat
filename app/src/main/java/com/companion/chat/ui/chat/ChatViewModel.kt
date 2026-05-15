@@ -260,7 +260,7 @@ class ChatViewModel(
 
     private fun collectImageGenerationState() {
         viewModelScope.launch {
-            imageGenerationEngine.state.collectLatest { state ->
+            imageGenerationEngineSelector.state.collectLatest { state ->
                 _uiState.update {
                     it.copy(
                         imageGenerationState = state,

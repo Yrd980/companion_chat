@@ -236,11 +236,36 @@ The app does not commit or bundle MOSS model files. A local cache can live at `t
 
 ### 8. Image generation and role media
 
-- Image generation now supports an HTTP provider and a local DreamLite model-package checker provider
-- Model settings expose image Base URL, API key, model name, request template, response field path, timeout, and local model path
+- Image generation now supports HTTP, local DreamLite package checking, and local SD1.5 Hyper-SD generation through `stable-diffusion.cpp`
+- Model settings expose image Base URL, API key, model name, request template, response field path, timeout, local model path, local image size, steps, CFG scale, seed, and Vulkan toggle
 - Chat scene image generation routes through the provider selector and reports failures back into UI state
 - The role editor is split into Basic, Persona, Image, and Voice tabs for avatar images, galleries, image prompts, voice mode, and voice reference URIs
 - Images generated from discover roles can be appended to imported role galleries
+- Local SD1.5 Hyper-SD uses `third_party/stable-diffusion.cpp` as a Git submodule and builds a `companion_sd` JNI library. Model files are expected under `/sdcard/Android/data/com.companion.chat/files/models/image/sd15-hypersd` and are not committed.
+- Minimal local SD config:
+
+```json
+{
+  "model_name": "SD1.5 Hyper-SD",
+  "runtime": "stable-diffusion.cpp",
+  "model_path": "sd15.safetensors",
+  "lora_paths": ["hypersd_lora.safetensors"],
+  "required_files": ["sd15.safetensors", "hypersd_lora.safetensors"],
+  "default_width": 512,
+  "default_height": 512,
+  "default_steps": 4,
+  "default_cfg_scale": 1.0,
+  "use_vulkan": true
+}
+```
+
+Push a prepared package with:
+
+```bash
+adb shell 'mkdir -p /sdcard/Android/data/com.companion.chat/files/models/image/sd15-hypersd'
+adb push third_party/models/image/sd15-hypersd/. /sdcard/Android/data/com.companion.chat/files/models/image/sd15-hypersd/
+```
+
 - DreamLite source is tracked as a Git submodule at `third_party/DreamLite`; model files are expected under `/sdcard/Android/data/com.companion.chat/files/models/image/dreamlite` and are not committed. Until an official mobile weight/package is available, local DreamLite requests return a clear "model not ready" error instead of crashing.
 - OpenMOSS reader/runtime reference code is tracked as a Git submodule at `third_party/MOSS-TTS-Nano-Reader`; Android integration keeps model files under `third_party/models/tts/moss-tts-nano/` as local cache only.
 
@@ -351,6 +376,8 @@ To build and run this project, you need:
 - Android Studio / Android SDK
 - Gradle wrapper included in this repository
 - ADB for install and device operations
+- `ninja` on `PATH` for the Vulkan image backend shader generator. Android SDK CMake includes one, for example:
+  `PATH=$ANDROID_HOME/cmake/3.22.1/bin:$PATH ./gradlew :app:assembleDebug`
 
 ### Android requirements
 

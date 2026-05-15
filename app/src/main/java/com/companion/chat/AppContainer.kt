@@ -80,7 +80,7 @@ class AppContainer(
     val imageGenerationEngineSelector: ImageGenerationEngineSelector by lazy {
         ImageGenerationEngineSelector(
             httpEngine = imageGenerationEngine,
-            localEngine = LocalImageGenerationEngine()
+            localEngine = LocalImageGenerationEngine(application)
         )
     }
 

@@ -252,11 +252,12 @@ MOSS 模型文件不打包、不提交。当前本机缓存路径为 `third_part
 
 ### 8. 图片生成与角色媒体
 
-- 图片生成配置支持 HTTP Provider 和本地 DreamLite 模型包检查 Provider
-- 模型配置页可维护图片生成 Base URL、API Key、模型名、请求模板、响应字段路径、超时时间和本地模型路径
+- 图片生成配置支持 HTTP Provider、本地 DreamLite 模型包检查 Provider，以及基于 `stable-diffusion.cpp` 的本地 SD1.5 Hyper-SD 出图 Provider
+- 模型配置页可维护图片生成 Base URL、API Key、模型名、请求模板、响应字段路径、超时时间、本地模型路径、本地图片尺寸、steps、CFG scale、seed 和 Vulkan 开关
 - 聊天页图片生成会通过 Provider 选择器路由，并把失败原因回写到 UI 状态
 - 角色编辑器拆分为基础、人设、图片、语音四个页签，支持维护头像图片、图库、图片风格提示词、语音模式和语音参考 URI
 - 发现页生成的角色图片可追加到已导入角色的图库中
+- 本地 SD1.5 Hyper-SD 通过 `third_party/stable-diffusion.cpp` Git submodule 构建 `companion_sd` JNI 库；模型文件默认读取 `/sdcard/Android/data/com.companion.chat/files/models/image/sd15-hypersd`，并通过 `sd_config.json` 声明 `model_path`、可选 LoRA、默认尺寸和步数。
 - DreamLite 源码通过 Git submodule 管理在 `third_party/DreamLite`；模型文件默认读取 `/sdcard/Android/data/com.companion.chat/files/models/image/dreamlite`。官方移动端权重/包可用前，本地 DreamLite 会返回明确“模型尚未准备”错误，不承诺真实出图。
 - OpenMOSS Reader/运行时参考代码通过 Git submodule 管理在 `third_party/MOSS-TTS-Nano-Reader`；Android 侧模型文件仍只作为本机缓存放在 `third_party/models/tts/moss-tts-nano/`，不提交模型权重。
 
@@ -363,6 +364,8 @@ jindu.md             # 开发进度记录
 - Android Studio / Android SDK
 - 仓库自带 Gradle Wrapper
 - ADB，可用于安装 APK、推送模型、查看日志
+- 构建 Vulkan 图片后端时需要 `PATH` 中能找到 `ninja`。Android SDK CMake 自带一份，例如：
+  `PATH=$ANDROID_HOME/cmake/3.22.1/bin:$PATH ./gradlew :app:assembleDebug`
 
 ### 设备要求
 

@@ -31,6 +31,27 @@ class ImageGenerationEngineSelectorTest {
         assertTrue(result.exceptionOrNull()?.message!!.contains("DreamLite 模型目录未配置"))
     }
 
+    @Test
+    fun `显式 Stable Diffusion provider 会选择本地引擎`() = runBlocking {
+        val selector = ImageGenerationEngineSelector(FakeImageEngine("http://image.png"), FakeImageEngine("local://sd.png"))
+
+        val result = selector.generate(
+            request = ImageGenerationRequest(prompt = "avatar"),
+            config = ImageGenerationConfig(
+                baseUrl = "https://example.com",
+                provider = ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP
+            )
+        )
+
+        assertEquals(ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP, selector.chooseProvider(
+            ImageGenerationConfig(
+                baseUrl = "https://example.com",
+                provider = ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP
+            )
+        ))
+        assertEquals("local://sd.png", result.getOrThrow())
+    }
+
     private class FakeImageEngine(private val uri: String) : ImageGenerationEngine {
         override val state: StateFlow<ImageGenerationState> = MutableStateFlow(ImageGenerationState.Idle)
 

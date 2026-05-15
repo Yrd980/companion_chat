@@ -6,6 +6,12 @@ data class ImageGenerationConfig(
     val model: String = "",
     val provider: ImageGenerationProvider = ImageGenerationProvider.HTTP,
     val localModelPath: String = "",
+    val localWidth: Int = 512,
+    val localHeight: Int = 512,
+    val localSteps: Int = 4,
+    val localCfgScale: Float = 1.0f,
+    val localSeed: Long? = null,
+    val localUseVulkan: Boolean = true,
     val requestTemplate: String = DEFAULT_REQUEST_TEMPLATE,
     val responseImageFieldPath: String = DEFAULT_RESPONSE_FIELD_PATH,
     val timeoutMillis: Int = 60_000
@@ -19,7 +25,8 @@ data class ImageGenerationConfig(
 
 enum class ImageGenerationProvider {
     HTTP,
-    LOCAL_DREAMLITE
+    LOCAL_DREAMLITE,
+    LOCAL_STABLE_DIFFUSION_CPP
 }
 
 data class ImageGenerationRequest(

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -36,6 +37,7 @@ import com.companion.chat.data.engine.ModelRuntime
 import com.companion.chat.data.image.ImageGenerationConfig
 import com.companion.chat.data.image.ImageGenerationProvider
 import com.companion.chat.data.image.DreamLiteModelStatus
+import com.companion.chat.data.image.StableDiffusionModelStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,6 +52,7 @@ fun ModelConfigScreen(
     val modelConfig = uiState.modelConfig
     val imageConfig = uiState.imageConfig
     val dreamLiteModelStatus = uiState.dreamLiteModelStatus
+    val stableDiffusionModelStatus = uiState.stableDiffusionModelStatus
     val options = listOf(3, 5, 10, 15, 20)
     val resolvedModelPath = uiState.resolvedModelPath
     val resolvedMmprojPath = uiState.resolvedMmprojPath
@@ -233,6 +236,14 @@ fun ModelConfigScreen(
                     }
                 )
                 ImageProviderOptionItem(
+                    title = "本地 SD1.5 Hyper-SD",
+                    description = "stable-diffusion.cpp + Vulkan，本地私有出图",
+                    selected = imageConfig.provider == ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP,
+                    onClick = {
+                        viewModel.setImageProvider(ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP)
+                    }
+                )
+                ImageProviderOptionItem(
                     title = "本地 DreamLite",
                     description = "端侧接入框架已准备，等待官方权重/端侧包",
                     selected = imageConfig.provider == ImageGenerationProvider.LOCAL_DREAMLITE,
@@ -244,15 +255,48 @@ fun ModelConfigScreen(
                     viewModel.updateLocalModelPath(it)
                 }
                 Text(
-                    text = "DreamLite 状态：${dreamLiteModelStatus.displayName()}",
+                    text = when (imageConfig.provider) {
+                        ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP ->
+                            "Stable Diffusion 状态：${stableDiffusionModelStatus.displayName()}"
+                        else -> "DreamLite 状态：${dreamLiteModelStatus.displayName()}"
+                    },
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (dreamLiteModelStatus is DreamLiteModelStatus.Ready) {
+                    color = if (
+                        dreamLiteModelStatus is DreamLiteModelStatus.Ready ||
+                        stableDiffusionModelStatus is StableDiffusionModelStatus.Ready
+                    ) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
                         MaterialTheme.colorScheme.error
                     },
                     modifier = Modifier.padding(top = 4.dp)
                 )
+                ImageConfigField("本地宽度", imageConfig.localWidth.toString()) {
+                    viewModel.updateLocalWidth(it)
+                }
+                ImageConfigField("本地高度", imageConfig.localHeight.toString()) {
+                    viewModel.updateLocalHeight(it)
+                }
+                ImageConfigField("本地 Steps", imageConfig.localSteps.toString()) {
+                    viewModel.updateLocalSteps(it)
+                }
+                ImageConfigField("本地 CFG Scale", imageConfig.localCfgScale.toString()) {
+                    viewModel.updateLocalCfgScale(it)
+                }
+                ImageConfigField("本地 Seed（留空随机）", imageConfig.localSeed?.toString().orEmpty()) {
+                    viewModel.updateLocalSeed(it)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = imageConfig.localUseVulkan,
+                        onCheckedChange = { viewModel.setLocalUseVulkan(it) }
+                    )
+                    Text(
+                        text = "启用 Vulkan",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 ImageConfigField("Base URL", imageConfig.baseUrl) {
                     viewModel.updateImageBaseUrl(it)
                 }
@@ -288,6 +332,15 @@ private fun DreamLiteModelStatus.displayName(): String {
         DreamLiteModelStatus.DirectoryNotConfigured -> "模型目录未配置"
         is DreamLiteModelStatus.InvalidConfig -> "配置无效：$message"
         is DreamLiteModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"
+    }
+}
+
+private fun StableDiffusionModelStatus.displayName(): String {
+    return when (this) {
+        is StableDiffusionModelStatus.Ready -> "模型包已就绪：${config.modelName}"
+        StableDiffusionModelStatus.DirectoryNotConfigured -> "模型目录未配置"
+        is StableDiffusionModelStatus.InvalidConfig -> "配置无效：$message"
+        is StableDiffusionModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"
     }
 }
 

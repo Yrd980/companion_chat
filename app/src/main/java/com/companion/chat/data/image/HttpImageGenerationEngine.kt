@@ -14,9 +14,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class HttpImageGenerationEngine(
-    private val context: Context
+    context: Context
 ) : ImageGenerationEngine {
 
+    private val imageFileStore = ImageFileStore(context)
     private val _state = MutableStateFlow<ImageGenerationState>(ImageGenerationState.Idle)
     override val state: StateFlow<ImageGenerationState> = _state.asStateFlow()
 
@@ -132,14 +133,8 @@ class HttpImageGenerationEngine(
     }
 
     private fun saveBase64Image(base64: String, purpose: ImageGenerationPurpose): String =
-        saveBytes(Base64.decode(base64, Base64.DEFAULT), purpose)
+        imageFileStore.saveBytes(Base64.decode(base64, Base64.DEFAULT), purpose)
 
-    private fun saveBytes(bytes: ByteArray, purpose: ImageGenerationPurpose): String {
-        val dir = File(context.filesDir, "generated_images/${purpose.name.lowercase()}").apply {
-            mkdirs()
-        }
-        val file = File(dir, "image_${System.currentTimeMillis()}.png")
-        file.writeBytes(bytes)
-        return file.toURI().toString()
-    }
+    private fun saveBytes(bytes: ByteArray, purpose: ImageGenerationPurpose): String =
+        imageFileStore.saveBytes(bytes, purpose)
 }

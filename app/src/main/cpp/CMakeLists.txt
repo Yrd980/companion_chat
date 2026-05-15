@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(LLAMA_CPP_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../../third_party/llama.cpp")
+set(STABLE_DIFFUSION_CPP_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../../third_party/stable-diffusion.cpp")
+set(VULKAN_HEADERS_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../../third_party/Vulkan-Headers")
+set(SPIRV_HEADERS_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../../third_party/SPIRV-Headers")
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build llama.cpp as static libraries" FORCE)
 set(LLAMA_BUILD_COMMON OFF CACHE BOOL "Skip llama.cpp common tools" FORCE)
@@ -18,6 +21,42 @@ set(GGML_NATIVE OFF CACHE BOOL "Disable host-native flags for Android cross buil
 set(GGML_OPENMP OFF CACHE BOOL "Disable OpenMP" FORCE)
 set(GGML_BLAS OFF CACHE BOOL "Disable BLAS" FORCE)
 set(GGML_LLAMAFILE OFF CACHE BOOL "Disable llamafile" FORCE)
+set(GGML_VULKAN ON CACHE BOOL "Enable Vulkan backend for shared ggml users" FORCE)
+if (CMAKE_MAKE_PROGRAM)
+    get_filename_component(CMAKE_MAKE_PROGRAM_DIR "${CMAKE_MAKE_PROGRAM}" DIRECTORY)
+    set(ENV{PATH} "${CMAKE_MAKE_PROGRAM_DIR}:$ENV{PATH}")
+endif()
+if (ANDROID AND CMAKE_MAKE_PROGRAM)
+    find_program(COMPANION_HOST_C_COMPILER NAMES cc gcc clang)
+    find_program(COMPANION_HOST_CXX_COMPILER NAMES c++ g++ clang++)
+    if (COMPANION_HOST_C_COMPILER AND COMPANION_HOST_CXX_COMPILER)
+        set(COMPANION_VULKAN_HOST_TOOLCHAIN "${CMAKE_CURRENT_BINARY_DIR}/companion-vulkan-shaders-host-toolchain.cmake")
+        file(WRITE "${COMPANION_VULKAN_HOST_TOOLCHAIN}"
+            "set(CMAKE_BUILD_TYPE Release)\n"
+            "set(CMAKE_C_FLAGS -O2)\n"
+            "set(CMAKE_CXX_FLAGS -O2)\n"
+            "set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)\n"
+            "set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY NEVER)\n"
+            "set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE NEVER)\n"
+            "set(CMAKE_C_COMPILER \"${COMPANION_HOST_C_COMPILER}\")\n"
+            "set(CMAKE_CXX_COMPILER \"${COMPANION_HOST_CXX_COMPILER}\")\n"
+            "set(CMAKE_MAKE_PROGRAM \"${CMAKE_MAKE_PROGRAM}\" CACHE FILEPATH \"\" FORCE)\n"
+        )
+        set(GGML_VULKAN_SHADERS_GEN_TOOLCHAIN "${COMPANION_VULKAN_HOST_TOOLCHAIN}" CACHE FILEPATH "Host toolchain for Vulkan shader generator" FORCE)
+    endif()
+endif()
+if (ANDROID)
+    if (EXISTS "${VULKAN_HEADERS_DIR}/include/vulkan/vulkan.hpp")
+        include_directories("${VULKAN_HEADERS_DIR}/include")
+    elseif (DEFINED ANDROID_NDK)
+        include_directories("${ANDROID_NDK}/sources/third_party/vulkan/src/include")
+    endif()
+    if (EXISTS "${SPIRV_HEADERS_DIR}/include/spirv/unified1/spirv.hpp")
+        include_directories("${SPIRV_HEADERS_DIR}/include")
+    elseif (DEFINED ANDROID_NDK)
+        include_directories("${ANDROID_NDK}/sources/third_party/shaderc/third_party/spirv-tools/external/spirv-headers/include")
+    endif()
+endif()
 
 add_subdirectory("${LLAMA_CPP_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/llama.cpp")
 if (NOT DEFINED LLAMA_INSTALL_VERSION)
@@ -89,3 +128,27 @@ target_link_libraries(companion_llama
     android
     log
 )
+
+if (EXISTS "${STABLE_DIFFUSION_CPP_DIR}/CMakeLists.txt")
+    set(SD_BUILD_EXAMPLES OFF CACHE BOOL "Skip stable-diffusion.cpp examples" FORCE)
+    set(SD_WEBP OFF CACHE BOOL "Disable stable-diffusion.cpp WebP support" FORCE)
+    set(SD_WEBM OFF CACHE BOOL "Disable stable-diffusion.cpp WebM support" FORCE)
+    set(SD_VULKAN ON CACHE BOOL "Enable stable-diffusion.cpp Vulkan backend" FORCE)
+    set(SD_BUILD_SHARED_LIBS OFF CACHE BOOL "Build stable-diffusion.cpp as static library" FORCE)
+    set(SD_BUILD_SHARED_GGML_LIB OFF CACHE BOOL "Build stable-diffusion.cpp ggml as static library" FORCE)
+    set(SD_USE_SYSTEM_GGML OFF CACHE BOOL "Use bundled stable-diffusion.cpp ggml" FORCE)
+    add_subdirectory("${STABLE_DIFFUSION_CPP_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/stable-diffusion.cpp")
+
+    add_library(companion_sd SHARED stable_diffusion_jni.cpp)
+    target_include_directories(companion_sd PRIVATE
+        "${STABLE_DIFFUSION_CPP_DIR}/include"
+        "${STABLE_DIFFUSION_CPP_DIR}/thirdparty"
+    )
+    target_link_libraries(companion_sd
+        stable-diffusion
+        android
+        log
+    )
+else()
+    message(FATAL_ERROR "stable-diffusion.cpp is missing at ${STABLE_DIFFUSION_CPP_DIR}")
+endif()
