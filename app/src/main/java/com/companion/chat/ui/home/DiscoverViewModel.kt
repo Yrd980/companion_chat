@@ -10,7 +10,6 @@ import com.companion.chat.data.discover.RoleSortMode
 import com.companion.chat.data.image.HttpImageGenerationEngine
 import com.companion.chat.data.image.ImageGenerationConfigRepository
 import com.companion.chat.data.image.ImageGenerationEngineSelector
-import com.companion.chat.data.image.ImageGenerationProvider
 import com.companion.chat.data.image.ImageGenerationPurpose
 import com.companion.chat.data.image.ImageGenerationRequest
 import com.companion.chat.data.image.LocalImageGenerationEngine
@@ -128,9 +127,7 @@ class DiscoverViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isGeneratingImage = true, message = "") }
             val baseConfig = imageConfigRepository.getConfig()
-            val provider = runCatching {
-                ImageGenerationProvider.valueOf(item.role.generationPreset.imageProvider)
-            }.getOrDefault(baseConfig.provider)
+            val provider = baseConfig.provider
             val request = ImageGenerationRequest(
                 prompt = item.role.generationPreset.defaultPrompt,
                 negativePrompt = item.role.generationPreset.negativePrompt,
@@ -139,7 +136,12 @@ class DiscoverViewModel(
             )
             imageEngineSelector.generate(request, baseConfig.copy(provider = provider))
                 .onSuccess { uri ->
+                    if (repository.getCollection(roleId).importedRoleCardId == null) {
+                        repository.copyToMyRoleCard(roleId)
+                    }
                     val attached = repository.attachGeneratedImage(roleId, uri)
+                    refresh()
+                    selectRoleIfOpen(roleId)
                     _uiState.update {
                         it.copy(
                             isGeneratingImage = false,
