@@ -12,6 +12,10 @@ app/libs/*.aar
 build/
 **/build/
 
+# Android native build intermediates
+.cxx/
+app/.cxx/
+
 # IDE
 .idea/
 *.iml
