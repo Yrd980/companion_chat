@@ -144,6 +144,7 @@ Anime Companion 想解决的正是这些问题。
 - 聊天页现在采用语音优先交互：点击紧凑麦克风按钮后录音，识别出的文本会自动填入并发送；由语音触发的这一轮回复生成完成后会自动朗读
 - 文字输入、图片上传、最近回复手动重听仍保留为辅助入口
 - 支持语音播报回复
+- 角色语音 `CLONE` 模式会优先尝试本地 `moss-tts-nano` ONNX 合成，生成 WAV 到 App 私有目录后播放；缺模型、缺参考音频或推理失败时回退系统 TTS
 - 与聊天页主流程整合
 
 本地 ASR 默认模型目录：
@@ -179,6 +180,37 @@ silero_vad.onnx
 ```
 
 设备构建需要把 k2-fsa 官方 `sherpa-onnx-1.13.0.aar` 放入 `app/libs/`。`app/libs/*.aar` 已加入 `.gitignore`，不提交大二进制依赖。代码从外部文件路径加载模型时会向 sherpa-onnx 传入 `null AssetManager`，避免 native 层因绝对路径读取模型文件直接退出进程。
+
+本地语音克隆默认模型目录：
+
+```text
+/sdcard/Android/data/com.companion.chat/files/models/tts/moss-tts-nano
+```
+
+设备目录需要包含：
+
+```text
+tts/
+├── browser_poc_manifest.json
+├── tokenizer.model
+├── tts_browser_onnx_meta.json
+├── moss_tts_prefill.onnx
+├── moss_tts_decode_step.onnx
+├── moss_tts_local_decoder.onnx
+├── moss_tts_local_cached_step.onnx
+├── moss_tts_local_fixed_sampled_frame.onnx
+├── moss_tts_global_shared.data
+└── moss_tts_local_shared.data
+audio_tokenizer/
+├── codec_browser_onnx_meta.json
+├── moss_audio_tokenizer_encode.onnx
+├── moss_audio_tokenizer_encode.data
+├── moss_audio_tokenizer_decode_full.onnx
+├── moss_audio_tokenizer_decode_step.onnx
+└── moss_audio_tokenizer_decode_shared.data
+```
+
+MOSS 模型文件不打包、不提交。当前本机缓存路径为 `third_party/models/tts/moss-tts-nano/`，需要手动推送到 App 外部目录。当前 Android 链路会校验真实 OpenMOSS browser ONNX 包，真实自回归推理 runner 完成前会回退系统 TTS。
 
 ### 3. 上下文管理
 
@@ -220,11 +252,13 @@ silero_vad.onnx
 
 ### 8. 图片生成与角色媒体
 
-- 图片生成配置支持 HTTP Provider 和本地 DreamLite 占位 Provider
+- 图片生成配置支持 HTTP Provider 和本地 DreamLite 模型包检查 Provider
 - 模型配置页可维护图片生成 Base URL、API Key、模型名、请求模板、响应字段路径、超时时间和本地模型路径
 - 聊天页图片生成会通过 Provider 选择器路由，并把失败原因回写到 UI 状态
 - 角色编辑器拆分为基础、人设、图片、语音四个页签，支持维护头像图片、图库、图片风格提示词、语音模式和语音参考 URI
 - 发现页生成的角色图片可追加到已导入角色的图库中
+- DreamLite 源码通过 Git submodule 管理在 `third_party/DreamLite`；模型文件默认读取 `/sdcard/Android/data/com.companion.chat/files/models/image/dreamlite`。官方移动端权重/包可用前，本地 DreamLite 会返回明确“模型尚未准备”错误，不承诺真实出图。
+- OpenMOSS Reader/运行时参考代码通过 Git submodule 管理在 `third_party/MOSS-TTS-Nano-Reader`；Android 侧模型文件仍只作为本机缓存放在 `third_party/models/tts/moss-tts-nano/`，不提交模型权重。
 
 ### 9. 更开放的私密互动
 

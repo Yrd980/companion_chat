@@ -1,5 +1,32 @@
 # 项目进度
 
+## 2026-05-15 - DreamLite submodule 与 moss-tts-nano 端侧接入框架
+
+### 完成内容
+- 新增 `third_party/DreamLite` Git submodule，指向 `https://github.com/ByteVisionLab/DreamLite.git`，只提交 submodule 指针，不提交 DreamLite 源码副本或权重。
+- 新增 `third_party/MOSS-TTS-Nano-Reader` Git submodule，指向 `https://github.com/OpenMOSS/MOSS-TTS-Nano-Reader.git`，作为 Android 端移植 MOSS browser ONNX runner 的稳定参考。
+- 图片生成本地 Provider 从普通占位改为 DreamLite 模型包检查器：
+  - 默认目录为 `/sdcard/Android/data/com.companion.chat/files/models/image/dreamlite`。
+  - 要求 `dreamlite_config.json`，并校验 `model_name`、`runtime` 和配置声明的 `required_files`。
+  - 触发本地 DreamLite 生图时不闪退；缺文件或官方端侧包未就绪时返回明确错误。
+- 接入 `moss-tts-nano` 本地语音克隆框架：
+  - 新增 `ai.onnxruntime:onnxruntime-android:1.25.0`。
+  - 默认目录为 `/sdcard/Android/data/com.companion.chat/files/models/tts/moss-tts-nano`。
+  - 已识别本地缓存 `third_party/models/tts/moss-tts-nano/` 的真实 OpenMOSS browser ONNX 拆分格式。
+  - 校验 `tts/tts_browser_onnx_meta.json`、`audio_tokenizer/codec_browser_onnx_meta.json`、TTS ONNX、audio tokenizer ONNX 和外部 `.data` 权重文件。
+  - `CLONE` 模式会先检查 MOSS 模型包和参考音频；真实自回归 ONNX runner 完成前自动回退系统 TTS，避免按错误 acoustic/vocoder 文件名误跑。
+- 语音设置页展示 MOSS 模型目录、状态和是否可本地克隆；模型配置页展示 DreamLite 状态和官方权重/端侧包限制。
+
+### 验证
+- `./gradlew :app:testDebugUnitTest` 通过。
+- `git submodule status third_party/DreamLite` 可见 DreamLite 指针。
+
+### 已知限制
+- DreamLite 当前只完成 App 侧接入框架与模型目录校验，等待官方端侧权重/包后再做真实扩散推理。
+- MOSS 已按现有本地包的 browser ONNX manifest 校验；下一步需要实现 prefill/decode/local decoder/audio tokenizer decode 的自回归 runner 后再做真机端到端合成验收。
+
+---
+
 ## 2026-05-15 - 发现页、角色导入、图片生成配置与闪退修复
 
 ### 完成内容

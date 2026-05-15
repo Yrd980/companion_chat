@@ -131,6 +131,7 @@ The current implementation already covers the main product loop:
 - The chat screen is voice-first: tapping the compact microphone button records speech, inserts the recognized transcript, automatically sends it, and automatically reads the assistant response for that voice-triggered turn
 - Text input, image upload, and manual replay of the latest assistant response remain available as secondary controls
 - Text-to-speech for assistant responses
+- Role voice clone mode now tries local `moss-tts-nano` ONNX synthesis first, writes a WAV into app-private storage, and falls back to Android system TTS when models, reference audio, or inference are unavailable
 - Integrated into the main chat screen
 
 Default local ASR model directory:
@@ -166,6 +167,37 @@ silero_vad.onnx
 ```
 
 Device builds require the official k2-fsa `sherpa-onnx-1.13.0.aar` in `app/libs/`. `app/libs/*.aar` is ignored by Git so the large binary dependency is not committed. When loading SenseVoice and Silero VAD models from external absolute paths, the app passes `null` for sherpa-onnx's `AssetManager`; passing a non-null asset manager for SD-card model paths can make sherpa-onnx terminate the process from native code.
+
+Default local voice clone model directory:
+
+```text
+/sdcard/Android/data/com.companion.chat/files/models/tts/moss-tts-nano
+```
+
+Expected device layout:
+
+```text
+tts/
+├── browser_poc_manifest.json
+├── tokenizer.model
+├── tts_browser_onnx_meta.json
+├── moss_tts_prefill.onnx
+├── moss_tts_decode_step.onnx
+├── moss_tts_local_decoder.onnx
+├── moss_tts_local_cached_step.onnx
+├── moss_tts_local_fixed_sampled_frame.onnx
+├── moss_tts_global_shared.data
+└── moss_tts_local_shared.data
+audio_tokenizer/
+├── codec_browser_onnx_meta.json
+├── moss_audio_tokenizer_encode.onnx
+├── moss_audio_tokenizer_encode.data
+├── moss_audio_tokenizer_decode_full.onnx
+├── moss_audio_tokenizer_decode_step.onnx
+└── moss_audio_tokenizer_decode_shared.data
+```
+
+The app does not commit or bundle MOSS model files. A local cache can live at `third_party/models/tts/moss-tts-nano/`; push that directory into the app external files directory and set a role to `CLONE` with a readable reference WAV/URI. The current Android path validates the real OpenMOSS browser ONNX bundle and falls back to system TTS until the autoregressive ONNX runner is completed.
 
 ### 3. Context management
 
@@ -204,11 +236,13 @@ Device builds require the official k2-fsa `sherpa-onnx-1.13.0.aar` in `app/libs/
 
 ### 8. Image generation and role media
 
-- Image generation now supports an HTTP provider and a local DreamLite placeholder provider
+- Image generation now supports an HTTP provider and a local DreamLite model-package checker provider
 - Model settings expose image Base URL, API key, model name, request template, response field path, timeout, and local model path
 - Chat scene image generation routes through the provider selector and reports failures back into UI state
 - The role editor is split into Basic, Persona, Image, and Voice tabs for avatar images, galleries, image prompts, voice mode, and voice reference URIs
 - Images generated from discover roles can be appended to imported role galleries
+- DreamLite source is tracked as a Git submodule at `third_party/DreamLite`; model files are expected under `/sdcard/Android/data/com.companion.chat/files/models/image/dreamlite` and are not committed. Until an official mobile weight/package is available, local DreamLite requests return a clear "model not ready" error instead of crashing.
+- OpenMOSS reader/runtime reference code is tracked as a Git submodule at `third_party/MOSS-TTS-Nano-Reader`; Android integration keeps model files under `third_party/models/tts/moss-tts-nano/` as local cache only.
 
 ### 9. More open private interaction
 
@@ -225,7 +259,7 @@ The project has completed the main implementation for:
 - Stage 3: memory system
 - Stage 4: preference extraction and prompt injection
 - Stage 5: role card and skills separation
-- Stage 6: discover catalog, image generation providers, role media, and voice clone placeholders
+- Stage 6: discover catalog, image generation providers, role media, DreamLite package status, and local MOSS voice clone fallback
 
 The current build has passed:
 

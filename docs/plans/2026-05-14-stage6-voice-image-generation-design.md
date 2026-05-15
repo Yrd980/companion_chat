@@ -80,7 +80,7 @@ HTTP 配置包含：
 
 ## 6. Known Limits
 
-- 本阶段不接入 sherpa-onnx、Whisper 或本地 ASR 模型。
-- 本阶段不实现真实本地语音克隆模型，只完成接口、配置、回退和 UI 管理。
-- 本阶段不实现本地 DreamLite/Hugging Face 后端，只保留通用 HTTP 联网图片生成。
+- 本阶段已接入本地 SenseVoice ASR，仍不接入 Whisper。
+- `moss-tts-nano` 已完成真实 OpenMOSS browser ONNX 模型包校验与系统 TTS 回退；真实合成仍需要实现 prefill/decode/local decoder/audio tokenizer decode 的自回归 runner。
+- 本地 DreamLite 已完成 submodule 与模型包检查器；官方移动端权重/包可用前不承诺真实出图。
 - 角色市场、购买、账号体系、公开发布均不在本阶段范围内。

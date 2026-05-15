@@ -57,6 +57,7 @@
 
 已知限制：
 
-- 真实语音克隆后端未接入，`CLONE` 当前自动回退系统 TTS。
+- `CLONE` 已接入 `moss-tts-nano` 本地模型包校验与回退框架；当前本地包是 OpenMOSS browser ONNX 拆分格式，真实自回归 runner 完成前回退系统 TTS。
 - 图片生成依赖用户配置 HTTP 服务；未配置 Base URL 时返回明确错误。
+- 本地 DreamLite 已通过 `third_party/DreamLite` submodule 和模型包检查器接入，官方移动端权重/包可用前只返回明确“模型尚未准备”错误，不做真实出图。
 - 未做真机联网图片生成端到端验证。
