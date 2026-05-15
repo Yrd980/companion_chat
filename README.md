@@ -105,7 +105,9 @@ The current implementation already covers the main product loop:
 - context compression
 - memory retrieval and storage
 - background preference extraction
+- discover role catalog and import flow
 - role card management
+- image generation provider configuration
 - skills management
 
 ## Core Features
@@ -192,7 +194,23 @@ Device builds require the official k2-fsa `sherpa-onnx-1.13.0.aar` in `app/libs/
 - The built-in skill is currently:
   - `Translator`, designed to consider the user's context, culture, and native language
 
-### 7. More open private interaction
+### 7. Discover catalog and role import
+
+- The home screen is now a discover catalog with search, tag filters, mature-content visibility, and hot/new/name sorting
+- Seeded discover roles include persona, opening message, image style, voice summary, content rating, and generation presets
+- Users can favorite, unlock, inspect details, and copy discover roles into their own role cards
+- Tapping start chat from a role detail imports and activates the role before navigating into chat
+- Fixed the runtime crash caused by `DiscoverViewModel` missing the explicit `Application` constructor required by `AndroidViewModelFactory`
+
+### 8. Image generation and role media
+
+- Image generation now supports an HTTP provider and a local DreamLite placeholder provider
+- Model settings expose image Base URL, API key, model name, request template, response field path, timeout, and local model path
+- Chat scene image generation routes through the provider selector and reports failures back into UI state
+- The role editor is split into Basic, Persona, Image, and Voice tabs for avatar images, galleries, image prompts, voice mode, and voice reference URIs
+- Images generated from discover roles can be appended to imported role galleries
+
+### 9. More open private interaction
 
 - Built for private local use rather than public-platform conversation norms
 - Suitable for flirtatious, emotionally expressive, and more intimate interaction styles when the selected local model and prompts support it
@@ -207,6 +225,7 @@ The project has completed the main implementation for:
 - Stage 3: memory system
 - Stage 4: preference extraction and prompt injection
 - Stage 5: role card and skills separation
+- Stage 6: discover catalog, image generation providers, role media, and voice clone placeholders
 
 The current build has passed:
 
@@ -266,12 +285,15 @@ app/
   src/main/java/com/companion/chat/
     data/
       context/        # context window, prompt assembly, summary flow
+      discover/       # discover role seeds plus favorite/unlock/import state
+      image/          # image generation config, provider routing, local placeholder
       local/          # Room database, dao, entities
       memory/         # memory extraction, retrieval, storage
       preferences/    # preference extraction and merge flow
       repository/     # chat session persistence
       role/           # role card repository and prompt builder
       skill/          # skill repository
+      voice/          # ASR/TTS/voice clone configuration and fallback selection
     engine/           # LiteRT-LM and voice engine implementations
     ui/
       chat/           # chat screen and ChatViewModel

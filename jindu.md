@@ -1,5 +1,60 @@
 # 项目进度
 
+## 2026-05-15 - 发现页、角色导入、图片生成配置与闪退修复
+
+### 完成内容
+- 首页从占位页升级为“发现”角色目录：
+  - 支持搜索角色、作者、标签。
+  - 支持标签筛选、私密内容开关、热门/最新/名称排序。
+  - 支持角色卡片、收藏、详情页、解锁和开始聊天入口。
+- 新增发现角色数据层：
+  - `DiscoverRoleCard`、`RoleCollection`、`RoleGenerationPreset` 等模型。
+  - `DiscoverRoleSeeds` 内置多张本地发现角色。
+  - `DiscoverRoleRepository` 持久化收藏、解锁和已导入角色 ID。
+- 打通发现角色导入：
+  - 发现角色可复制到“我的角色卡”并自动激活。
+  - 角色详情点击“开始聊天”后导入角色并跳转对话页。
+  - 已导入角色支持追加生成图片到图库。
+- 图片生成能力扩展：
+  - `ImageGenerationConfig` 新增 Provider 与本地模型路径。
+  - 新增 `ImageGenerationEngineSelector`，支持 HTTP Provider 与本地 DreamLite 占位 Provider。
+  - 模型配置页新增图片生成 Provider、Base URL、API Key、模型名、模板、响应字段和超时配置。
+  - 聊天页图片生成失败会回写到 UI 状态，避免静默失败。
+- 角色编辑器增强：
+  - 编辑弹窗拆分为基础、人设、图片、语音四个页签。
+  - 支持维护头像图片 URI、图库 URI、图片风格提示词、语音模式和语音参考 URI。
+  - 修复角色管理页删除按钮回调被多包一层 lambda 导致无法正确触发的问题。
+- 语音克隆占位：
+  - 新增 `VoiceCloneProvider` 与 `VoiceCloneProviderSelector`。
+  - 克隆后端不可用时可明确回退系统 TTS。
+- 文档与仓库维护：
+  - 新增 `PRODUCT.md` 和 `DESIGN.md`，记录产品定位、设计原则与 UI 约束。
+  - `.gitignore` 增加 `.cxx/` 与 `app/.cxx/`，避免 Android CMake/NDK 本地构建产物进入版本控制。
+
+### 闪退修复
+- 现象：进入“下载/发现”相关界面后应用闪退。
+- 根因：`DiscoverViewModel` 使用带默认参数的 Kotlin 主构造器，但 Compose `viewModel()` 运行时通过 `AndroidViewModelFactory` 反射查找精确的 `DiscoverViewModel(Application)` 构造函数；缺少该显式构造函数时抛出 `NoSuchMethodException`。
+- 修复：在 `DiscoverViewModel` 中补充显式 `constructor(application: Application)`，并新增单元测试锁定该运行时构造契约。
+- 真机验证：重装后启动应用，未再出现 `AndroidRuntime/FATAL`；界面树可见发现角色详情、开始聊天、收藏解锁、生成图片等控件。
+
+### 验证
+- `./gradlew :app:testDebugUnitTest --tests "com.companion.chat.ui.home.DiscoverViewModelTest"` 通过。
+- `./gradlew :app:assembleDebug` 通过。
+- `./gradlew test --no-daemon` 通过。
+- `adb install -r app/build/outputs/apk/debug/app-debug.apk` 成功。
+- `adb logcat` 复验未再出现 `DiscoverViewModel.<init>(Application)` 相关崩溃。
+
+### 关键文件
+- 发现数据层：`app/src/main/java/com/companion/chat/data/discover/`
+- 发现页与详情页：`app/src/main/java/com/companion/chat/ui/home/`
+- 导航：`app/src/main/java/com/companion/chat/MainActivity.kt`、`app/src/main/java/com/companion/chat/ui/navigation/AppNavigation.kt`
+- 图片生成：`app/src/main/java/com/companion/chat/data/image/`
+- 语音克隆占位：`app/src/main/java/com/companion/chat/data/voice/VoiceCloneProvider*.kt`
+- 角色编辑：`app/src/main/java/com/companion/chat/ui/settings/RoleCardEditorDialog.kt`
+- 产品与设计文档：`PRODUCT.md`、`DESIGN.md`
+
+---
+
 ## 2026-05-15 - 聊天栏语音输入与语音输出按钮分离
 
 ### 完成内容
