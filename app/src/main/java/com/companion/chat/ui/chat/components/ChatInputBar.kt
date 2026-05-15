@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
@@ -48,6 +49,7 @@ fun ChatInputBar(
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onPickImage: () -> Unit,
+    onGenerateImage: () -> Unit,
     onVoiceInput: () -> Unit,
     selectedImages: List<Uri>,
     onRemoveImage: (Uri) -> Unit,
@@ -55,6 +57,7 @@ fun ChatInputBar(
     isVoiceListening: Boolean,
     isVoiceAutoSending: Boolean = false,
     isGenerating: Boolean = false,
+    isImageGenerating: Boolean = false,
     isVoiceSpeaking: Boolean = false,
     canVoiceOutput: Boolean = false,
     onVoiceOutput: () -> Unit = {},
@@ -95,6 +98,13 @@ fun ChatInputBar(
                         onClick = onPickImage,
                         icon = Icons.Default.AddPhotoAlternate,
                         contentDescription = "上传图片"
+                    )
+                    ChatToolIconButton(
+                        onClick = onGenerateImage,
+                        enabled = inputText.isNotBlank() && !isImageGenerating,
+                        icon = Icons.Default.AutoAwesome,
+                        contentDescription = if (isImageGenerating) "图片生成中" else "根据输入生成图片",
+                        active = isImageGenerating
                     )
                     Spacer(Modifier.width(2.dp))
                     BasicTextField(

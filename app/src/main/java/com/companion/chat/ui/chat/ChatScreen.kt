@@ -40,6 +40,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companion.chat.data.engine.InferenceState
+import com.companion.chat.data.image.ImageGenerationState
 import com.companion.chat.ui.chat.components.ChatInputBar
 import com.companion.chat.ui.chat.components.ConversationDrawerSheet
 import com.companion.chat.ui.chat.components.MessageBubble
@@ -89,6 +90,12 @@ fun ChatScreen(
         if (uiState.voiceInputError.isNotBlank()) {
             snackbarHostState.showSnackbar(uiState.voiceInputError)
             viewModel.clearVoiceInputError()
+        }
+    }
+
+    LaunchedEffect(uiState.imageGenerationError) {
+        if (uiState.imageGenerationError.isNotBlank()) {
+            snackbarHostState.showSnackbar(uiState.imageGenerationError)
         }
     }
 
@@ -187,6 +194,9 @@ fun ChatScreen(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
                 },
+                onGenerateImage = {
+                    viewModel.generateChatSceneImage(uiState.inputText.trim())
+                },
                 onVoiceInput = viewModel::toggleVoiceListening,
                 selectedImages = uiState.selectedImages,
                 onRemoveImage = viewModel::removeImage,
@@ -194,6 +204,7 @@ fun ChatScreen(
                 isVoiceListening = uiState.isVoiceListening,
                 isVoiceAutoSending = uiState.isVoiceAutoSending,
                 isGenerating = uiState.isGenerating,
+                isImageGenerating = uiState.imageGenerationState is ImageGenerationState.Generating,
                 isVoiceSpeaking = uiState.isVoiceSpeaking,
                 canVoiceOutput = uiState.hasSpeakableAssistantMessage,
                 onVoiceOutput = viewModel::speakLatestAssistantMessage,

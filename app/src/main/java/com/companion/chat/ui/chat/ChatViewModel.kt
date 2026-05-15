@@ -285,6 +285,7 @@ class ChatViewModel(
 
     fun generateChatSceneImage(prompt: String) {
         viewModelScope.launch {
+            logToFile("图片生成请求: promptLength=${prompt.length}, provider=${imageGenerationConfigRepository.getConfig().provider}")
             imageGenerationEngineSelector.generate(
                 request = ImageGenerationRequest(
                     prompt = prompt,
@@ -292,8 +293,10 @@ class ChatViewModel(
                 ),
                 config = imageGenerationConfigRepository.getConfig()
             ).onSuccess { uri ->
+                logToFile("图片生成成功: $uri")
                 addImage(Uri.parse(uri))
             }.onFailure { error ->
+                logToFile("图片生成失败: ${error.message}")
                 _uiState.update {
                     it.copy(
                         imageGenerationState = ImageGenerationState.Error(error.message ?: "图片生成失败"),
