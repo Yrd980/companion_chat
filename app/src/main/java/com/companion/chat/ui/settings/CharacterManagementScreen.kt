@@ -109,7 +109,7 @@ fun CharacterManagementScreen(
                         isActive = true,
                         onActivate = {},
                         onEdit = { editingRoleCard = activeRole },
-                        onDelete = if (activeRole.isBuiltIn) null else ({ { deletingRoleCard = activeRole } })
+                        onDelete = if (activeRole.isBuiltIn) null else ({ deletingRoleCard = activeRole })
                     )
                 }
             }
@@ -137,7 +137,7 @@ fun CharacterManagementScreen(
                             }
                         },
                         onEdit = { editingRoleCard = roleCard },
-                        onDelete = if (roleCard.isBuiltIn) null else ({ { deletingRoleCard = roleCard } })
+                        onDelete = if (roleCard.isBuiltIn) null else ({ deletingRoleCard = roleCard })
                     )
                 }
             }

@@ -10,4 +10,13 @@ interface ImageGenerationEngine {
         config: ImageGenerationConfig,
         purpose: ImageGenerationPurpose = ImageGenerationPurpose.CHAT_SCENE
     ): Result<String>
+
+    suspend fun generate(
+        request: ImageGenerationRequest,
+        config: ImageGenerationConfig
+    ): Result<String> = generate(
+        prompt = request.prompt,
+        config = config,
+        purpose = request.purpose
+    )
 }

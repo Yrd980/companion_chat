@@ -17,8 +17,11 @@ import com.companion.chat.data.engine.VoiceInputEvent
 import com.companion.chat.data.engine.VoiceOutputState
 import com.companion.chat.data.image.HttpImageGenerationEngine
 import com.companion.chat.data.image.ImageGenerationConfigRepository
+import com.companion.chat.data.image.ImageGenerationEngineSelector
 import com.companion.chat.data.image.ImageGenerationPurpose
+import com.companion.chat.data.image.ImageGenerationRequest
 import com.companion.chat.data.image.ImageGenerationState
+import com.companion.chat.data.image.LocalImageGenerationEngine
 import com.companion.chat.data.memory.MemoryPromptBuilder
 import com.companion.chat.data.memory.MemoryRepository
 import com.companion.chat.data.model.ChatMessage
@@ -119,6 +122,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     )
     private val imageGenerationConfigRepository = ImageGenerationConfigRepository(application)
     private val imageGenerationEngine = HttpImageGenerationEngine(application)
+    private val imageGenerationEngineSelector = ImageGenerationEngineSelector(
+        httpEngine = imageGenerationEngine,
+        localEngine = LocalImageGenerationEngine()
+    )
     private val roleCardPromptBuilder = RoleCardPromptBuilder()
     private val skillRepository = SkillRepository(
         skillDao = database.skillDao()
@@ -301,12 +308,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun generateChatSceneImage(prompt: String) {
         viewModelScope.launch {
-            imageGenerationEngine.generate(
-                prompt = prompt,
-                config = imageGenerationConfigRepository.getConfig(),
-                purpose = ImageGenerationPurpose.CHAT_SCENE
+            imageGenerationEngineSelector.generate(
+                request = ImageGenerationRequest(
+                    prompt = prompt,
+                    purpose = ImageGenerationPurpose.CHAT_SCENE
+                ),
+                config = imageGenerationConfigRepository.getConfig()
             ).onSuccess { uri ->
                 addImage(Uri.parse(uri))
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        imageGenerationState = ImageGenerationState.Error(error.message ?: "图片生成失败"),
+                        imageGenerationError = error.message ?: "图片生成失败"
+                    )
+                }
             }
         }
     }

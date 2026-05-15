@@ -40,6 +40,7 @@ import com.companion.chat.data.engine.ModelConfigRepository
 import com.companion.chat.data.engine.ModelRuntime
 import com.companion.chat.data.image.ImageGenerationConfig
 import com.companion.chat.data.image.ImageGenerationConfigRepository
+import com.companion.chat.data.image.ImageGenerationProvider
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -236,11 +237,33 @@ fun ModelConfigScreen(
                     .padding(horizontal = 20.dp, vertical = 20.dp)
             ) {
                 Text(
-                    text = "图片生成 HTTP 配置",
+                    text = "图片生成 Provider 配置",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(12.dp))
+                ImageProviderOptionItem(
+                    title = "HTTP 联网生成",
+                    description = "使用通用 HTTP 图片接口，配置可真实生成图片",
+                    selected = imageConfig.provider == ImageGenerationProvider.HTTP,
+                    onClick = {
+                        imageConfig = imageConfig.copy(provider = ImageGenerationProvider.HTTP)
+                        imageConfigRepository.updateConfig(imageConfig)
+                    }
+                )
+                ImageProviderOptionItem(
+                    title = "本地 DreamLite 占位",
+                    description = "保留端侧模型入口，未接入推理时返回明确错误",
+                    selected = imageConfig.provider == ImageGenerationProvider.LOCAL_DREAMLITE,
+                    onClick = {
+                        imageConfig = imageConfig.copy(provider = ImageGenerationProvider.LOCAL_DREAMLITE)
+                        imageConfigRepository.updateConfig(imageConfig)
+                    }
+                )
+                ImageConfigField("本地模型路径", imageConfig.localModelPath) {
+                    imageConfig = imageConfig.copy(localModelPath = it)
+                    imageConfigRepository.updateConfig(imageConfig)
+                }
                 ImageConfigField("Base URL", imageConfig.baseUrl) {
                     imageConfig = imageConfig.copy(baseUrl = it)
                     imageConfigRepository.updateConfig(imageConfig)
@@ -273,6 +296,39 @@ fun ModelConfigScreen(
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ImageProviderOptionItem(
+    title: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                onClick = onClick
+            )
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Column(modifier = Modifier.padding(start = 12.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

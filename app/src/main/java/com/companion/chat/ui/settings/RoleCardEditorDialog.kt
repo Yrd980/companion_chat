@@ -2,24 +2,36 @@ package com.companion.chat.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companion.chat.data.local.entity.RoleCard
+
+private enum class RoleEditorSection(val label: String) {
+    BASIC("基础"),
+    PERSONA("人设"),
+    IMAGE("图片"),
+    VOICE("语音")
+}
 
 @Composable
 fun RoleCardEditorDialog(
@@ -44,9 +56,10 @@ fun RoleCardEditorDialog(
         voiceDisplayName: String
     ) -> Unit
 ) {
+    var selectedSectionIndex by remember(roleCard) { mutableIntStateOf(0) }
     var name by remember(roleCard) { mutableStateOf(roleCard?.name.orEmpty()) }
     var description by remember(roleCard) { mutableStateOf(roleCard?.description.orEmpty()) }
-    var avatar by remember(roleCard) { mutableStateOf(roleCard?.avatar.orEmpty()) }
+    var avatar by remember(roleCard) { mutableStateOf(roleCard?.avatar.orEmpty().ifBlank { "person" }) }
     var persona by remember(roleCard) { mutableStateOf(roleCard?.persona.orEmpty()) }
     var speakingStyle by remember(roleCard) { mutableStateOf(roleCard?.speakingStyle.orEmpty()) }
     var background by remember(roleCard) { mutableStateOf(roleCard?.background.orEmpty()) }
@@ -62,6 +75,7 @@ fun RoleCardEditorDialog(
     var voiceProfileUri by remember(roleCard) { mutableStateOf(roleCard?.voiceProfileUri.orEmpty()) }
     var voiceMode by remember(roleCard) { mutableStateOf(roleCard?.voiceMode ?: "SYSTEM_TTS") }
     var voiceDisplayName by remember(roleCard) { mutableStateOf(roleCard?.voiceDisplayName.orEmpty()) }
+    val sections = RoleEditorSection.entries
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -75,35 +89,72 @@ fun RoleCardEditorDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 520.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .heightIn(max = 540.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                RoleCardField(label = "名称", value = name, onValueChange = { name = it })
-                RoleCardField(label = "简介", value = description, onValueChange = { description = it })
-                RoleCardField(label = "头像/图标标识", value = avatar, onValueChange = { avatar = it })
-                RoleCardField(label = "核心人设", value = persona, onValueChange = { persona = it }, minLines = 2)
-                RoleCardField(label = "说话风格", value = speakingStyle, onValueChange = { speakingStyle = it }, minLines = 2)
-                RoleCardField(label = "背景设定", value = background, onValueChange = { background = it }, minLines = 2)
-                RoleCardField(label = "行为规则", value = rules, onValueChange = { rules = it }, minLines = 2)
-                RoleCardField(label = "禁止项", value = taboos, onValueChange = { taboos = it }, minLines = 2)
-                RoleCardField(label = "开场白", value = openingMessage, onValueChange = { openingMessage = it }, minLines = 2)
-                RoleCardField(label = "示例对话", value = exampleDialogue, onValueChange = { exampleDialogue = it }, minLines = 3)
-                RoleCardField(label = "头像图片 URI", value = avatarImageUri, onValueChange = { avatarImageUri = it })
-                RoleCardField(
-                    label = "图库图片 URI（一行一个）",
-                    value = galleryImageUris,
-                    onValueChange = { galleryImageUris = it },
-                    minLines = 3
-                )
-                RoleCardField(label = "图片风格提示词", value = imageStylePrompt, onValueChange = { imageStylePrompt = it }, minLines = 2)
-                RoleCardField(label = "语音参考音频 URI", value = voiceProfileUri, onValueChange = { voiceProfileUri = it })
-                RoleCardField(label = "语音模式（SYSTEM_TTS / CLONE）", value = voiceMode, onValueChange = { voiceMode = it })
-                RoleCardField(label = "语音显示名称", value = voiceDisplayName, onValueChange = { voiceDisplayName = it })
+                TabRow(selectedTabIndex = selectedSectionIndex) {
+                    sections.forEachIndexed { index, section ->
+                        Tab(
+                            selected = selectedSectionIndex == index,
+                            onClick = { selectedSectionIndex = index },
+                            text = { Text(section.label) }
+                        )
+                    }
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    when (sections[selectedSectionIndex]) {
+                        RoleEditorSection.BASIC -> BasicSection(
+                            name = name,
+                            onNameChange = { name = it },
+                            description = description,
+                            onDescriptionChange = { description = it },
+                            avatar = avatar,
+                            onAvatarChange = { avatar = it },
+                            openingMessage = openingMessage,
+                            onOpeningMessageChange = { openingMessage = it }
+                        )
+                        RoleEditorSection.PERSONA -> PersonaSection(
+                            persona = persona,
+                            onPersonaChange = { persona = it },
+                            speakingStyle = speakingStyle,
+                            onSpeakingStyleChange = { speakingStyle = it },
+                            background = background,
+                            onBackgroundChange = { background = it },
+                            rules = rules,
+                            onRulesChange = { rules = it },
+                            taboos = taboos,
+                            onTaboosChange = { taboos = it },
+                            exampleDialogue = exampleDialogue,
+                            onExampleDialogueChange = { exampleDialogue = it }
+                        )
+                        RoleEditorSection.IMAGE -> ImageSection(
+                            avatarImageUri = avatarImageUri,
+                            onAvatarImageUriChange = { avatarImageUri = it },
+                            galleryImageUris = galleryImageUris,
+                            onGalleryImageUrisChange = { galleryImageUris = it },
+                            imageStylePrompt = imageStylePrompt,
+                            onImageStylePromptChange = { imageStylePrompt = it }
+                        )
+                        RoleEditorSection.VOICE -> VoiceSection(
+                            voiceProfileUri = voiceProfileUri,
+                            onVoiceProfileUriChange = { voiceProfileUri = it },
+                            voiceMode = voiceMode,
+                            onVoiceModeChange = { voiceMode = it },
+                            voiceDisplayName = voiceDisplayName,
+                            onVoiceDisplayNameChange = { voiceDisplayName = it }
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
+                enabled = name.isNotBlank() && persona.isNotBlank(),
                 onClick = {
                     onSave(
                         name,
@@ -133,6 +184,92 @@ fun RoleCardEditorDialog(
                 Text("取消")
             }
         }
+    )
+}
+
+@Composable
+private fun BasicSection(
+    name: String,
+    onNameChange: (String) -> Unit,
+    description: String,
+    onDescriptionChange: (String) -> Unit,
+    avatar: String,
+    onAvatarChange: (String) -> Unit,
+    openingMessage: String,
+    onOpeningMessageChange: (String) -> Unit
+) {
+    RoleCardField("名称", name, onNameChange)
+    RoleCardField("简介", description, onDescriptionChange, minLines = 2)
+    RoleCardField("头像/图标标识", avatar, onAvatarChange)
+    RoleCardField("开场白", openingMessage, onOpeningMessageChange, minLines = 2)
+}
+
+@Composable
+private fun PersonaSection(
+    persona: String,
+    onPersonaChange: (String) -> Unit,
+    speakingStyle: String,
+    onSpeakingStyleChange: (String) -> Unit,
+    background: String,
+    onBackgroundChange: (String) -> Unit,
+    rules: String,
+    onRulesChange: (String) -> Unit,
+    taboos: String,
+    onTaboosChange: (String) -> Unit,
+    exampleDialogue: String,
+    onExampleDialogueChange: (String) -> Unit
+) {
+    RoleCardField("核心人设", persona, onPersonaChange, minLines = 4)
+    RoleCardField("说话风格", speakingStyle, onSpeakingStyleChange, minLines = 2)
+    RoleCardField("背景设定", background, onBackgroundChange, minLines = 2)
+    RoleCardField("行为规则", rules, onRulesChange, minLines = 2)
+    RoleCardField("禁止项", taboos, onTaboosChange, minLines = 2)
+    RoleCardField("示例对话", exampleDialogue, onExampleDialogueChange, minLines = 3)
+}
+
+@Composable
+private fun ImageSection(
+    avatarImageUri: String,
+    onAvatarImageUriChange: (String) -> Unit,
+    galleryImageUris: String,
+    onGalleryImageUrisChange: (String) -> Unit,
+    imageStylePrompt: String,
+    onImageStylePromptChange: (String) -> Unit
+) {
+    RoleCardField("头像图片 URI", avatarImageUri, onAvatarImageUriChange)
+    RoleCardField("图库图片 URI（一行一个）", galleryImageUris, onGalleryImageUrisChange, minLines = 4)
+    RoleCardField("图片风格提示词", imageStylePrompt, onImageStylePromptChange, minLines = 3)
+}
+
+@Composable
+private fun VoiceSection(
+    voiceProfileUri: String,
+    onVoiceProfileUriChange: (String) -> Unit,
+    voiceMode: String,
+    onVoiceModeChange: (String) -> Unit,
+    voiceDisplayName: String,
+    onVoiceDisplayNameChange: (String) -> Unit
+) {
+    Text(
+        text = "语音模式",
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("SYSTEM_TTS" to "系统 TTS", "CLONE" to "克隆占位").forEach { (mode, label) ->
+            FilterChip(
+                selected = voiceMode == mode,
+                onClick = { onVoiceModeChange(mode) },
+                label = { Text(label) }
+            )
+        }
+    }
+    RoleCardField("语音显示名称", voiceDisplayName, onVoiceDisplayNameChange)
+    RoleCardField("语音参考音频 URI", voiceProfileUri, onVoiceProfileUriChange)
+    Text(
+        text = "克隆后端不可用时会自动回退系统 TTS。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
 

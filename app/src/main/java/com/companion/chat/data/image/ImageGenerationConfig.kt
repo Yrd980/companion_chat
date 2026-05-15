@@ -4,6 +4,8 @@ data class ImageGenerationConfig(
     val baseUrl: String = "",
     val apiKey: String = "",
     val model: String = "",
+    val provider: ImageGenerationProvider = ImageGenerationProvider.HTTP,
+    val localModelPath: String = "",
     val requestTemplate: String = DEFAULT_REQUEST_TEMPLATE,
     val responseImageFieldPath: String = DEFAULT_RESPONSE_FIELD_PATH,
     val timeoutMillis: Int = 60_000
@@ -14,6 +16,21 @@ data class ImageGenerationConfig(
         const val DEFAULT_RESPONSE_FIELD_PATH = "data.0.url"
     }
 }
+
+enum class ImageGenerationProvider {
+    HTTP,
+    LOCAL_DREAMLITE
+}
+
+data class ImageGenerationRequest(
+    val prompt: String,
+    val negativePrompt: String = "",
+    val size: String = "1024x1024",
+    val seed: Long? = null,
+    val steps: Int = 24,
+    val roleId: String = "",
+    val purpose: ImageGenerationPurpose = ImageGenerationPurpose.CHAT_SCENE
+)
 
 sealed class ImageGenerationState {
     data object Idle : ImageGenerationState()
