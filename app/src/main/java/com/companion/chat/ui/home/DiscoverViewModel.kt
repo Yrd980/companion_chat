@@ -3,6 +3,7 @@ package com.companion.chat.ui.home
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.companion.chat.appContainer
 import com.companion.chat.data.discover.DiscoverRoleCardItem
 import com.companion.chat.data.discover.DiscoverRoleRepository
 import com.companion.chat.data.discover.RoleSortMode
@@ -45,22 +46,18 @@ class DiscoverViewModel(
     private val imageEngineSelector: ImageGenerationEngineSelector = ImageGenerationEngineSelector(
         httpEngine = HttpImageGenerationEngine(application),
         localEngine = LocalImageGenerationEngine()
+    ),
+    private val roleCardRepository: RoleCardRepository = RoleCardRepository(
+        CompanionDatabase.getInstance(application).roleCardDao()
     )
 ) : AndroidViewModel(application) {
 
     constructor(application: Application) : this(
         application = application,
-        repository = DiscoverRoleRepository(
-            context = application,
-            roleCardRepository = RoleCardRepository(
-                CompanionDatabase.getInstance(application).roleCardDao()
-            )
-        ),
-        imageConfigRepository = ImageGenerationConfigRepository(application),
-        imageEngineSelector = ImageGenerationEngineSelector(
-            httpEngine = HttpImageGenerationEngine(application),
-            localEngine = LocalImageGenerationEngine()
-        )
+        repository = defaultDiscoverRoleRepository(application),
+        imageConfigRepository = defaultImageGenerationConfigRepository(application),
+        imageEngineSelector = defaultImageGenerationEngineSelector(application),
+        roleCardRepository = defaultRoleCardRepository(application)
     )
 
     private val _uiState = MutableStateFlow(DiscoverUiState(tags = repository.getTags()))
@@ -114,7 +111,7 @@ class DiscoverViewModel(
         viewModelScope.launch {
             runCatching {
                 val id = repository.copyToMyRoleCard(roleId)
-                RoleCardRepository(CompanionDatabase.getInstance(getApplication()).roleCardDao()).activateRoleCard(id)
+                roleCardRepository.activateRoleCard(id)
                 id
             }.onSuccess { id ->
                 refresh()
@@ -176,5 +173,35 @@ class DiscoverViewModel(
         if (_uiState.value.selectedItem?.role?.id == roleId) {
             selectRole(roleId)
         }
+    }
+}
+
+private fun defaultDiscoverRoleRepository(application: Application): DiscoverRoleRepository {
+    return runCatching { application.appContainer.discoverRoleRepository }.getOrElse {
+        DiscoverRoleRepository(
+            context = application,
+            roleCardRepository = defaultRoleCardRepository(application)
+        )
+    }
+}
+
+private fun defaultImageGenerationConfigRepository(application: Application): ImageGenerationConfigRepository {
+    return runCatching { application.appContainer.imageGenerationConfigRepository }
+        .getOrElse { ImageGenerationConfigRepository(application) }
+}
+
+private fun defaultImageGenerationEngineSelector(application: Application): ImageGenerationEngineSelector {
+    return runCatching { application.appContainer.imageGenerationEngineSelector }
+        .getOrElse {
+            ImageGenerationEngineSelector(
+                httpEngine = HttpImageGenerationEngine(application),
+                localEngine = LocalImageGenerationEngine()
+            )
+        }
+}
+
+private fun defaultRoleCardRepository(application: Application): RoleCardRepository {
+    return runCatching { application.appContainer.roleCardRepository }.getOrElse {
+        RoleCardRepository(CompanionDatabase.getInstance(application).roleCardDao())
     }
 }

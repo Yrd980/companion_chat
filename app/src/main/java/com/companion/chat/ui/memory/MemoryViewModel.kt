@@ -2,6 +2,7 @@ package com.companion.chat.ui.memory
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import com.companion.chat.appContainer
 import com.companion.chat.data.local.CompanionDatabase
 import com.companion.chat.data.local.entity.Memory
 import com.companion.chat.data.memory.MemoryRepository
@@ -25,9 +26,7 @@ class MemoryViewModel(
 
     constructor(application: Application) : this(
         application = application,
-        memoryRepository = MemoryRepository(
-            memoryDao = CompanionDatabase.getInstance(application).memoryDao()
-        ),
+        memoryRepository = defaultMemoryRepository(application),
         workerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     )
 
@@ -118,5 +117,13 @@ class MemoryViewModel(
                 isLoading = isLoading
             )
         }
+    }
+}
+
+private fun defaultMemoryRepository(application: Application): MemoryRepository {
+    return runCatching { application.appContainer.memoryRepository }.getOrElse {
+        MemoryRepository(
+            memoryDao = CompanionDatabase.getInstance(application).memoryDao()
+        )
     }
 }

@@ -22,44 +22,30 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.companion.chat.data.voice.CloudAsrConfigRepository
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companion.chat.data.voice.LocalSenseVoiceModelStatus
 import com.companion.chat.data.voice.MossTtsNanoModelStatus
-import com.companion.chat.data.voice.VoiceCloneConfigRepository
 import com.companion.chat.data.voice.VoiceInputBackend
-import com.companion.chat.data.voice.VoiceInputConfigRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoiceSettingsScreen(
     modifier: Modifier = Modifier,
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    viewModel: VoiceSettingsViewModel = viewModel()
 ) {
-    val context = LocalContext.current
-    val voiceInputConfigRepository = remember(context) { VoiceInputConfigRepository(context) }
-    val voiceCloneConfigRepository = remember(context) { VoiceCloneConfigRepository(context) }
-    val cloudAsrConfigRepository = remember(context) { CloudAsrConfigRepository(context) }
-    val voiceInputConfig = remember(voiceInputConfigRepository) {
-        voiceInputConfigRepository.getConfig()
-    }
-    val localModelStatus = remember(voiceInputConfig) {
-        voiceInputConfigRepository.getLocalSenseVoiceModelStatus(voiceInputConfig)
-    }
-    val cloudAsrConfig = remember(cloudAsrConfigRepository) {
-        cloudAsrConfigRepository.getConfig()
-    }
-    val voiceCloneConfig = remember(voiceCloneConfigRepository) {
-        voiceCloneConfigRepository.getConfig()
-    }
-    val mossModelStatus = remember(voiceCloneConfig) {
-        voiceCloneConfigRepository.getMossModelStatus(voiceCloneConfig)
-    }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val voiceInputConfig = uiState.voiceInputConfig
+    val localModelStatus = uiState.localModelStatus
+    val cloudAsrConfig = uiState.cloudAsrConfig
+    val voiceCloneConfig = uiState.voiceCloneConfig
+    val mossModelStatus = uiState.mossModelStatus
 
     Scaffold(
         modifier = modifier,

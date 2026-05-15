@@ -46,9 +46,9 @@ import kotlinx.coroutines.launch
 fun SkillsManagementScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onActivateSkill: suspend (Long) -> Unit = {}
+    onActivateSkill: suspend (Long) -> Unit = {},
+    skillsManagementViewModel: SkillsManagementViewModel = viewModel()
 ) {
-    val skillsManagementViewModel: SkillsManagementViewModel = viewModel()
     val uiState by skillsManagementViewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     var editingSkill by remember { mutableStateOf<Skill?>(null) }

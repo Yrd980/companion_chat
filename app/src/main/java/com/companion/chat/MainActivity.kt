@@ -19,8 +19,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -34,6 +36,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.companion.chat.ui.chat.ChatScreen
 import com.companion.chat.ui.chat.ChatViewModel
+import com.companion.chat.ui.home.DiscoverViewModel
 import com.companion.chat.ui.home.DiscoverRoleDetailScreen
 import com.companion.chat.ui.home.HomeScreen
 import com.companion.chat.ui.memory.MemoryScreen
@@ -70,9 +73,14 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainApp() {
+    val application = LocalContext.current.applicationContext as CompanionChatApplication
+    val viewModelFactory = remember(application) {
+        AppViewModelFactory(application, application.appContainer)
+    }
     val navController = rememberNavController()
     val lifecycleOwner = LocalLifecycleOwner.current
-    val chatViewModel: ChatViewModel = viewModel()
+    val chatViewModel: ChatViewModel = viewModel(factory = viewModelFactory)
+    val discoverViewModel: DiscoverViewModel = viewModel(factory = viewModelFactory)
     val coroutineScope = rememberCoroutineScope()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -137,6 +145,7 @@ fun MainApp() {
         ) {
             composable(Screen.HOME.route) {
                 HomeScreen(
+                    viewModel = discoverViewModel,
                     onOpenRole = { roleId -> navController.navigate(DiscoverRoutes.detail(roleId)) },
                     onCreateRole = { navController.navigate(SettingsRoutes.CHARACTER) }
                 )
@@ -148,6 +157,7 @@ fun MainApp() {
                 val roleId = entry.arguments?.getString("roleId").orEmpty()
                 DiscoverRoleDetailScreen(
                     roleId = roleId,
+                    viewModel = discoverViewModel,
                     onBack = { navController.popBackStack() },
                     onStartChat = { importedRoleId ->
                         coroutineScope.launch {
@@ -164,7 +174,9 @@ fun MainApp() {
                 )
             }
             composable(Screen.CHAT.route) { ChatScreen(viewModel = chatViewModel) }
-            composable(Screen.MEMORY.route) { MemoryScreen() }
+            composable(Screen.MEMORY.route) {
+                MemoryScreen(memoryViewModel = viewModel(factory = viewModelFactory))
+            }
             composable(Screen.SETTINGS.route) {
                 SettingsScreen(
                     onNavigateToCharacter = { navController.navigate(SettingsRoutes.CHARACTER) },
@@ -181,6 +193,7 @@ fun MainApp() {
                 CharacterManagementScreen(
                     onBack = { navController.popBackStack() },
                     onActivateRoleCard = { roleId -> chatViewModel.activateRoleCard(roleId) },
+                    roleManagementViewModel = viewModel(factory = viewModelFactory),
                     onStartChat = { roleId ->
                         coroutineScope.launch {
                             chatViewModel.startRoleConversation(roleId)
@@ -198,17 +211,22 @@ fun MainApp() {
             composable(SettingsRoutes.SKILLS) {
                 SkillsManagementScreen(
                     onBack = { navController.popBackStack() },
-                    onActivateSkill = { skillId -> chatViewModel.activateSkill(skillId) }
+                    onActivateSkill = { skillId -> chatViewModel.activateSkill(skillId) },
+                    skillsManagementViewModel = viewModel(factory = viewModelFactory)
                 )
             }
             composable(SettingsRoutes.MODEL) {
                 ModelConfigScreen(
                     onBack = { navController.popBackStack() },
-                    onModelConfigChanged = { chatViewModel.initializeEngine() }
+                    onModelConfigChanged = { chatViewModel.initializeEngine() },
+                    viewModel = viewModel(factory = viewModelFactory)
                 )
             }
             composable(SettingsRoutes.VOICE) {
-                VoiceSettingsScreen(onBack = { navController.popBackStack() })
+                VoiceSettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    viewModel = viewModel(factory = viewModelFactory)
+                )
             }
             composable(SettingsRoutes.LANGUAGE) {
                 LanguageSettingsScreen(onBack = { navController.popBackStack() })

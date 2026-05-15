@@ -48,9 +48,9 @@ fun CharacterManagementScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
     onActivateRoleCard: suspend (Long) -> Unit = {},
-    onStartChat: (Long) -> Unit = {}
+    onStartChat: (Long) -> Unit = {},
+    roleManagementViewModel: RoleManagementViewModel = viewModel()
 ) {
-    val roleManagementViewModel: RoleManagementViewModel = viewModel()
     val uiState by roleManagementViewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     var editingRoleCard by remember { mutableStateOf<RoleCard?>(null) }

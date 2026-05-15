@@ -2,6 +2,7 @@ package com.companion.chat.ui.settings
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import com.companion.chat.appContainer
 import com.companion.chat.data.local.CompanionDatabase
 import com.companion.chat.data.local.entity.Skill
 import com.companion.chat.data.skill.SkillRepository
@@ -29,9 +30,7 @@ class SkillsManagementViewModel(
 
     constructor(application: Application) : this(
         application = application,
-        skillRepository = SkillRepository(
-            skillDao = CompanionDatabase.getInstance(application).skillDao()
-        ),
+        skillRepository = defaultSkillRepository(application),
         workerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     )
 
@@ -85,5 +84,13 @@ class SkillsManagementViewModel(
             skillRepository.deleteSkill(id)
             refresh()
         }
+    }
+}
+
+private fun defaultSkillRepository(application: Application): SkillRepository {
+    return runCatching { application.appContainer.skillRepository }.getOrElse {
+        SkillRepository(
+            skillDao = CompanionDatabase.getInstance(application).skillDao()
+        )
     }
 }

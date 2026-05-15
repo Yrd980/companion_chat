@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -91,15 +92,10 @@ fun ChatScreen(
         }
     }
 
-    // 自动滚动到底部
-    LaunchedEffect(uiState.messages.size, uiState.messages.lastOrNull()?.content) {
-        if (uiState.messages.isNotEmpty()) {
-            listState.animateScrollToItem(
-                index = uiState.messages.lastIndex,
-                scrollOffset = Int.MAX_VALUE
-            )
-        }
-    }
+    ScrollToLatestMessageEffect(
+        listState = listState,
+        messages = uiState.messages
+    )
 
     Scaffold(
         modifier = modifier,
@@ -225,5 +221,18 @@ fun ChatScreen(
             onConfirmEditing = viewModel::confirmEditingTitle,
             onCancelEditing = viewModel::cancelEditingTitle
         )
+    }
+}
+
+@Composable
+private fun ScrollToLatestMessageEffect(
+    listState: LazyListState,
+    messages: List<com.companion.chat.data.model.ChatMessage>
+) {
+    val latestMessage = messages.lastOrNull()
+    LaunchedEffect(messages.size, latestMessage?.id, latestMessage?.content) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.lastIndex)
+        }
     }
 }

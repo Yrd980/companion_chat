@@ -2,6 +2,7 @@ package com.companion.chat.ui.settings
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import com.companion.chat.appContainer
 import com.companion.chat.data.local.CompanionDatabase
 import com.companion.chat.data.local.entity.RoleCard
 import com.companion.chat.data.role.RoleCardRepository
@@ -28,9 +29,7 @@ class RoleManagementViewModel(
 
     constructor(application: Application) : this(
         application = application,
-        roleCardRepository = RoleCardRepository(
-            roleCardDao = CompanionDatabase.getInstance(application).roleCardDao()
-        ),
+        roleCardRepository = defaultRoleCardRepository(application),
         workerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     )
 
@@ -143,5 +142,13 @@ class RoleManagementViewModel(
             roleCardRepository.deleteRoleCard(id)
             refresh()
         }
+    }
+}
+
+private fun defaultRoleCardRepository(application: Application): RoleCardRepository {
+    return runCatching { application.appContainer.roleCardRepository }.getOrElse {
+        RoleCardRepository(
+            roleCardDao = CompanionDatabase.getInstance(application).roleCardDao()
+        )
     }
 }

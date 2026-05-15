@@ -27,46 +27,33 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.companion.chat.data.context.ContextConfigRepository
-import com.companion.chat.data.engine.ModelConfigRepository
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companion.chat.data.engine.ModelRuntime
 import com.companion.chat.data.image.ImageGenerationConfig
-import com.companion.chat.data.image.ImageGenerationConfigRepository
 import com.companion.chat.data.image.ImageGenerationProvider
 import com.companion.chat.data.image.DreamLiteModelStatus
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModelConfigScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onModelConfigChanged: () -> Unit = {}
+    onModelConfigChanged: () -> Unit = {},
+    viewModel: ModelConfigViewModel = viewModel()
 ) {
-    val context = LocalContext.current
-    val contextConfigRepository = remember(context) { ContextConfigRepository(context) }
-    val modelConfigRepository = remember(context) { ModelConfigRepository(context) }
-    val imageConfigRepository = remember(context) { ImageGenerationConfigRepository(context) }
-    var retainedRounds by remember { mutableIntStateOf(contextConfigRepository.getSettings().retainedRounds) }
-    var modelConfig by remember { mutableStateOf(modelConfigRepository.getConfig()) }
-    var imageConfig by remember { mutableStateOf(imageConfigRepository.getConfig()) }
-    val dreamLiteModelStatus = remember(imageConfig) {
-        imageConfigRepository.getDreamLiteModelStatus(imageConfig)
-    }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val retainedRounds = uiState.retainedRounds
+    val modelConfig = uiState.modelConfig
+    val imageConfig = uiState.imageConfig
+    val dreamLiteModelStatus = uiState.dreamLiteModelStatus
     val options = listOf(3, 5, 10, 15, 20)
-    val resolvedModelPath = remember(modelConfig) { modelConfigRepository.resolveModelPath(modelConfig) }
-    val resolvedMmprojPath = remember(modelConfig) { modelConfigRepository.resolveMmprojPath() }
-    val mmprojReady = remember(resolvedMmprojPath) {
-        File(resolvedMmprojPath).let { it.exists() && it.canRead() && it.length() > 0L }
-    }
+    val resolvedModelPath = uiState.resolvedModelPath
+    val resolvedMmprojPath = uiState.resolvedMmprojPath
+    val mmprojReady = uiState.isMmprojReady
 
     Scaffold(
         modifier = modifier,
@@ -147,8 +134,7 @@ fun ModelConfigScreen(
                     description = "默认文本后端，读取外部 GGUF uncensor 模型。",
                     selected = modelConfig.runtime == ModelRuntime.LLAMA_CPP_GGUF,
                     onClick = {
-                        modelConfig = modelConfig.copy(runtime = ModelRuntime.LLAMA_CPP_GGUF, modelPath = "")
-                        modelConfigRepository.updateConfig(modelConfig)
+                        viewModel.setRuntime(ModelRuntime.LLAMA_CPP_GGUF)
                         onModelConfigChanged()
                     }
                 )
@@ -157,14 +143,12 @@ fun ModelConfigScreen(
                     description = "可选多模态后端，继续支持图片输入链路。",
                     selected = modelConfig.runtime == ModelRuntime.LITERT_LM,
                     onClick = {
-                        modelConfig = modelConfig.copy(runtime = ModelRuntime.LITERT_LM, modelPath = "")
-                        modelConfigRepository.updateConfig(modelConfig)
+                        viewModel.setRuntime(ModelRuntime.LITERT_LM)
                         onModelConfigChanged()
                     }
                 )
                 ModelConfigField("模型路径", modelConfig.modelPath) {
-                    modelConfig = modelConfig.copy(modelPath = it)
-                    modelConfigRepository.updateConfig(modelConfig)
+                    viewModel.updateModelPath(it)
                 }
                 Text(
                     text = "留空使用默认路径：$resolvedModelPath",
@@ -185,24 +169,19 @@ fun ModelConfigScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
                 ModelConfigField("Context Size", modelConfig.contextSize.toString()) {
-                    modelConfig = modelConfig.copy(contextSize = it.toIntOrNull() ?: modelConfig.contextSize)
-                    modelConfigRepository.updateConfig(modelConfig)
+                    viewModel.updateContextSize(it)
                 }
                 ModelConfigField("Max Tokens", modelConfig.maxTokens.toString()) {
-                    modelConfig = modelConfig.copy(maxTokens = it.toIntOrNull() ?: modelConfig.maxTokens)
-                    modelConfigRepository.updateConfig(modelConfig)
+                    viewModel.updateMaxTokens(it)
                 }
                 ModelConfigField("Temperature", modelConfig.temperature.toString()) {
-                    modelConfig = modelConfig.copy(temperature = it.toFloatOrNull() ?: modelConfig.temperature)
-                    modelConfigRepository.updateConfig(modelConfig)
+                    viewModel.updateTemperature(it)
                 }
                 ModelConfigField("Top K", modelConfig.topK.toString()) {
-                    modelConfig = modelConfig.copy(topK = it.toIntOrNull() ?: modelConfig.topK)
-                    modelConfigRepository.updateConfig(modelConfig)
+                    viewModel.updateTopK(it)
                 }
                 ModelConfigField("Top P", modelConfig.topP.toString()) {
-                    modelConfig = modelConfig.copy(topP = it.toFloatOrNull() ?: modelConfig.topP)
-                    modelConfigRepository.updateConfig(modelConfig)
+                    viewModel.updateTopP(it)
                 }
                 androidx.compose.material3.Button(
                     onClick = onModelConfigChanged,
@@ -219,8 +198,7 @@ fun ModelConfigScreen(
                     rounds = option,
                     selected = retainedRounds == option,
                     onClick = {
-                        retainedRounds = option
-                        contextConfigRepository.updateRetainedRounds(option)
+                        viewModel.updateRetainedRounds(option)
                     }
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -251,8 +229,7 @@ fun ModelConfigScreen(
                     description = "使用通用 HTTP 图片接口，配置可真实生成图片",
                     selected = imageConfig.provider == ImageGenerationProvider.HTTP,
                     onClick = {
-                        imageConfig = imageConfig.copy(provider = ImageGenerationProvider.HTTP)
-                        imageConfigRepository.updateConfig(imageConfig)
+                        viewModel.setImageProvider(ImageGenerationProvider.HTTP)
                     }
                 )
                 ImageProviderOptionItem(
@@ -260,13 +237,11 @@ fun ModelConfigScreen(
                     description = "端侧接入框架已准备，等待官方权重/端侧包",
                     selected = imageConfig.provider == ImageGenerationProvider.LOCAL_DREAMLITE,
                     onClick = {
-                        imageConfig = imageConfig.copy(provider = ImageGenerationProvider.LOCAL_DREAMLITE)
-                        imageConfigRepository.updateConfig(imageConfig)
+                        viewModel.setImageProvider(ImageGenerationProvider.LOCAL_DREAMLITE)
                     }
                 )
                 ImageConfigField("本地模型路径", imageConfig.localModelPath) {
-                    imageConfig = imageConfig.copy(localModelPath = it)
-                    imageConfigRepository.updateConfig(imageConfig)
+                    viewModel.updateLocalModelPath(it)
                 }
                 Text(
                     text = "DreamLite 状态：${dreamLiteModelStatus.displayName()}",
@@ -279,29 +254,22 @@ fun ModelConfigScreen(
                     modifier = Modifier.padding(top = 4.dp)
                 )
                 ImageConfigField("Base URL", imageConfig.baseUrl) {
-                    imageConfig = imageConfig.copy(baseUrl = it)
-                    imageConfigRepository.updateConfig(imageConfig)
+                    viewModel.updateImageBaseUrl(it)
                 }
                 ImageConfigField("API Key", imageConfig.apiKey) {
-                    imageConfig = imageConfig.copy(apiKey = it)
-                    imageConfigRepository.updateConfig(imageConfig)
+                    viewModel.updateImageApiKey(it)
                 }
                 ImageConfigField("Model", imageConfig.model) {
-                    imageConfig = imageConfig.copy(model = it)
-                    imageConfigRepository.updateConfig(imageConfig)
+                    viewModel.updateImageModel(it)
                 }
                 ImageConfigField("Request Template", imageConfig.requestTemplate, minLines = 3) {
-                    imageConfig = imageConfig.copy(requestTemplate = it.ifBlank { ImageGenerationConfig.DEFAULT_REQUEST_TEMPLATE })
-                    imageConfigRepository.updateConfig(imageConfig)
+                    viewModel.updateRequestTemplate(it)
                 }
                 ImageConfigField("Response Image Field Path", imageConfig.responseImageFieldPath) {
-                    imageConfig = imageConfig.copy(responseImageFieldPath = it.ifBlank { ImageGenerationConfig.DEFAULT_RESPONSE_FIELD_PATH })
-                    imageConfigRepository.updateConfig(imageConfig)
+                    viewModel.updateResponseImageFieldPath(it)
                 }
                 ImageConfigField("Timeout Millis", imageConfig.timeoutMillis.toString()) {
-                    val timeout = it.toIntOrNull() ?: imageConfig.timeoutMillis
-                    imageConfig = imageConfig.copy(timeoutMillis = timeout)
-                    imageConfigRepository.updateConfig(imageConfig)
+                    viewModel.updateTimeoutMillis(it)
                 }
                 Text(
                     text = "模板支持 {{model}} 与 {{prompt}}。响应字段示例：data.0.url 或 data.0.b64_json。",

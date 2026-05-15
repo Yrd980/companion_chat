@@ -5,48 +5,24 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.companion.chat.data.local.CompanionDatabase
+import com.companion.chat.AppContainer
+import com.companion.chat.appContainer
 import com.companion.chat.data.context.ContextConfigRepository
 import com.companion.chat.data.context.ContextManager
 import com.companion.chat.data.context.ContextSettings
-import com.companion.chat.data.context.DefaultContextManager
-import com.companion.chat.data.context.PromptAssembler
 import com.companion.chat.data.engine.InferenceState
-import com.companion.chat.data.engine.ModelConfigRepository
 import com.companion.chat.data.engine.VoiceInputEvent
 import com.companion.chat.data.engine.VoiceOutputState
-import com.companion.chat.data.image.HttpImageGenerationEngine
-import com.companion.chat.data.image.ImageGenerationConfigRepository
-import com.companion.chat.data.image.ImageGenerationEngineSelector
 import com.companion.chat.data.image.ImageGenerationPurpose
 import com.companion.chat.data.image.ImageGenerationRequest
 import com.companion.chat.data.image.ImageGenerationState
-import com.companion.chat.data.image.LocalImageGenerationEngine
-import com.companion.chat.data.memory.MemoryPromptBuilder
-import com.companion.chat.data.memory.MemoryRepository
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.ConversationSession
 import com.companion.chat.data.model.DEFAULT_SESSION_TITLE
 import com.companion.chat.data.model.DEFAULT_WELCOME_MESSAGE
 import com.companion.chat.data.model.MessageRole
 import com.companion.chat.data.model.createDefaultSession
-import com.companion.chat.data.role.RoleCardPromptBuilder
-import com.companion.chat.data.role.RoleCardRepository
-import com.companion.chat.data.skill.SkillRepository
-import com.companion.chat.data.voice.VoiceCloneConfigRepository
-import com.companion.chat.data.preferences.PreferenceRepository
-import com.companion.chat.data.preferences.PreferenceMemoryDeriver
 import com.companion.chat.data.preferences.SecondEngineManager
-import com.companion.chat.data.preferences.SummaryRunResult
-import com.companion.chat.data.preferences.UnifiedExtractionParser
-import com.companion.chat.data.preferences.UnifiedExtractionPromptBuilder
-import com.companion.chat.data.repository.ChatSessionRepository
-import com.companion.chat.engine.AndroidVoiceInputEngine
-import com.companion.chat.engine.AndroidVoiceOutputEngine
-import com.companion.chat.engine.InferenceEngineFactory
-import com.companion.chat.engine.LocalAudioPlaybackEngine
-import com.companion.chat.engine.MossTtsNanoVoiceCloneEngine
-import com.companion.chat.engine.RoleAwareVoiceOutputEngine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -93,61 +69,54 @@ data class ChatUiState(
         }
 }
 
-class ChatViewModel(application: Application) : AndroidViewModel(application) {
+class ChatViewModel(
+    application: Application,
+    private val container: AppContainer = application.appContainer
+) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    private val modelConfigRepository = ModelConfigRepository(application)
-    private val inferenceEngineFactory = InferenceEngineFactory(application)
+    private val modelConfigRepository = container.modelConfigRepository
+    private val inferenceEngineFactory = container.inferenceEngineFactory
     var inferenceEngine = inferenceEngineFactory.create(modelConfigRepository.getConfig().runtime)
         private set
-    val voiceInputEngine = AndroidVoiceInputEngine(application)
-    private val database = CompanionDatabase.getInstance(application)
-    private val contextConfigRepository = ContextConfigRepository(application)
-    private val contextManager: ContextManager = DefaultContextManager()
-    private val promptAssembler = PromptAssembler()
-    private val sessionRepository = ChatSessionRepository(application)
-    private val memoryRepository = MemoryRepository(
-        memoryDao = database.memoryDao()
-    )
-    private val preferenceRepository = PreferenceRepository(
-        preferenceDao = database.preferenceDao()
-    )
-    private val roleCardRepository = RoleCardRepository(
-        roleCardDao = database.roleCardDao()
-    )
-    private val androidVoiceOutputEngine = AndroidVoiceOutputEngine(application)
-    private val voiceCloneConfigRepository = VoiceCloneConfigRepository(application)
-    private val localAudioPlaybackEngine = LocalAudioPlaybackEngine(application)
-    private val mossTtsNanoVoiceCloneEngine = MossTtsNanoVoiceCloneEngine(
-        context = application,
-        modelDirectoryProvider = { voiceCloneConfigRepository.getConfig().mossModelDirectory }
-    )
-    val voiceOutputEngine = RoleAwareVoiceOutputEngine(
-        fallbackEngine = androidVoiceOutputEngine,
-        roleCardRepository = roleCardRepository,
-        cloneEngine = mossTtsNanoVoiceCloneEngine,
-        localAudioPlaybackEngine = localAudioPlaybackEngine
-    )
-    private val imageGenerationConfigRepository = ImageGenerationConfigRepository(application)
-    private val imageGenerationEngine = HttpImageGenerationEngine(application)
-    private val imageGenerationEngineSelector = ImageGenerationEngineSelector(
-        httpEngine = imageGenerationEngine,
-        localEngine = LocalImageGenerationEngine()
-    )
-    private val roleCardPromptBuilder = RoleCardPromptBuilder()
-    private val skillRepository = SkillRepository(
-        skillDao = database.skillDao()
-    )
-    private val preferenceMemoryDeriver = PreferenceMemoryDeriver()
-    private val memoryPromptBuilder = MemoryPromptBuilder()
-    private val unifiedExtractionPromptBuilder = UnifiedExtractionPromptBuilder()
-    private val unifiedExtractionParser = UnifiedExtractionParser()
+    val voiceInputEngine = container.voiceInputEngine
+    private val contextConfigRepository = container.contextConfigRepository
+    private val contextManager: ContextManager = container.contextManager
+    private val promptAssembler = container.promptAssembler
+    private val sessionRepository = container.chatSessionRepository
+    private val memoryRepository = container.memoryRepository
+    private val preferenceRepository = container.preferenceRepository
+    private val roleCardRepository = container.roleCardRepository
+    val voiceOutputEngine = container.voiceOutputEngine
+    private val imageGenerationConfigRepository = container.imageGenerationConfigRepository
+    private val imageGenerationEngine = container.imageGenerationEngine
+    private val imageGenerationEngineSelector = container.imageGenerationEngineSelector
+    private val roleCardPromptBuilder = container.roleCardPromptBuilder
+    private val skillRepository = container.skillRepository
+    private val preferenceMemoryDeriver = container.preferenceMemoryDeriver
+    private val memoryPromptBuilder = container.memoryPromptBuilder
+    private val unifiedExtractionPromptBuilder = container.unifiedExtractionPromptBuilder
+    private val unifiedExtractionParser = container.unifiedExtractionParser
     private val secondEngineManager = SecondEngineManager(
         primaryEngineStateProvider = { inferenceEngine.state.value },
         engineFactory = { inferenceEngineFactory.create(modelConfigRepository.getConfig().runtime) },
         timeoutMillis = STAGE4_SUMMARY_TIMEOUT_MILLIS
+    )
+    private val preferenceLearningCoordinator = PreferenceLearningCoordinator(
+        scope = viewModelScope,
+        contextConfigRepository = contextConfigRepository,
+        memoryRepository = memoryRepository,
+        preferenceRepository = preferenceRepository,
+        preferenceMemoryDeriver = preferenceMemoryDeriver,
+        unifiedExtractionPromptBuilder = unifiedExtractionPromptBuilder,
+        unifiedExtractionParser = unifiedExtractionParser,
+        secondEngineManager = secondEngineManager,
+        engineStateProvider = { inferenceEngine.state.value },
+        currentEngineConfigProvider = { inferenceEngine.getCurrentConfig() },
+        baseSystemPromptProvider = { baseSystemPrompt },
+        logger = ::logToFile
     )
     private var contextSettings: ContextSettings = ContextConfigRepository.DEFAULT_SETTINGS
     private var baseSystemPrompt: String = DEFAULT_BASE_SYSTEM_PROMPT
@@ -155,9 +124,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var generateJob: Job? = null
     private var voiceCollectJob: Job? = null
     private var inferenceStateJob: Job? = null
-    private var preferenceSummaryDelayJob: Job? = null
     private var shouldSpeakNextAssistantResponse = false
-    private val lastSummaryTimestamps = mutableMapOf<String, Long>()
 
     init {
         logToFile("=== ChatViewModel 创建 ===")
@@ -376,7 +343,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(isVoiceAutoSending = false) }
             return
         }
-        secondEngineManager.cancelRunningSummary()
+        preferenceLearningCoordinator.cancelRunningSummary()
 
         if (state.currentSessionId.isBlank()) {
             val newSession = ConversationSession(messages = emptyList())
@@ -652,7 +619,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun cancelGeneration() {
         generateJob?.cancel()
         inferenceEngine.cancel()
-        secondEngineManager.cancelRunningSummary()
+        preferenceLearningCoordinator.cancelRunningSummary()
         shouldSpeakNextAssistantResponse = false
         _uiState.update { it.copy(isGenerating = false, isVoiceAutoSending = false) }
     }
@@ -663,7 +630,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (inferenceEngine.state.value is InferenceState.Generating) {
                     generateJob?.cancel()
                     inferenceEngine.cancel()
-                    secondEngineManager.cancelRunningSummary()
+                    preferenceLearningCoordinator.cancelRunningSummary()
                     _uiState.update { it.copy(isGenerating = false) }
                     logToFile("模型配置变更: 已取消当前生成并准备重建引擎")
                 }
@@ -714,8 +681,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         generateJob?.cancel()
         voiceCollectJob?.cancel()
         inferenceStateJob?.cancel()
-        preferenceSummaryDelayJob?.cancel()
-        secondEngineManager.release()
+        preferenceLearningCoordinator.release()
         inferenceEngine.release()
         voiceInputEngine.release()
         voiceOutputEngine.release()
@@ -957,11 +923,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun schedulePreferenceSummaryAfterDelay() {
-        preferenceSummaryDelayJob?.cancel()
-        preferenceSummaryDelayJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(STAGE4_IDLE_DELAY_MILLIS)
-            runPreferenceSummaryIfNeeded(reason = "发送后静置")
-        }
+        preferenceLearningCoordinator.scheduleAfterIdle(
+            sessionIdProvider = { _uiState.value.currentSessionId },
+            messagesProvider = { _uiState.value.messages }
+        )
     }
 
     private fun triggerPreferenceSummaryNow(
@@ -969,180 +934,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         sessionId: String = _uiState.value.currentSessionId,
         messages: List<ChatMessage> = _uiState.value.messages
     ) {
-        preferenceSummaryDelayJob?.cancel()
-        viewModelScope.launch {
-            runPreferenceSummaryIfNeeded(
-                reason = reason,
-                sessionId = sessionId,
-                messages = messages
-            )
-        }
-    }
-
-    private suspend fun runPreferenceSummaryIfNeeded(
-        reason: String,
-        sessionId: String = _uiState.value.currentSessionId,
-        messages: List<ChatMessage> = _uiState.value.messages,
-        retryAttempt: Int = 0
-    ) {
-        if (!contextConfigRepository.getAutoPreferenceLearningEnabled()) {
-            logToFile("阶段四跳过: 自动学习偏好已关闭, reason=$reason")
-            return
-        }
-        if (sessionId.isBlank()) {
-            return
-        }
-        if (inferenceEngine.state.value is InferenceState.Generating) {
-            logToFile("阶段四跳过: 前台仍在生成, reason=$reason")
-            return
-        }
-
-        val stableMessages = messages.filterNot { it.isStreaming }
-            .filter { it.role == MessageRole.USER || it.role == MessageRole.ASSISTANT }
-        if (stableMessages.size < MIN_STAGE4_MESSAGE_COUNT) {
-            logToFile("阶段四跳过: 对话轮数不足, reason=$reason, messageCount=${stableMessages.size}")
-            return
-        }
-
-        val now = System.currentTimeMillis()
-        val lastSummaryAt = lastSummaryTimestamps[sessionId] ?: 0L
-        if (now - lastSummaryAt < STAGE4_THROTTLE_MILLIS) {
-            logToFile("阶段四跳过: 节流中, reason=$reason")
-            return
-        }
-
-        val currentConfig = inferenceEngine.getCurrentConfig() ?: return
-        val summaryConfig = currentConfig.copy(systemPrompt = baseSystemPrompt)
-        val prompt = unifiedExtractionPromptBuilder.buildPrompt(stableMessages)
-        when (val result = secondEngineManager.runSummaryIfAllowed(summaryConfig, prompt)) {
-            is SummaryRunResult.Completed -> {
-                val rawSummaryPreview = result.content
-                    .replace("\n", "\\n")
-                    .take(300)
-                logToFile("阶段四原始输出: preview=$rawSummaryPreview")
-                val extractionResult = unifiedExtractionParser.parse(result.content)
-                val derivedMemories = preferenceMemoryDeriver.derive(extractionResult.userPreferences)
-                if (derivedMemories.isNotEmpty()) {
-                    logToFile("阶段四偏好派生记忆: count=${derivedMemories.size}")
-                }
-                val storedModelMemories = memoryRepository.storeModelExtractedMemories(
-                    extractedMemories = extractionResult.memories + derivedMemories,
-                    sessionId = sessionId
-                )
-                if (storedModelMemories.isEmpty()) {
-                    val fallbackCount = storeFallbackRuleMemories(
-                        messages = stableMessages,
-                        sessionId = sessionId
-                    )
-                    if (fallbackCount > 0) {
-                        logToFile("阶段四记忆兜底成功: count=$fallbackCount, reason=$reason")
-                    }
-                }
-                preferenceRepository.mergePreferences(extractionResult.userPreferences)
-                val confirmedPreferences = preferenceRepository.getConfirmedPreferences()
-                logToFile(
-                    "阶段四偏好合并完成: merged=${extractionResult.userPreferences.size}, " +
-                        "confirmed=${confirmedPreferences.size}, retryAttempt=$retryAttempt"
-                )
-                lastSummaryTimestamps[sessionId] = now
-                logToFile(
-                    "阶段四总结完成: reason=$reason, memoryCount=${storedModelMemories.size}, " +
-                        "preferenceCount=${extractionResult.userPreferences.size}, " +
-                        "extractedCount=${storedModelMemories.size + extractionResult.userPreferences.size}, " +
-                        "sessionId=$sessionId"
-                )
-            }
-            SummaryRunResult.SkippedPrimaryBusy -> {
-                logToFile("阶段四跳过: 前台繁忙, reason=$reason")
-            }
-            SummaryRunResult.SkippedAlreadyRunning -> {
-                logToFile("阶段四跳过: 后台总结已在运行, reason=$reason")
-            }
-            SummaryRunResult.Cancelled -> {
-                if (retryAttempt < MAX_STAGE4_RETRY_COUNT) {
-                    logToFile("阶段四取消: reason=$reason, retry=${retryAttempt + 1}")
-                    schedulePreferenceSummaryRetry(
-                        reason = reason,
-                        sessionId = sessionId,
-                        messages = stableMessages,
-                        retryAttempt = retryAttempt + 1
-                    )
-                } else {
-                    val fallbackCount = storeFallbackRuleMemories(
-                        messages = stableMessages,
-                        sessionId = sessionId
-                    )
-                    if (fallbackCount > 0) {
-                        logToFile("阶段四取消后二次兜底成功: count=$fallbackCount, reason=$reason")
-                    }
-                    logToFile("阶段四取消: reason=$reason, retry=$retryAttempt")
-                }
-            }
-            SummaryRunResult.TimedOut -> {
-                if (retryAttempt < MAX_STAGE4_RETRY_COUNT) {
-                    logToFile("阶段四超时: reason=$reason, retry=${retryAttempt + 1}")
-                    schedulePreferenceSummaryRetry(
-                        reason = reason,
-                        sessionId = sessionId,
-                        messages = stableMessages,
-                        retryAttempt = retryAttempt + 1
-                    )
-                } else {
-                    val fallbackCount = storeFallbackRuleMemories(
-                        messages = stableMessages,
-                        sessionId = sessionId
-                    )
-                    if (fallbackCount > 0) {
-                        logToFile("阶段四超时后二次兜底成功: count=$fallbackCount, reason=$reason")
-                    }
-                    logToFile("阶段四超时: reason=$reason, retry=$retryAttempt")
-                }
-            }
-            is SummaryRunResult.Failed -> {
-                val fallbackCount = storeFallbackRuleMemories(
-                    messages = stableMessages,
-                    sessionId = sessionId
-                )
-                if (fallbackCount > 0) {
-                    logToFile("阶段四失败后记忆兜底成功: count=$fallbackCount, reason=$reason")
-                }
-                logToFile("阶段四失败: reason=$reason, message=${result.message}")
-            }
-        }
-    }
-
-    private fun schedulePreferenceSummaryRetry(
-        reason: String,
-        sessionId: String,
-        messages: List<ChatMessage>,
-        retryAttempt: Int
-    ) {
-        viewModelScope.launch {
-            kotlinx.coroutines.delay(STAGE4_RETRY_DELAY_MILLIS)
-            runPreferenceSummaryIfNeeded(
-                reason = "$reason-重试",
-                sessionId = sessionId,
-                messages = messages,
-                retryAttempt = retryAttempt
-            )
-        }
-    }
-
-    private suspend fun storeFallbackRuleMemories(
-        messages: List<ChatMessage>,
-        sessionId: String
-    ): Int {
-        val userMessages = messages
-            .filter { it.role == MessageRole.USER }
-            .map { it.content.trim() }
-            .filter { it.isNotBlank() }
-        if (userMessages.isEmpty()) {
-            return 0
-        }
-        return memoryRepository.extractAndStoreMemoriesFromMessages(
-            userMessages = userMessages,
-            sessionId = sessionId
-        ).size
+        preferenceLearningCoordinator.triggerNow(
+            reason = reason,
+            sessionId = sessionId,
+            messages = messages
+        )
     }
 
     private suspend fun buildConfirmedPreferencePrompt(): String {
@@ -1265,11 +1061,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         private const val DEFAULT_BASE_SYSTEM_PROMPT =
             "你是 Anime Companion 的本地私密陪伴智能体。默认使用中文，像长期熟悉用户的伙伴一样自然回应：亲近但不过界，温柔但不说教，记得对话中的连续性与用户已经确认的偏好。你的记忆描述始终以用户为归属，不把用户的信息说成自己的经历。回答应简洁、有情绪承接，除非用户明确需要步骤或分析，否则少用训诫式建议。"
-        private const val STAGE4_IDLE_DELAY_MILLIS = 3 * 60 * 1000L
-        private const val STAGE4_THROTTLE_MILLIS = 5 * 60 * 1000L
         private const val STAGE4_SUMMARY_TIMEOUT_MILLIS = 90_000L
-        private const val STAGE4_RETRY_DELAY_MILLIS = 3_000L
-        private const val MAX_STAGE4_RETRY_COUNT = 1
-        private const val MIN_STAGE4_MESSAGE_COUNT = 4
     }
 }

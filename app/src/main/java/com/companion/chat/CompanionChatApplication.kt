@@ -2,10 +2,7 @@ package com.companion.chat
 
 import android.app.Application
 import android.content.Context
-import com.companion.chat.data.local.CompanionDatabase
 import com.companion.chat.data.memory.MemoryLifecycleManager
-import com.companion.chat.data.memory.MemoryRepository
-import com.companion.chat.data.repository.ChatSessionRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,15 +14,14 @@ import java.util.Locale
 class CompanionChatApplication : Application() {
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val appContainer: AppContainer by lazy { AppContainer(this) }
 
     override fun onCreate() {
         super.onCreate()
         logToFile("Application.onCreate")
 
-        val sessionRepository = ChatSessionRepository(this)
-        val memoryRepository = MemoryRepository(
-            memoryDao = CompanionDatabase.getInstance(this).memoryDao()
-        )
+        val sessionRepository = appContainer.chatSessionRepository
+        val memoryRepository = appContainer.memoryRepository
         val memoryLifecycleManager = MemoryLifecycleManager(memoryRepository)
         applicationScope.launch {
             runCatching {
