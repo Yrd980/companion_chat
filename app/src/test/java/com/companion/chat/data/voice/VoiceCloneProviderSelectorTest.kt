@@ -20,4 +20,24 @@ class VoiceCloneProviderSelectorTest {
         assertTrue(result.fallbackToSystemTts)
         assertTrue(result.message.contains("尚未接入"))
     }
+
+    @Test
+    fun `MOSS 模型完整时选择 moss tts nano`() {
+        val selector = VoiceCloneProviderSelector()
+
+        assertEquals(
+            VoiceCloneProvider.MOSS_TTS_NANO,
+            selector.chooseProvider(MossTtsNanoModelStatus.Ready)
+        )
+    }
+
+    @Test
+    fun `MOSS 模型缺失时选择系统 TTS`() {
+        val selector = VoiceCloneProviderSelector()
+
+        assertEquals(
+            VoiceCloneProvider.SYSTEM_TTS,
+            selector.chooseProvider(MossTtsNanoModelStatus.MissingFiles(listOf("moss_config.json")))
+        )
+    }
 }

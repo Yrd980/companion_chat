@@ -4,10 +4,16 @@ import android.content.Context
 import android.content.SharedPreferences
 
 class ImageGenerationConfigRepository(
-    private val sharedPreferences: SharedPreferences
+    private val sharedPreferences: SharedPreferences,
+    private val defaultDreamLiteModelDirectoryProvider: () -> String = { "" }
 ) {
     constructor(context: Context) : this(
-        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPreferences = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE),
+        defaultDreamLiteModelDirectoryProvider = {
+            context.applicationContext.getExternalFilesDir(DreamLiteModelPackage.DEFAULT_MODEL_RELATIVE_DIRECTORY)
+                ?.absolutePath
+                .orEmpty()
+        }
     )
 
     fun getConfig(): ImageGenerationConfig {
@@ -20,7 +26,10 @@ class ImageGenerationConfigRepository(
                     sharedPreferences.getString(KEY_PROVIDER, ImageGenerationProvider.HTTP.name).orEmpty()
                 )
             }.getOrDefault(ImageGenerationProvider.HTTP),
-            localModelPath = sharedPreferences.getString(KEY_LOCAL_MODEL_PATH, "").orEmpty(),
+            localModelPath = sharedPreferences.getString(KEY_LOCAL_MODEL_PATH, null)
+                ?.trim()
+                .orEmpty()
+                .ifBlank { defaultDreamLiteModelDirectoryProvider().trim() },
             requestTemplate = sharedPreferences.getString(
                 KEY_REQUEST_TEMPLATE,
                 ImageGenerationConfig.DEFAULT_REQUEST_TEMPLATE
@@ -45,6 +54,10 @@ class ImageGenerationConfigRepository(
             .putString(KEY_RESPONSE_FIELD_PATH, config.responseImageFieldPath.trim())
             .putInt(KEY_TIMEOUT_MILLIS, config.timeoutMillis.coerceIn(5_000, 180_000))
             .apply()
+    }
+
+    fun getDreamLiteModelStatus(config: ImageGenerationConfig = getConfig()): DreamLiteModelStatus {
+        return DreamLiteModelPackage.inspect(config.localModelPath)
     }
 
     private companion object {

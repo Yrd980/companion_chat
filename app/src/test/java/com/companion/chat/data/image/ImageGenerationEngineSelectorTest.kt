@@ -28,7 +28,7 @@ class ImageGenerationEngineSelectorTest {
         )
 
         assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull()?.message!!.contains("本地 DreamLite 模型路径未配置"))
+        assertTrue(result.exceptionOrNull()?.message!!.contains("DreamLite 模型目录未配置"))
     }
 
     private class FakeImageEngine(private val uri: String) : ImageGenerationEngine {

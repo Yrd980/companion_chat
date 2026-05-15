@@ -3,8 +3,6 @@ package com.companion.chat.data.image
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.io.File
-
 class LocalImageGenerationEngine : ImageGenerationEngine {
 
     private val _state = MutableStateFlow<ImageGenerationState>(ImageGenerationState.Idle)
@@ -25,18 +23,25 @@ class LocalImageGenerationEngine : ImageGenerationEngine {
         request: ImageGenerationRequest,
         config: ImageGenerationConfig
     ): Result<String> {
-        val modelPath = config.localModelPath.trim()
-        if (modelPath.isBlank()) {
-            val error = "本地 DreamLite 模型路径未配置"
-            _state.value = ImageGenerationState.Error(error)
-            return Result.failure(IllegalStateException(error))
+        when (val status = DreamLiteModelPackage.inspect(config.localModelPath)) {
+            DreamLiteModelStatus.Ready -> Unit
+            DreamLiteModelStatus.DirectoryNotConfigured -> {
+                val error = "DreamLite 模型目录未配置，已完成端侧接入框架"
+                _state.value = ImageGenerationState.Error(error)
+                return Result.failure(IllegalStateException(error))
+            }
+            is DreamLiteModelStatus.InvalidConfig -> {
+                val error = "DreamLite 配置无效：${status.message}"
+                _state.value = ImageGenerationState.Error(error)
+                return Result.failure(IllegalStateException(error))
+            }
+            is DreamLiteModelStatus.MissingFiles -> {
+                val error = "DreamLite 模型尚未准备，已完成端侧接入框架。缺失：${status.fileNames.joinToString()}"
+                _state.value = ImageGenerationState.Error(error)
+                return Result.failure(IllegalStateException(error))
+            }
         }
-        if (!File(modelPath).exists()) {
-            val error = "本地 DreamLite 模型不存在: $modelPath"
-            _state.value = ImageGenerationState.Error(error)
-            return Result.failure(IllegalStateException(error))
-        }
-        val error = "本地 DreamLite 推理尚未接入"
+        val error = "DreamLite 模型尚未准备，已完成端侧接入框架。等待官方权重/端侧包后启用真实出图"
         _state.value = ImageGenerationState.Error(error)
         return Result.failure(UnsupportedOperationException(error))
     }

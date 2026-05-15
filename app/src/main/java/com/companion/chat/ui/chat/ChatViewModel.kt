@@ -34,6 +34,7 @@ import com.companion.chat.data.model.createWelcomeMessage
 import com.companion.chat.data.role.RoleCardPromptBuilder
 import com.companion.chat.data.role.RoleCardRepository
 import com.companion.chat.data.skill.SkillRepository
+import com.companion.chat.data.voice.VoiceCloneConfigRepository
 import com.companion.chat.data.preferences.PreferenceRepository
 import com.companion.chat.data.preferences.PreferenceMemoryDeriver
 import com.companion.chat.data.preferences.SecondEngineManager
@@ -44,6 +45,8 @@ import com.companion.chat.data.repository.ChatSessionRepository
 import com.companion.chat.engine.AndroidVoiceInputEngine
 import com.companion.chat.engine.AndroidVoiceOutputEngine
 import com.companion.chat.engine.InferenceEngineFactory
+import com.companion.chat.engine.LocalAudioPlaybackEngine
+import com.companion.chat.engine.MossTtsNanoVoiceCloneEngine
 import com.companion.chat.engine.RoleAwareVoiceOutputEngine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -116,9 +119,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         roleCardDao = database.roleCardDao()
     )
     private val androidVoiceOutputEngine = AndroidVoiceOutputEngine(application)
+    private val voiceCloneConfigRepository = VoiceCloneConfigRepository(application)
+    private val localAudioPlaybackEngine = LocalAudioPlaybackEngine(application)
+    private val mossTtsNanoVoiceCloneEngine = MossTtsNanoVoiceCloneEngine(
+        context = application,
+        modelDirectoryProvider = { voiceCloneConfigRepository.getConfig().mossModelDirectory }
+    )
     val voiceOutputEngine = RoleAwareVoiceOutputEngine(
         fallbackEngine = androidVoiceOutputEngine,
-        roleCardRepository = roleCardRepository
+        roleCardRepository = roleCardRepository,
+        cloneEngine = mossTtsNanoVoiceCloneEngine,
+        localAudioPlaybackEngine = localAudioPlaybackEngine
     )
     private val imageGenerationConfigRepository = ImageGenerationConfigRepository(application)
     private val imageGenerationEngine = HttpImageGenerationEngine(application)

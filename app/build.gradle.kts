@@ -49,6 +49,12 @@ android {
         compose = true
     }
 
+    packaging {
+        jniLibs {
+            pickFirsts += "**/libonnxruntime.so"
+        }
+    }
+
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
@@ -82,6 +88,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.11.0")
+    implementation(libs.onnxruntime.android)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.androidx.room.runtime)

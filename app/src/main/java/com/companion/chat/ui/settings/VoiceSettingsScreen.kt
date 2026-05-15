@@ -30,6 +30,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.companion.chat.data.voice.CloudAsrConfigRepository
 import com.companion.chat.data.voice.LocalSenseVoiceModelStatus
+import com.companion.chat.data.voice.MossTtsNanoModelStatus
+import com.companion.chat.data.voice.VoiceCloneConfigRepository
 import com.companion.chat.data.voice.VoiceInputBackend
 import com.companion.chat.data.voice.VoiceInputConfigRepository
 
@@ -41,6 +43,7 @@ fun VoiceSettingsScreen(
 ) {
     val context = LocalContext.current
     val voiceInputConfigRepository = remember(context) { VoiceInputConfigRepository(context) }
+    val voiceCloneConfigRepository = remember(context) { VoiceCloneConfigRepository(context) }
     val cloudAsrConfigRepository = remember(context) { CloudAsrConfigRepository(context) }
     val voiceInputConfig = remember(voiceInputConfigRepository) {
         voiceInputConfigRepository.getConfig()
@@ -50,6 +53,12 @@ fun VoiceSettingsScreen(
     }
     val cloudAsrConfig = remember(cloudAsrConfigRepository) {
         cloudAsrConfigRepository.getConfig()
+    }
+    val voiceCloneConfig = remember(voiceCloneConfigRepository) {
+        voiceCloneConfigRepository.getConfig()
+    }
+    val mossModelStatus = remember(voiceCloneConfig) {
+        voiceCloneConfigRepository.getMossModelStatus(voiceCloneConfig)
     }
 
     Scaffold(
@@ -96,7 +105,7 @@ fun VoiceSettingsScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "语音输入默认使用本地 sherpa-onnx SenseVoiceSmall int8。模型放在 App 外部目录，点击麦克风后只在本机录音和识别。",
+                text = "语音输入默认使用本地 SenseVoice。角色克隆优先读取 moss-tts-nano ONNX 模型，缺模型或缺参考音频时自动回退系统 TTS。",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -107,7 +116,10 @@ fun VoiceSettingsScreen(
             VoiceInfoRow("模型状态", localModelStatus.displayName())
             VoiceInfoRow("云 ASR", if (cloudAsrConfig.isConfigured) "已配置" else "未配置")
             VoiceInfoRow("云响应字段", cloudAsrConfig.responseTextFieldPath)
-            VoiceInfoRow("输出模式", "系统 TTS / 角色克隆配置")
+            VoiceInfoRow("MOSS 目录", voiceCloneConfig.mossModelDirectory.ifBlank { "未配置" })
+            VoiceInfoRow("MOSS 状态", mossModelStatus.displayName())
+            VoiceInfoRow("本地克隆", if (mossModelStatus is MossTtsNanoModelStatus.Ready) "可用" else "回退系统 TTS")
+            VoiceInfoRow("输出模式", "系统 TTS / MOSS 本地克隆")
             VoiceInfoRow("角色语音", "在角色管理中配置参考音频 URI、模式和显示名称")
         }
     }
@@ -125,6 +137,15 @@ private fun LocalSenseVoiceModelStatus.displayName(): String {
         LocalSenseVoiceModelStatus.Ready -> "完整"
         LocalSenseVoiceModelStatus.DirectoryNotConfigured -> "本地 SenseVoice 模型未配置"
         is LocalSenseVoiceModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"
+    }
+}
+
+private fun MossTtsNanoModelStatus.displayName(): String {
+    return when (this) {
+        MossTtsNanoModelStatus.Ready -> "完整"
+        MossTtsNanoModelStatus.DirectoryNotConfigured -> "moss-tts-nano 模型未配置"
+        is MossTtsNanoModelStatus.InvalidConfig -> "配置无效：$message"
+        is MossTtsNanoModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"
     }
 }
 

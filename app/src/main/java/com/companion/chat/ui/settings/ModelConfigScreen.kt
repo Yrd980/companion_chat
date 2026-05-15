@@ -41,6 +41,7 @@ import com.companion.chat.data.engine.ModelRuntime
 import com.companion.chat.data.image.ImageGenerationConfig
 import com.companion.chat.data.image.ImageGenerationConfigRepository
 import com.companion.chat.data.image.ImageGenerationProvider
+import com.companion.chat.data.image.DreamLiteModelStatus
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,6 +58,9 @@ fun ModelConfigScreen(
     var retainedRounds by remember { mutableIntStateOf(contextConfigRepository.getSettings().retainedRounds) }
     var modelConfig by remember { mutableStateOf(modelConfigRepository.getConfig()) }
     var imageConfig by remember { mutableStateOf(imageConfigRepository.getConfig()) }
+    val dreamLiteModelStatus = remember(imageConfig) {
+        imageConfigRepository.getDreamLiteModelStatus(imageConfig)
+    }
     val options = listOf(3, 5, 10, 15, 20)
     val resolvedModelPath = remember(modelConfig) { modelConfigRepository.resolveModelPath(modelConfig) }
     val resolvedMmprojPath = remember(modelConfig) { modelConfigRepository.resolveMmprojPath() }
@@ -252,8 +256,8 @@ fun ModelConfigScreen(
                     }
                 )
                 ImageProviderOptionItem(
-                    title = "本地 DreamLite 占位",
-                    description = "保留端侧模型入口，未接入推理时返回明确错误",
+                    title = "本地 DreamLite",
+                    description = "端侧接入框架已准备，等待官方权重/端侧包",
                     selected = imageConfig.provider == ImageGenerationProvider.LOCAL_DREAMLITE,
                     onClick = {
                         imageConfig = imageConfig.copy(provider = ImageGenerationProvider.LOCAL_DREAMLITE)
@@ -264,6 +268,16 @@ fun ModelConfigScreen(
                     imageConfig = imageConfig.copy(localModelPath = it)
                     imageConfigRepository.updateConfig(imageConfig)
                 }
+                Text(
+                    text = "DreamLite 状态：${dreamLiteModelStatus.displayName()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (dreamLiteModelStatus is DreamLiteModelStatus.Ready) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                    modifier = Modifier.padding(top = 4.dp)
+                )
                 ImageConfigField("Base URL", imageConfig.baseUrl) {
                     imageConfig = imageConfig.copy(baseUrl = it)
                     imageConfigRepository.updateConfig(imageConfig)
@@ -297,6 +311,15 @@ fun ModelConfigScreen(
                 )
             }
         }
+    }
+}
+
+private fun DreamLiteModelStatus.displayName(): String {
+    return when (this) {
+        DreamLiteModelStatus.Ready -> "配置已读取，等待官方端侧推理包"
+        DreamLiteModelStatus.DirectoryNotConfigured -> "模型目录未配置"
+        is DreamLiteModelStatus.InvalidConfig -> "配置无效：$message"
+        is DreamLiteModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"
     }
 }
 
