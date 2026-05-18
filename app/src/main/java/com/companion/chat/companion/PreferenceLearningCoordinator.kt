@@ -1,4 +1,4 @@
-package com.companion.chat.ui.chat
+package com.companion.chat.companion
 
 import com.companion.chat.data.context.ContextConfigRepository
 import com.companion.chat.data.engine.EngineConfig

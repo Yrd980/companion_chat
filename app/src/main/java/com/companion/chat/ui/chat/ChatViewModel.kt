@@ -7,6 +7,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.companion.chat.AppContainer
 import com.companion.chat.appContainer
+import com.companion.chat.companion.CompanionRuntime
+import com.companion.chat.companion.CompanionTurnEvent
+import com.companion.chat.companion.PreferenceLearningCoordinator
+import com.companion.chat.companion.PreferenceLearningAdapter
 import com.companion.chat.data.context.ContextConfigRepository
 import com.companion.chat.data.context.ContextManager
 import com.companion.chat.data.context.ContextSettings
@@ -93,10 +97,7 @@ class ChatViewModel(
     private val imageGenerationConfigRepository = container.imageGenerationConfigRepository
     private val imageGenerationEngine = container.imageGenerationEngine
     private val imageGenerationEngineSelector = container.imageGenerationEngineSelector
-    private val roleCardPromptBuilder = container.roleCardPromptBuilder
-    private val skillRepository = container.skillRepository
     private val preferenceMemoryDeriver = container.preferenceMemoryDeriver
-    private val memoryPromptBuilder = container.memoryPromptBuilder
     private val unifiedExtractionPromptBuilder = container.unifiedExtractionPromptBuilder
     private val unifiedExtractionParser = container.unifiedExtractionParser
     private val secondEngineManager = SecondEngineManager(
@@ -117,6 +118,18 @@ class ChatViewModel(
         currentEngineConfigProvider = { inferenceEngine.getCurrentConfig() },
         baseSystemPromptProvider = { baseSystemPrompt },
         logger = ::logToFile
+    )
+    private val companionRuntime = CompanionRuntime(
+        roleCardRepository = roleCardRepository,
+        skillRepository = container.skillRepository,
+        preferenceRepository = preferenceRepository,
+        memoryRepository = memoryRepository,
+        contextManager = contextManager,
+        inferenceEngineProvider = { inferenceEngine },
+        postTurnLearning = PreferenceLearningAdapter(preferenceLearningCoordinator),
+        promptAssembler = promptAssembler,
+        memoryPromptBuilder = container.memoryPromptBuilder,
+        roleCardPromptBuilder = container.roleCardPromptBuilder
     )
     private var contextSettings: ContextSettings = ContextConfigRepository.DEFAULT_SETTINGS
     private var baseSystemPrompt: String = DEFAULT_BASE_SYSTEM_PROMPT
@@ -172,17 +185,7 @@ class ChatViewModel(
     }
 
     private suspend fun refreshBaseSystemPrompt() {
-        val rolePrompt = roleCardPromptBuilder.build(roleCardRepository.getActiveRoleCard())
-        val skillPrompt = skillRepository.getActiveSkill()?.systemPrompt?.trim().orEmpty()
-        baseSystemPrompt = buildList {
-            add(DEFAULT_BASE_SYSTEM_PROMPT)
-            if (rolePrompt.isNotBlank()) {
-                add(rolePrompt)
-            }
-            if (skillPrompt.isNotBlank()) {
-                add(skillPrompt)
-            }
-        }.joinToString(separator = "\n\n")
+        baseSystemPrompt = companionRuntime.refreshBasePrompt()
     }
 
     internal fun debugBaseSystemPrompt(): String = baseSystemPrompt
@@ -285,10 +288,11 @@ class ChatViewModel(
 
     fun generateChatSceneImage(prompt: String) {
         viewModelScope.launch {
-            logToFile("图片生成请求: promptLength=${prompt.length}, provider=${imageGenerationConfigRepository.getConfig().provider}")
+            val resolvedPrompt = prompt.ifBlank { buildImagePromptFromConversation() }
+            logToFile("图片生成请求: promptLength=${resolvedPrompt.length}, provider=${imageGenerationConfigRepository.getConfig().provider}")
             imageGenerationEngineSelector.generate(
                 request = ImageGenerationRequest(
-                    prompt = prompt,
+                    prompt = resolvedPrompt,
                     purpose = ImageGenerationPurpose.CHAT_SCENE
                 ),
                 config = imageGenerationConfigRepository.getConfig()
@@ -305,6 +309,15 @@ class ChatViewModel(
                 }
             }
         }
+    }
+
+    private fun buildImagePromptFromConversation(): String {
+        return _uiState.value.messages
+            .asReversed()
+            .firstOrNull { it.content.isNotBlank() }
+            ?.content
+            ?.take(180)
+            ?: "warm anime companion chat scene"
     }
 
     fun sendMessage() {
@@ -346,7 +359,7 @@ class ChatViewModel(
             _uiState.update { it.copy(isVoiceAutoSending = false) }
             return
         }
-        preferenceLearningCoordinator.cancelRunningSummary()
+        companionRuntime.cancelPostTurnLearning()
 
         if (state.currentSessionId.isBlank()) {
             val newSession = ConversationSession(messages = emptyList())
@@ -404,14 +417,18 @@ class ChatViewModel(
         try {
             val messages = _uiState.value.messages
             val memoryContext = buildMemoryContext(userInput)
-            prepareContextBeforeSend(
+            contextSettings = contextConfigRepository.getSettings()
+            companionRuntime.runTurn(
                 messages = messages,
+                baseSystemPrompt = baseSystemPrompt,
+                settings = contextSettings,
                 userPreferences = memoryContext.confirmedPreferencePrompt,
                 persistentMemoryPrompt = memoryContext.persistentPrompt,
                 memoryPrompt = memoryContext.retrievedPrompt
-            )
-            inferenceEngine.sendMessageStream(messages).collect { token ->
-                appendAssistantToken(token)
+            ).collect { event ->
+                when (event) {
+                    is CompanionTurnEvent.AssistantToken -> appendAssistantToken(event.token)
+                }
             }
         } catch (e: Exception) {
             updateAssistantMessage("推理出错: ${e.message}")
@@ -420,38 +437,23 @@ class ChatViewModel(
         }
     }
 
-    private suspend fun prepareContextBeforeSend(
-        messages: List<ChatMessage>,
-        userPreferences: String,
-        persistentMemoryPrompt: String,
-        memoryPrompt: String
-    ) {
-        val stableMessages = messages.filterNot { it.isStreaming }
-        rebuildConversationWithContext(
-            stableMessages = stableMessages,
-            userPreferences = userPreferences,
-            persistentMemoryPrompt = persistentMemoryPrompt,
-            memoryPrompt = memoryPrompt,
-            forceRebuild = false,
-            reason = "发送前上下文处理"
-        )
-    }
-
     private suspend fun buildMemoryContext(userInput: String): MemoryContext {
         return try {
             val confirmedPreferencePrompt = buildConfirmedPreferencePrompt()
-            val persistentMemories = memoryRepository.getPersistentMemories()
-            val relevantMemories = memoryRepository.retrieveRelevantMemories(userInput)
-            val persistentPrompt = memoryPromptBuilder.buildPersistent(persistentMemories)
-            val memoryPrompt = memoryPromptBuilder.build(relevantMemories)
+            val companionMemoryContext = companionRuntime.buildMemoryContext(userInput)
+            val persistentPrompt = companionMemoryContext.persistentPrompt
+            val memoryPrompt = companionMemoryContext.retrievedPrompt
             if (confirmedPreferencePrompt.isNotBlank()) {
                 logToFile("confirmed 偏好注入: count=${preferenceRepository.getConfirmedPreferences().size}")
             }
             if (persistentPrompt.isNotBlank()) {
-                logToFile("常驻长期记忆注入: count=${persistentMemories.size}")
+                logToFile("常驻长期记忆注入: count=${companionMemoryContext.persistentMemoryCount}")
             }
             if (memoryPrompt.isNotBlank()) {
-                logToFile("动态记忆检索成功: count=${relevantMemories.size}, query=${userInput.trim()}")
+                logToFile(
+                    "动态记忆检索成功: count=${companionMemoryContext.retrievedMemoryCount}, " +
+                        "query=${userInput.trim()}"
+                )
             } else {
                 logToFile("动态记忆检索为空: query=${userInput.trim()}")
             }
@@ -488,22 +490,6 @@ class ChatViewModel(
         } catch (e: Exception) {
             logToFile("规则兜底记忆写入失败: ${e.message}")
         }
-    }
-
-    private fun buildRecentConversationSnippet(messages: List<ChatMessage>): String {
-        return messages.mapNotNull { message ->
-            val content = message.content.trim()
-            if (content.isBlank()) {
-                return@mapNotNull null
-            }
-
-            val roleLabel = when (message.role) {
-                MessageRole.USER -> "用户"
-                MessageRole.ASSISTANT -> "助手"
-                MessageRole.SYSTEM -> "系统"
-            }
-            "$roleLabel：${content.take(80)}"
-        }.joinToString(separator = "\n")
     }
 
     private fun appendAssistantToken(token: String) {
@@ -622,7 +608,7 @@ class ChatViewModel(
     fun cancelGeneration() {
         generateJob?.cancel()
         inferenceEngine.cancel()
-        preferenceLearningCoordinator.cancelRunningSummary()
+        companionRuntime.cancelPostTurnLearning()
         shouldSpeakNextAssistantResponse = false
         _uiState.update { it.copy(isGenerating = false, isVoiceAutoSending = false) }
     }
@@ -633,7 +619,7 @@ class ChatViewModel(
                 if (inferenceEngine.state.value is InferenceState.Generating) {
                     generateJob?.cancel()
                     inferenceEngine.cancel()
-                    preferenceLearningCoordinator.cancelRunningSummary()
+                    companionRuntime.cancelPostTurnLearning()
                     _uiState.update { it.copy(isGenerating = false) }
                     logToFile("模型配置变更: 已取消当前生成并准备重建引擎")
                 }
@@ -684,7 +670,7 @@ class ChatViewModel(
         generateJob?.cancel()
         voiceCollectJob?.cancel()
         inferenceStateJob?.cancel()
-        preferenceLearningCoordinator.release()
+        companionRuntime.release()
         inferenceEngine.release()
         voiceInputEngine.release()
         voiceOutputEngine.release()
@@ -926,7 +912,7 @@ class ChatViewModel(
     }
 
     private fun schedulePreferenceSummaryAfterDelay() {
-        preferenceLearningCoordinator.scheduleAfterIdle(
+        companionRuntime.onTurnFinished(
             sessionIdProvider = { _uiState.value.currentSessionId },
             messagesProvider = { _uiState.value.messages }
         )
@@ -937,7 +923,7 @@ class ChatViewModel(
         sessionId: String = _uiState.value.currentSessionId,
         messages: List<ChatMessage> = _uiState.value.messages
     ) {
-        preferenceLearningCoordinator.triggerNow(
+        companionRuntime.onConversationBoundary(
             reason = reason,
             sessionId = sessionId,
             messages = messages
@@ -945,16 +931,7 @@ class ChatViewModel(
     }
 
     private suspend fun buildConfirmedPreferencePrompt(): String {
-        val confirmedPreferences = preferenceRepository.getConfirmedPreferences()
-        if (confirmedPreferences.isEmpty()) {
-            return ""
-        }
-        return buildString {
-            appendLine("关于当前用户的已知信息（请自然地融入对话，不要刻意提及你知道这些）：")
-            confirmedPreferences.forEach { preference ->
-                appendLine("- ${preference.content}")
-            }
-        }.trim()
+        return companionRuntime.buildConfirmedPreferencePrompt()
     }
 
     private suspend fun rebuildConversationWithContext(
@@ -966,11 +943,16 @@ class ChatViewModel(
         reason: String
     ) {
         contextSettings = contextConfigRepository.getSettings()
-        val shouldInjectContext = userPreferences.isNotBlank() ||
-            persistentMemoryPrompt.isNotBlank() ||
-            memoryPrompt.isNotBlank()
-
-        if (!forceRebuild && !contextManager.shouldCompress(stableMessages, contextSettings) && !shouldInjectContext) {
+        val rebuildResult = companionRuntime.rebuildConversationWithContext(
+            stableMessages = stableMessages,
+            baseSystemPrompt = baseSystemPrompt,
+            settings = contextSettings,
+            userPreferences = userPreferences,
+            persistentMemoryPrompt = persistentMemoryPrompt,
+            memoryPrompt = memoryPrompt,
+            forceRebuild = forceRebuild
+        )
+        if (!rebuildResult.rebuildAttempted) {
             logToFile(
                 "发送前上下文检查: 未触发压缩, " +
                     "messageCount=${stableMessages.size}, threshold=${contextSettings.compressionThreshold}, " +
@@ -979,59 +961,35 @@ class ChatViewModel(
             return
         }
 
-        val contextWindow = contextManager.buildContext(
-            messages = stableMessages,
-            systemPrompt = baseSystemPrompt,
-            userPreferences = userPreferences,
-            persistentMemoryPrompt = persistentMemoryPrompt,
-            memoryPrompt = memoryPrompt,
-            settings = contextSettings
-        )
-
         logToFile(
-            "$reason: recentMessages=${contextWindow.recentMessages.size}, " +
-                "summaryEmpty=${contextWindow.historySummary.isBlank()}, " +
-                "preferenceInjected=${contextWindow.userPreferences.isNotBlank()}, " +
-                "persistentMemoryInjected=${contextWindow.persistentMemoryPrompt.isNotBlank()}, " +
-                "memoryInjected=${contextWindow.memoryPrompt.isNotBlank()}"
+            "$reason: recentMessages=${rebuildResult.recentMessageCount}, " +
+                "summaryEmpty=${rebuildResult.historySummaryEmpty}, " +
+                "preferenceInjected=${rebuildResult.preferenceInjected}, " +
+                "persistentMemoryInjected=${rebuildResult.persistentMemoryInjected}, " +
+                "memoryInjected=${rebuildResult.memoryInjected}"
         )
 
-        val rebuildSucceeded = inferenceEngine.rebuildConversation(contextWindow.systemPrompt)
-        if (!rebuildSucceeded) {
+        if (rebuildResult.rebuildSucceeded == false) {
             logToFile("$reason: Conversation 重建失败")
             return
         }
 
-        val replaySucceeded = inferenceEngine.replayMessages(contextWindow.recentMessages)
-        if (replaySucceeded) {
+        if (rebuildResult.replaySucceeded == true) {
             logToFile("$reason: 最近消息回放成功")
-        } else {
-            val fallbackPrompt = promptAssembler.assemble(
-                baseSystemPrompt = contextWindow.systemPrompt,
-                userPreferences = "",
-                persistentMemoryPrompt = "",
-                memoryPrompt = "",
-                historySummary = "",
-                recentConversationSnippet = buildRecentConversationSnippet(contextWindow.recentMessages)
-            )
-            val fallbackSucceeded = inferenceEngine.rebuildConversationWithFallbackContext(fallbackPrompt)
-            if (fallbackSucceeded) {
-                logToFile("$reason: 最近消息回放失败，降级摘要注入成功")
-            } else {
-                logToFile("$reason: 最近消息回放失败，降级摘要注入失败")
-            }
+        } else if (rebuildResult.replaySucceeded == false && rebuildResult.fallbackSucceeded == true) {
+            logToFile("$reason: 最近消息回放失败，降级摘要注入成功")
+        } else if (rebuildResult.replaySucceeded == false) {
+            logToFile("$reason: 最近消息回放失败，降级摘要注入失败")
         }
     }
 
     suspend fun activateRoleCard(roleId: Long) {
-        roleCardRepository.activateRoleCard(roleId)
-        refreshBaseSystemPrompt()
+        baseSystemPrompt = companionRuntime.activateRoleCardAndRefreshPrompt(roleId)
         rebuildConversationForPromptChange(reason = "角色卡切换")
     }
 
     suspend fun activateSkill(skillId: Long) {
-        skillRepository.activateSkill(skillId)
-        refreshBaseSystemPrompt()
+        baseSystemPrompt = companionRuntime.activateSkillAndRefreshPrompt(skillId)
         rebuildConversationForPromptChange(reason = "Skill 切换")
     }
 
@@ -1049,6 +1007,15 @@ class ChatViewModel(
             .filterNot { it.isStreaming }
             .filter { it.role == MessageRole.USER || it.role == MessageRole.ASSISTANT }
         val latestUserInput = stableMessages.lastOrNull { it.role == MessageRole.USER }?.content.orEmpty()
+        if (latestUserInput.isBlank()) {
+            val rebuildSucceeded = inferenceEngine.rebuildConversation(baseSystemPrompt)
+            if (rebuildSucceeded) {
+                logToFile("$reason: 无用户消息，已仅使用基础 prompt 重建 Conversation")
+            } else {
+                logToFile("$reason: 无用户消息，基础 prompt 重建 Conversation 失败")
+            }
+            return
+        }
         val memoryContext = buildMemoryContext(latestUserInput)
 
         rebuildConversationWithContext(
@@ -1063,7 +1030,7 @@ class ChatViewModel(
 
     companion object {
         private const val DEFAULT_BASE_SYSTEM_PROMPT =
-            "你是 Anime Companion 的本地私密陪伴智能体。默认使用中文，像长期熟悉用户的伙伴一样自然回应：亲近但不过界，温柔但不说教，记得对话中的连续性与用户已经确认的偏好。你的记忆描述始终以用户为归属，不把用户的信息说成自己的经历。回答应简洁、有情绪承接，除非用户明确需要步骤或分析，否则少用训诫式建议。"
+            CompanionRuntime.DEFAULT_BASE_PROMPT
         private const val STAGE4_SUMMARY_TIMEOUT_MILLIS = 90_000L
     }
 }

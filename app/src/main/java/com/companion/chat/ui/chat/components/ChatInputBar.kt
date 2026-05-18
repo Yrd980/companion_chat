@@ -101,7 +101,7 @@ fun ChatInputBar(
                     )
                     ChatToolIconButton(
                         onClick = onGenerateImage,
-                        enabled = inputText.isNotBlank() && !isImageGenerating,
+                        enabled = !isImageGenerating,
                         icon = Icons.Default.AutoAwesome,
                         contentDescription = if (isImageGenerating) "图片生成中" else "根据输入生成图片",
                         active = isImageGenerating

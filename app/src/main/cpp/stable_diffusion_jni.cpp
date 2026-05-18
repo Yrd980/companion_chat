@@ -210,7 +210,10 @@ Java_com_companion_chat_data_image_StableDiffusionNative_generateTxt2ImgPng(
         gen_params.sample_params.guidance.txt_cfg = std::max(0.0f, static_cast<float>(cfg_scale));
         gen_params.seed = static_cast<int64_t>(seed);
         gen_params.batch_count = 1;
-        gen_params.vae_tiling_params.enabled = true;
+        // Tiling saves memory for large images, but on 512x512 mobile generation it
+        // makes VAE decode much slower. Keep it only for larger outputs.
+        gen_params.vae_tiling_params.enabled =
+            gen_params.width > 512 || gen_params.height > 512;
 
         ImageArray results;
         results.count = 1;
