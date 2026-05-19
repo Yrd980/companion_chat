@@ -214,6 +214,7 @@ class ChatViewModel(
     private fun collectVoiceEvents() {
         voiceCollectJob = viewModelScope.launch {
             voiceInputEngine.events.collectLatest { event ->
+                logToFile("语音输入事件: ${voiceEventLabel(event)}")
                 when (event) {
                     is VoiceInputEvent.WarmedUp -> {
                         _uiState.update { it.copy(isVoiceWarmedUp = true) }
@@ -561,6 +562,11 @@ class ChatViewModel(
     }
 
     fun toggleVoiceListening() {
+        logToFile(
+            "语音输入按钮点击: isVoiceStarting=${_uiState.value.isVoiceStarting}, " +
+                "isVoiceListening=${_uiState.value.isVoiceListening}, " +
+                "showPermission=${_uiState.value.showVoicePermissionDialog}"
+        )
         if (_uiState.value.isVoiceListening || _uiState.value.isVoiceStarting) {
             voiceInputEngine.stopListening()
             _uiState.update {
@@ -582,11 +588,13 @@ class ChatViewModel(
     }
 
     fun onVoicePermissionGranted() {
+        logToFile("语音权限已授予，开始启动语音输入")
         _uiState.update { it.copy(showVoicePermissionDialog = false) }
         voiceInputEngine.startListening()
     }
 
     fun onVoicePermissionDenied() {
+        logToFile("语音权限被拒绝")
         _uiState.update {
             it.copy(
                 isVoiceStarting = false,
@@ -598,6 +606,17 @@ class ChatViewModel(
 
     fun clearVoiceInputError() {
         _uiState.update { it.copy(voiceInputError = "") }
+    }
+
+    private fun voiceEventLabel(event: VoiceInputEvent): String {
+        return when (event) {
+            is VoiceInputEvent.WarmedUp -> "WarmedUp"
+            is VoiceInputEvent.PartialResult -> "PartialResult(length=${event.text.length})"
+            is VoiceInputEvent.FinalResult -> "FinalResult(length=${event.text.length})"
+            is VoiceInputEvent.Listening -> "Listening"
+            is VoiceInputEvent.NotListening -> "NotListening"
+            is VoiceInputEvent.Error -> "Error(${event.message})"
+        }
     }
 
     fun speakMessage(text: String) {

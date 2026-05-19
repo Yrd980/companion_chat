@@ -45,6 +45,7 @@ class AndroidVoiceInputEngine(
 
     override fun warmUp() {
         val config = configRepository.getConfig()
+        Log.i(TAG, "warmUp backend=${config.backend}")
         if (config.backend == VoiceInputBackend.CLOUD_HTTP_ASR) {
             _events.tryEmit(VoiceInputEvent.WarmedUp)
             return
@@ -56,14 +57,17 @@ class AndroidVoiceInputEngine(
     private fun emitLocalModelStatus(config: VoiceInputConfig): Boolean {
         return when (val status = configRepository.getLocalSenseVoiceModelStatus(config)) {
             LocalSenseVoiceModelStatus.Ready -> {
+                Log.i(TAG, "local SenseVoice model ready")
                 _events.tryEmit(VoiceInputEvent.WarmedUp)
                 true
             }
             LocalSenseVoiceModelStatus.DirectoryNotConfigured -> {
+                Log.w(TAG, "local SenseVoice model directory not configured")
                 _events.tryEmit(VoiceInputEvent.Error("本地 SenseVoice 模型未配置"))
                 false
             }
             is LocalSenseVoiceModelStatus.MissingFiles -> {
+                Log.w(TAG, "local SenseVoice model missing files: ${status.fileNames.joinToString()}")
                 _events.tryEmit(VoiceInputEvent.Error("本地 SenseVoice 模型文件缺失: ${status.fileNames.joinToString()}"))
                 false
             }
@@ -71,13 +75,16 @@ class AndroidVoiceInputEngine(
     }
 
     override fun startListening() {
+        Log.i(TAG, "startListening requested isListening=$isListening")
         if (isListening) return
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "startListening denied: RECORD_AUDIO missing")
             _events.tryEmit(VoiceInputEvent.Error("缺少录音权限"))
             return
         }
 
         val config = configRepository.getConfig()
+        Log.i(TAG, "startListening backend=${config.backend}")
         if (config.backend == VoiceInputBackend.LOCAL_SENSEVOICE && !emitLocalModelStatus(config)) {
             return
         }
@@ -85,6 +92,7 @@ class AndroidVoiceInputEngine(
         isListening = true
         stopRequested = false
         _events.tryEmit(VoiceInputEvent.Listening)
+        Log.i(TAG, "listening event emitted")
         scope.launch {
             runCatching {
                 val audio = recordUntilSilence(config)
@@ -92,6 +100,7 @@ class AndroidVoiceInputEngine(
                     return@launch
                 }
                 if (audio.isEmpty) {
+                    Log.w(TAG, "recorded audio is empty")
                     _events.tryEmit(VoiceInputEvent.Error("未检测到语音"))
                     return@launch
                 }
@@ -107,8 +116,10 @@ class AndroidVoiceInputEngine(
                     }
                 }
                 if (text.isBlank()) {
+                    Log.w(TAG, "ASR returned blank text")
                     _events.tryEmit(VoiceInputEvent.Error("未识别到文本"))
                 } else {
+                    Log.i(TAG, "ASR final text length=${text.length}")
                     _events.tryEmit(VoiceInputEvent.FinalResult(text))
                 }
             }.getOrElse { throwable ->
@@ -121,10 +132,12 @@ class AndroidVoiceInputEngine(
             isListening = false
             releaseRecorder()
             _events.tryEmit(VoiceInputEvent.NotListening)
+            Log.i(TAG, "not listening event emitted")
         }
     }
 
     override fun stopListening() {
+        Log.i(TAG, "stopListening requested")
         stopRequested = true
         isListening = false
         runCatching {

@@ -39,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 
@@ -293,10 +295,18 @@ private fun VoicePrimaryButton(
     onVoiceInput: () -> Unit
 ) {
     val active = isVoiceStarting || isVoiceListening
+    val description = when {
+        active -> "停止语音输入"
+        isVoiceAutoSending -> "正在发送语音"
+        isGenerating -> "正在生成回复"
+        else -> "开始语音输入"
+    }
 
     FilledIconButton(
         onClick = onVoiceInput,
-        modifier = Modifier.size(44.dp),
+        modifier = Modifier
+            .size(44.dp)
+            .semantics { contentDescription = description },
         enabled = !isVoiceAutoSending && !isGenerating,
         shape = CircleShape,
         colors = IconButtonDefaults.filledIconButtonColors(
@@ -316,12 +326,7 @@ private fun VoicePrimaryButton(
     ) {
         Icon(
             imageVector = if (active) Icons.Default.Stop else Icons.Default.Mic,
-            contentDescription = when {
-                active -> "停止语音输入"
-                isVoiceAutoSending -> "正在发送语音"
-                isGenerating -> "正在生成回复"
-                else -> "开始语音输入"
-            }
+            contentDescription = null
         )
     }
 }

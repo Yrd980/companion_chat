@@ -638,3 +638,11 @@
 - 本轮本地验证结果：
 - `./gradlew :app:compileDebugKotlin` 通过。
 - `./gradlew :app:testDebugUnitTest` 通过。
+- 2026-05-19 语音输入入口诊断：
+- 复现旧记录时确认：应用启动后经常停在“发现”页，若直接按聊天输入栏坐标会点偏；切到“对话”页后，麦克风节点位于输入栏右侧。
+- 已给 `ChatViewModel` 增加语音入口持久诊断日志：按钮点击、权限授予/拒绝、`VoiceInputEvent` 事件都会写入 `viewmodel_log.txt`。
+- 已给 `AndroidVoiceInputEngine` 增加 logcat 诊断：warm up、backend、权限缺失、本地 SenseVoice 模型状态、Listening/NotListening、空音频、空识别文本、最终文本长度。
+- 已将语音主按钮的语义描述放到可点击按钮本体，避免自动化/无障碍只能看到内部 icon 描述而难以点击父节点。
+- 真机确认：在“对话”页点击语音按钮后，日志出现 `语音输入按钮点击`、`语音权限已授予，开始启动语音输入`、`语音输入事件: WarmedUp`、`语音输入事件: Listening`、再次点击出现 `NotListening`。
+- 本轮本地验证结果：
+- `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest :app:assembleDebug` 通过。
