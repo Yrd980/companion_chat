@@ -3,7 +3,7 @@ package com.companion.chat.ui.settings
 import android.app.Application
 import com.companion.chat.data.local.dao.SkillDao
 import com.companion.chat.data.local.entity.Skill
-import com.companion.chat.data.skill.SkillRepository
+import com.companion.chat.capability.SkillRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

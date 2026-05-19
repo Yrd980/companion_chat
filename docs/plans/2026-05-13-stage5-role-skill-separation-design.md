@@ -2,15 +2,18 @@
 goal: CompanionChat 阶段五重设计：角色卡与 Skills 分离
 version: 1.0
 date_created: 2026-05-13
-last_updated: 2026-05-13
+last_updated: 2026-05-19
 owner: SOLO Code Assistant
-status: Designed
+status: Accepted
 tags: [design, stage5, roles, skills, prompt, compose, room]
 ---
 
 # Introduction
 
 本设计用于重定义 `CompanionChat` 的阶段五能力边界。原阶段五计划默认将设置页中的“角色管理”直接复用为技能管理页，但最新需求已明确：
+
+> Canonical Stage 5 design. Supersedes
+> `2026-05-13-stage5-skill-management-plan.md`.
 
 - `skills` 是工作任务导向能力，不应与角色概念混合
 - 角色卡用于日常聊天陪伴的人设与说话方式
@@ -389,4 +392,3 @@ Skills 页建议结构：
 - `app/src/main/java/com/companion/chat/data/local/entity/Skill.kt`
 - `app/src/main/java/com/companion/chat/data/local/dao/SkillDao.kt`
 - `docs/plans/2026-05-13-stage5-skill-management-plan.md`
-

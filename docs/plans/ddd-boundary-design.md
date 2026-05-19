@@ -66,8 +66,8 @@ Domain concepts:
 Current files that likely belong here:
 
 - `data/local/entity/RoleCard.kt`
-- `data/role/RoleCardRepository.kt`
-- `data/role/RoleCardPromptBuilder.kt`
+- `identity/RoleCardRepository.kt`
+- `identity/RoleCardPromptBuilder.kt`
 - `data/discover/*`
 - role management UI ViewModels and screens
 
@@ -91,7 +91,8 @@ Current files that likely belong here:
 
 - `data/local/entity/Memory.kt`
 - `data/local/dao/MemoryDao.kt`
-- `data/memory/*`
+- `memory/*`
+- `data/memory/MemoryRepository.kt`
 - memory screen ViewModel and state
 
 Boundary rule:
@@ -111,8 +112,10 @@ Current files that likely belong here:
 
 - `data/local/entity/UserPreference.kt`
 - `data/local/dao/PreferenceDao.kt`
-- `data/preferences/*`
-- `ui/chat/PreferenceLearningCoordinator.kt` after it is separated from UI concerns
+- `preference/*`
+- `data/preferences/PreferenceRepository.kt`
+- `data/preferences/SecondEngineManager.kt`
+- `companion/PreferenceLearningCoordinator.kt`
 
 Boundary rule:
 
@@ -134,7 +137,7 @@ Current files that likely belong here:
 
 - `data/local/entity/Skill.kt`
 - `data/local/dao/SkillDao.kt`
-- `data/skill/SkillRepository.kt`
+- `capability/SkillRepository.kt`
 - capability-facing image and voice configuration models, where they express user-facing capability state
 
 Boundary rule:
@@ -149,8 +152,8 @@ Owns technical ports and adapters.
 
 Current files that likely belong here:
 
-- `data/engine/*`
 - `engine/*`
+- `engine/image/*`
 - local inference adapters
 - ASR adapters
 - TTS adapters
@@ -183,6 +186,17 @@ Boundary rule:
 3. Move turn orchestration from `ChatViewModel` into `CompanionRuntime` behind a small API.
 4. Split post-turn learning coordination out of UI and let `CompanionRuntime` trigger it.
 5. Only after behavior is covered by tests, consider package moves toward `conversation`, `identity`, `memory`, `preference`, `capability`, and `engine`.
+
+Current migration status:
+
+- `identity` now owns the RoleCard business repository and prompt builder.
+- `capability` now owns the Skill business repository.
+- `context` now owns context-window orchestration and prompt assembly.
+- `memory` now owns pure memory extraction, retrieval, prompt, and lifecycle helpers; `data/memory/MemoryRepository.kt` remains a persistence-facing adapter.
+- `preference` now owns pure preference parsers, prompt builders, extraction results, and memory derivation; `data/preferences/PreferenceRepository.kt` remains a persistence-facing adapter.
+- `engine` now owns model/voice engine ports plus concrete adapters.
+- `engine/image` now owns image generation ports, configuration models, file storage, local Stable Diffusion/DreamLite adapters, and HTTP image generation adapters.
+- Room entities and DAOs remain under `data/local` until persistence adapters can be migrated separately.
 
 ## First Candidate API
 

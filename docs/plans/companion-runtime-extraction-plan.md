@@ -28,13 +28,16 @@ The `ChatViewModel` should keep:
 ### Files
 
 - `app/src/main/java/com/companion/chat/ui/chat/ChatViewModel.kt`
-- `app/src/main/java/com/companion/chat/ui/chat/PreferenceLearningCoordinator.kt`
-- `app/src/main/java/com/companion/chat/data/context/*`
+- `app/src/main/java/com/companion/chat/companion/PreferenceLearningCoordinator.kt`
+- `app/src/main/java/com/companion/chat/context/*`
+- `app/src/main/java/com/companion/chat/memory/*`
+- `app/src/main/java/com/companion/chat/preference/*`
 - `app/src/main/java/com/companion/chat/data/memory/*`
 - `app/src/main/java/com/companion/chat/data/preferences/*`
-- `app/src/main/java/com/companion/chat/data/role/RoleCardPromptBuilder.kt`
-- `app/src/main/java/com/companion/chat/data/skill/SkillRepository.kt`
-- `app/src/main/java/com/companion/chat/data/engine/InferenceEngine.kt`
+- `app/src/main/java/com/companion/chat/identity/RoleCardPromptBuilder.kt`
+- `app/src/main/java/com/companion/chat/capability/SkillRepository.kt`
+- `app/src/main/java/com/companion/chat/engine/InferenceEngine.kt`
+- `app/src/main/java/com/companion/chat/engine/image/*`
 
 ### Problem
 
@@ -173,6 +176,39 @@ Assert fallback uses user messages only.
 8. Adapt `ChatViewModel` to map runtime events into `ChatUiState`.
 9. Run focused unit tests.
 10. Only then consider package moves into `companion`, `conversation`, `identity`, `memory`, `preference`, `capability`, and `engine`.
+
+## Current Status
+
+The first runtime seam is in place:
+
+- `CompanionRuntime` owns base prompt composition, memory/preference prompt lookup, context rebuild/replay/fallback, inference streaming events, and post-turn learning hooks.
+- `ChatViewModel` maps runtime turn events into UI state and diagnostic logs while retaining session, voice, image, drawer, and streaming placeholder projection.
+- `CompanionTurnEvent.ContextRebuildCompleted` preserves send-path rebuild/replay/fallback diagnostics before assistant tokens.
+- `CompanionTurnEvent.TurnFailed` reports stream failures while preserving the existing UI error projection.
+- The ADR package migration slice is complete for non-persistence modules: RoleCard business code lives in `identity`, Skill business code lives in `capability`, context orchestration lives in `context`, pure Memory helpers live in `memory`, pure UserPreference helpers live in `preference`, model/voice engine ports live in `engine`, and image generation ports/adapters live in `engine/image`.
+- Room persistence remains in `data/local`, with persistence-facing repositories still under `data/memory`, `data/preferences`, and `data/repository`.
+
+Remaining work:
+
+- Re-verify cancellation on device after the cancellation-error handling fix.
+- Consider persistence adapter migration only after Room/KSP risk is isolated.
+- MOSS voice cloning remains fallback-oriented until a tokenizer/reference-audio/autoregressive ONNX decode pipeline is implemented.
+
+Device smoke pass:
+
+- Debug build installed and launched on a connected device; `MainActivity` resumed without a fatal logcat entry.
+- Switching the device to vivo input method allowed ADB text injection into the Compose input field.
+- Sending `hello_vivo` completed successfully on device and emitted send-path context diagnostics plus a normal assistant response.
+- Generation now exposes a `取消生成` control in the chat input. An earlier device build proved the control can call into cancellation and the engine logged `推理被取消`; the follow-up fix prevents cancellation from being reported as a turn failure in code/tests, but could not be reinstalled for device confirmation because the device rejected the install permission prompt.
+- App backgrounding produced the expected post-turn learning boundary log.
+- Existing device logs showed RoleCard prompt-change no-user rebuild and session-switch boundary learning logs.
+
+Test coverage added after the first runtime seam:
+
+- `CompanionRuntimeTest` covers send-path rebuild diagnostics before tokens, stream failures, cancellation propagation, no-user prompt-change rebuilds, and conversation boundary learning events.
+- `ChatRuntimeActionsTest` covers the ViewModel-facing wiring rules for auto-learning-off rule memory writes and boundary-trigger forwarding.
+- `MemoryRepositoryWriteTest` covers real rule-extractor persistence for the fallback memory path.
+- `LocalImageGenerationEngineTest` covers per-request Stable Diffusion seed/step overrides before native image generation.
 
 ## Explicit Non-goals
 

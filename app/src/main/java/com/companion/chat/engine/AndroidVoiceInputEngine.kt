@@ -8,8 +8,8 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.companion.chat.data.engine.VoiceInputEngine
-import com.companion.chat.data.engine.VoiceInputEvent
+import com.companion.chat.engine.VoiceInputEngine
+import com.companion.chat.engine.VoiceInputEvent
 import com.companion.chat.data.voice.CloudAsrConfigRepository
 import com.companion.chat.data.voice.LocalSenseVoiceModelStatus
 import com.companion.chat.data.voice.VoiceInputBackend

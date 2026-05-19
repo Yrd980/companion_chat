@@ -2,7 +2,7 @@ package com.companion.chat.data.discover
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.companion.chat.data.role.RoleCardRepository
+import com.companion.chat.identity.RoleCardRepository
 
 class DiscoverRoleRepository(
     private val sharedPreferences: SharedPreferences,

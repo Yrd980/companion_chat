@@ -1,15 +1,15 @@
 package com.companion.chat.ui.settings
 
 import androidx.lifecycle.ViewModel
-import com.companion.chat.data.context.ContextConfigRepository
-import com.companion.chat.data.engine.ModelConfig
-import com.companion.chat.data.engine.ModelConfigRepository
-import com.companion.chat.data.engine.ModelRuntime
-import com.companion.chat.data.image.DreamLiteModelStatus
-import com.companion.chat.data.image.ImageGenerationConfig
-import com.companion.chat.data.image.ImageGenerationConfigRepository
-import com.companion.chat.data.image.ImageGenerationProvider
-import com.companion.chat.data.image.StableDiffusionModelStatus
+import com.companion.chat.context.ContextConfigRepository
+import com.companion.chat.engine.ModelConfig
+import com.companion.chat.engine.ModelConfigRepository
+import com.companion.chat.engine.ModelRuntime
+import com.companion.chat.engine.image.DreamLiteModelStatus
+import com.companion.chat.engine.image.ImageGenerationConfig
+import com.companion.chat.engine.image.ImageGenerationConfigRepository
+import com.companion.chat.engine.image.ImageGenerationProvider
+import com.companion.chat.engine.image.StableDiffusionModelStatus
 import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

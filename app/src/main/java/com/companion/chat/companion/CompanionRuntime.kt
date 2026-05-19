@@ -1,17 +1,18 @@
 package com.companion.chat.companion
 
-import com.companion.chat.data.context.ContextManager
-import com.companion.chat.data.context.ContextSettings
-import com.companion.chat.data.context.PromptAssembler
-import com.companion.chat.data.engine.InferenceEngine
+import com.companion.chat.context.ContextManager
+import com.companion.chat.context.ContextSettings
+import com.companion.chat.context.PromptAssembler
+import com.companion.chat.engine.InferenceEngine
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.MessageRole
-import com.companion.chat.data.memory.MemoryPromptBuilder
+import com.companion.chat.memory.MemoryPromptBuilder
 import com.companion.chat.data.memory.MemoryRepository
-import com.companion.chat.data.role.RoleCardPromptBuilder
-import com.companion.chat.data.role.RoleCardRepository
+import com.companion.chat.identity.RoleCardPromptBuilder
+import com.companion.chat.identity.RoleCardRepository
 import com.companion.chat.data.preferences.PreferenceRepository
-import com.companion.chat.data.skill.SkillRepository
+import com.companion.chat.capability.SkillRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -204,6 +205,16 @@ class CompanionRuntime(
         postTurnLearning?.release()
     }
 
+    suspend fun rebuildBasePromptForPromptChange(baseSystemPrompt: String): CompanionBasePromptRebuildResult {
+        val engine = inferenceEngineProvider()
+            ?: return CompanionBasePromptRebuildResult(rebuildAttempted = false, rebuildSucceeded = null)
+        val rebuildSucceeded = engine.rebuildConversation(baseSystemPrompt)
+        return CompanionBasePromptRebuildResult(
+            rebuildAttempted = true,
+            rebuildSucceeded = rebuildSucceeded
+        )
+    }
+
     fun runTurn(
         messages: List<ChatMessage>,
         baseSystemPrompt: String,
@@ -214,7 +225,7 @@ class CompanionRuntime(
     ): Flow<CompanionTurnEvent> = flow {
         val engine = inferenceEngineProvider() ?: return@flow
         val stableMessages = messages.filterNot { it.isStreaming }
-        rebuildConversationWithContext(
+        val rebuildResult = rebuildConversationWithContext(
             stableMessages = stableMessages,
             baseSystemPrompt = baseSystemPrompt,
             settings = settings,
@@ -223,8 +234,15 @@ class CompanionRuntime(
             memoryPrompt = memoryPrompt,
             forceRebuild = false
         )
-        engine.sendMessageStream(messages).collect { token ->
-            emit(CompanionTurnEvent.AssistantToken(token))
+        emit(CompanionTurnEvent.ContextRebuildCompleted(rebuildResult, stableMessages.size))
+        try {
+            engine.sendMessageStream(messages).collect { token ->
+                emit(CompanionTurnEvent.AssistantToken(token))
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emit(CompanionTurnEvent.TurnFailed(e.message ?: e.javaClass.simpleName))
         }
     }
 
@@ -235,7 +253,14 @@ class CompanionRuntime(
 }
 
 sealed class CompanionTurnEvent {
+    data class ContextRebuildCompleted(
+        val result: CompanionRebuildResult,
+        val stableMessageCount: Int
+    ) : CompanionTurnEvent()
+
     data class AssistantToken(val token: String) : CompanionTurnEvent()
+
+    data class TurnFailed(val message: String) : CompanionTurnEvent()
 }
 
 interface CompanionPostTurnLearning {
@@ -260,6 +285,11 @@ data class CompanionMemoryContext(
     val retrievedPrompt: String = "",
     val persistentMemoryCount: Int = 0,
     val retrievedMemoryCount: Int = 0
+)
+
+data class CompanionBasePromptRebuildResult(
+    val rebuildAttempted: Boolean,
+    val rebuildSucceeded: Boolean?
 )
 
 data class CompanionRebuildResult(

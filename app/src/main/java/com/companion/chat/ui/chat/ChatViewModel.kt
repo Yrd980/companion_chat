@@ -7,19 +7,20 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.companion.chat.AppContainer
 import com.companion.chat.appContainer
+import com.companion.chat.companion.CompanionRebuildResult
 import com.companion.chat.companion.CompanionRuntime
 import com.companion.chat.companion.CompanionTurnEvent
 import com.companion.chat.companion.PreferenceLearningCoordinator
 import com.companion.chat.companion.PreferenceLearningAdapter
-import com.companion.chat.data.context.ContextConfigRepository
-import com.companion.chat.data.context.ContextManager
-import com.companion.chat.data.context.ContextSettings
-import com.companion.chat.data.engine.InferenceState
-import com.companion.chat.data.engine.VoiceInputEvent
-import com.companion.chat.data.engine.VoiceOutputState
-import com.companion.chat.data.image.ImageGenerationPurpose
-import com.companion.chat.data.image.ImageGenerationRequest
-import com.companion.chat.data.image.ImageGenerationState
+import com.companion.chat.context.ContextConfigRepository
+import com.companion.chat.context.ContextManager
+import com.companion.chat.context.ContextSettings
+import com.companion.chat.engine.InferenceState
+import com.companion.chat.engine.VoiceInputEvent
+import com.companion.chat.engine.VoiceOutputState
+import com.companion.chat.engine.image.ImageGenerationPurpose
+import com.companion.chat.engine.image.ImageGenerationRequest
+import com.companion.chat.engine.image.ImageGenerationState
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.ConversationSession
 import com.companion.chat.data.model.DEFAULT_SESSION_TITLE
@@ -28,6 +29,7 @@ import com.companion.chat.data.model.MessageRole
 import com.companion.chat.data.model.createDefaultSession
 import com.companion.chat.data.preferences.SecondEngineManager
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -130,6 +132,13 @@ class ChatViewModel(
         promptAssembler = promptAssembler,
         memoryPromptBuilder = container.memoryPromptBuilder,
         roleCardPromptBuilder = container.roleCardPromptBuilder
+    )
+    private val chatRuntimeActions = ChatRuntimeActions(
+        companionRuntime = companionRuntime,
+        memoryRepository = memoryRepository,
+        autoPreferenceLearningEnabledProvider = {
+            contextConfigRepository.getAutoPreferenceLearningEnabled()
+        }
     )
     private var contextSettings: ContextSettings = ContextConfigRepository.DEFAULT_SETTINGS
     private var baseSystemPrompt: String = DEFAULT_BASE_SYSTEM_PROMPT
@@ -400,9 +409,7 @@ class ChatViewModel(
         generateJob?.cancel()
         shouldSpeakNextAssistantResponse = autoSpeakResponse
         generateJob = viewModelScope.launch {
-            if (!contextConfigRepository.getAutoPreferenceLearningEnabled()) {
-                storeRuleBasedMemoriesForMessage(userMessage)
-            }
+            storeRuleBasedMemoriesForMessage(userMessage)
             generateResponse(userMessage.content.trim())
         }
     }
@@ -427,9 +434,17 @@ class ChatViewModel(
                 memoryPrompt = memoryContext.retrievedPrompt
             ).collect { event ->
                 when (event) {
+                    is CompanionTurnEvent.ContextRebuildCompleted -> logContextRebuildResult(
+                        reason = "发送前上下文检查",
+                        rebuildResult = event.result,
+                        stableMessageCount = event.stableMessageCount
+                    )
                     is CompanionTurnEvent.AssistantToken -> appendAssistantToken(event.token)
+                    is CompanionTurnEvent.TurnFailed -> updateAssistantMessage("推理出错: ${event.message}")
                 }
             }
+        } catch (_: CancellationException) {
+            // User-initiated cancellation should leave the partial assistant message as-is.
         } catch (e: Exception) {
             updateAssistantMessage("推理出错: ${e.message}")
         } finally {
@@ -480,12 +495,12 @@ class ChatViewModel(
                 return
             }
             val sessionId = _uiState.value.currentSessionId.ifBlank { return }
-            val insertedMemories = memoryRepository.extractAndStoreMemories(
-                userMessage = userMessage.content,
+            val insertedMemoryCount = chatRuntimeActions.storeRuleBasedMemoriesBeforeGeneration(
+                userMessage = userMessage,
                 sessionId = sessionId
             )
-            if (insertedMemories.isNotEmpty()) {
-                logToFile("规则兜底记忆写入成功: count=${insertedMemories.size}")
+            if (insertedMemoryCount > 0) {
+                logToFile("规则兜底记忆写入成功: count=$insertedMemoryCount")
             }
         } catch (e: Exception) {
             logToFile("规则兜底记忆写入失败: ${e.message}")
@@ -923,7 +938,7 @@ class ChatViewModel(
         sessionId: String = _uiState.value.currentSessionId,
         messages: List<ChatMessage> = _uiState.value.messages
     ) {
-        companionRuntime.onConversationBoundary(
+        chatRuntimeActions.triggerConversationBoundary(
             reason = reason,
             sessionId = sessionId,
             messages = messages
@@ -952,10 +967,22 @@ class ChatViewModel(
             memoryPrompt = memoryPrompt,
             forceRebuild = forceRebuild
         )
+        logContextRebuildResult(
+            reason = reason,
+            rebuildResult = rebuildResult,
+            stableMessageCount = stableMessages.size
+        )
+    }
+
+    private fun logContextRebuildResult(
+        reason: String,
+        rebuildResult: CompanionRebuildResult,
+        stableMessageCount: Int
+    ) {
         if (!rebuildResult.rebuildAttempted) {
             logToFile(
-                "发送前上下文检查: 未触发压缩, " +
-                    "messageCount=${stableMessages.size}, threshold=${contextSettings.compressionThreshold}, " +
+                "$reason: 未触发压缩, " +
+                    "messageCount=$stableMessageCount, threshold=${contextSettings.compressionThreshold}, " +
                     "contextInjected=false"
             )
             return
@@ -1008,8 +1035,8 @@ class ChatViewModel(
             .filter { it.role == MessageRole.USER || it.role == MessageRole.ASSISTANT }
         val latestUserInput = stableMessages.lastOrNull { it.role == MessageRole.USER }?.content.orEmpty()
         if (latestUserInput.isBlank()) {
-            val rebuildSucceeded = inferenceEngine.rebuildConversation(baseSystemPrompt)
-            if (rebuildSucceeded) {
+            val result = companionRuntime.rebuildBasePromptForPromptChange(baseSystemPrompt)
+            if (result.rebuildSucceeded == true) {
                 logToFile("$reason: 无用户消息，已仅使用基础 prompt 重建 Conversation")
             } else {
                 logToFile("$reason: 无用户消息，基础 prompt 重建 Conversation 失败")

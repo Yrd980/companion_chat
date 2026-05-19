@@ -2,15 +2,19 @@
 goal: CompanionChat 阶段五技能管理具体实施计划
 version: 1.0
 date_created: 2026-05-13
-last_updated: 2026-05-13
+last_updated: 2026-05-19
 owner: SOLO Code Assistant
-status: Planned
+status: Superseded
 tags: [feature, stage5, skills, prompt, compose, room]
 ---
 
 # Introduction
 
-![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
+![Status: Superseded](https://img.shields.io/badge/status-Superseded-lightgrey)
+
+> Superseded by `2026-05-13-stage5-role-skill-separation-design.md` and
+> `2026-05-13-stage5-role-skill-separation-plan.md`. Do not implement this
+> skill-only plan; it conflicts with the current RoleCard + Skill separation.
 
 本计划用于完成 `CompanionChat` 的阶段五“技能管理”功能。目标是基于现有 `skills` 表、`SkillDao`、数据库内置种子数据和设置页“角色管理”入口，补齐完整的 Prompt 模板管理闭环：技能列表、添加、编辑、删除、激活、使用次数累加、会话不中断的 system prompt 切换，以及对应的数据层、UI 层和集成验证。
 
@@ -42,10 +46,10 @@ tags: [feature, stage5, skills, prompt, compose, room]
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-001 | 新建 `app/src/main/java/com/companion/chat/data/skill/SkillRepository.kt`，封装 `getAllSkills()`、`getActiveSkill()`、`createSkill()`、`updateSkill()`、`deleteSkill()`、`activateSkill()`，统一调用 `SkillDao`。 |  |  |
+| TASK-001 | 新建 `app/src/main/java/com/companion/chat/capability/SkillRepository.kt`，封装 `getAllSkills()`、`getActiveSkill()`、`createSkill()`、`updateSkill()`、`deleteSkill()`、`activateSkill()`，统一调用 `SkillDao`。 |  |  |
 | TASK-002 | 在 `SkillRepository` 中实现业务约束：删除内置技能时直接抛出业务异常或返回明确失败结果；激活技能时固定执行 `deactivateAll()` 后再 `activate(id)`。 |  |  |
 | TASK-003 | 在 `SkillRepository` 中实现基础输入规范化：`name`、`description`、`systemPrompt` 去首尾空白，拒绝空名称和空 system prompt。 |  |  |
-| TASK-004 | 新建 `app/src/test/java/com/companion/chat/data/skill/SkillRepositoryTest.kt`，覆盖内置技能不可删除、自定义技能 CRUD、激活唯一性、`usageCount + 1`。 |  |  |
+| TASK-004 | 新建 `app/src/test/java/com/companion/chat/capability/SkillRepositoryTest.kt`，覆盖内置技能不可删除、自定义技能 CRUD、激活唯一性、`usageCount + 1`。 |  |  |
 | TASK-005 | 复查 `app/src/main/java/com/companion/chat/data/local/CompanionDatabase.kt` 中四条内置技能内容，与设计文档逐条比对；若文案不一致，仅在该文件修正种子内容。 |  |  |
 
 ### Implementation Phase 2
@@ -111,14 +115,14 @@ tags: [feature, stage5, skills, prompt, compose, room]
 - **FILE-001**: `app/src/main/java/com/companion/chat/data/local/entity/Skill.kt`，复查实体字段是否仍满足阶段五。
 - **FILE-002**: `app/src/main/java/com/companion/chat/data/local/dao/SkillDao.kt`，复查 DAO 能否直接支撑仓库。
 - **FILE-003**: `app/src/main/java/com/companion/chat/data/local/CompanionDatabase.kt`，校验四条内置技能种子与默认激活逻辑。
-- **FILE-004**: `app/src/main/java/com/companion/chat/data/skill/SkillRepository.kt`，新建技能业务仓库。
+- **FILE-004**: `app/src/main/java/com/companion/chat/capability/SkillRepository.kt`，新建技能业务仓库。
 - **FILE-005**: `app/src/main/java/com/companion/chat/ui/settings/SkillManagementViewModel.kt`，新建技能管理状态层。
 - **FILE-006**: `app/src/main/java/com/companion/chat/ui/settings/CharacterManagementScreen.kt`，替换占位页为真实技能管理 UI。
 - **FILE-007**: `app/src/main/java/com/companion/chat/ui/settings/SkillEditorDialog.kt`，新建添加/编辑弹窗组件。
 - **FILE-008**: `app/src/main/java/com/companion/chat/ui/settings/SettingsScreen.kt`，调整入口文案与导航意图。
 - **FILE-009**: `app/src/main/java/com/companion/chat/MainActivity.kt`，接入技能页和 `ChatViewModel` 激活回调。
 - **FILE-010**: `app/src/main/java/com/companion/chat/ui/chat/ChatViewModel.kt`，接入 active skill 读取和切换后 prompt 重建。
-- **FILE-011**: `app/src/test/java/com/companion/chat/data/skill/SkillRepositoryTest.kt`，新增数据层测试。
+- **FILE-011**: `app/src/test/java/com/companion/chat/capability/SkillRepositoryTest.kt`，新增数据层测试。
 - **FILE-012**: `app/src/test/java/com/companion/chat/ui/settings/SkillManagementViewModelTest.kt`，新增 UI 状态测试。
 - **FILE-013**: `app/src/test/java/com/companion/chat/ui/chat/ChatViewModelSkillSwitchTest.kt`，新增技能切换集成测试。
 - **FILE-014**: `app/src/test/java/com/companion/chat/ui/settings/SettingsScreenTest.kt`，新增或补充导航测试。

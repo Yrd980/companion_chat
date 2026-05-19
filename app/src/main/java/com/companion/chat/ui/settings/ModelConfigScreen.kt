@@ -33,11 +33,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.companion.chat.data.engine.ModelRuntime
-import com.companion.chat.data.image.ImageGenerationConfig
-import com.companion.chat.data.image.ImageGenerationProvider
-import com.companion.chat.data.image.DreamLiteModelStatus
-import com.companion.chat.data.image.StableDiffusionModelStatus
+import com.companion.chat.engine.ModelRuntime
+import com.companion.chat.engine.image.ImageGenerationConfig
+import com.companion.chat.engine.image.ImageGenerationProvider
+import com.companion.chat.engine.image.DreamLiteModelStatus
+import com.companion.chat.engine.image.StableDiffusionModelStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

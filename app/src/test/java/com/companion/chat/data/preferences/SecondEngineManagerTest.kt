@@ -1,9 +1,9 @@
 package com.companion.chat.data.preferences
 
-import com.companion.chat.data.engine.BackendType
-import com.companion.chat.data.engine.EngineConfig
-import com.companion.chat.data.engine.InferenceEngine
-import com.companion.chat.data.engine.InferenceState
+import com.companion.chat.engine.BackendType
+import com.companion.chat.engine.EngineConfig
+import com.companion.chat.engine.InferenceEngine
+import com.companion.chat.engine.InferenceState
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.MessageRole
 import kotlinx.coroutines.delay

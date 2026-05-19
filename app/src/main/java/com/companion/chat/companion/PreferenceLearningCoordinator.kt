@@ -1,17 +1,17 @@
 package com.companion.chat.companion
 
-import com.companion.chat.data.context.ContextConfigRepository
-import com.companion.chat.data.engine.EngineConfig
-import com.companion.chat.data.engine.InferenceState
+import com.companion.chat.context.ContextConfigRepository
+import com.companion.chat.engine.EngineConfig
+import com.companion.chat.engine.InferenceState
 import com.companion.chat.data.memory.MemoryRepository
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.MessageRole
-import com.companion.chat.data.preferences.PreferenceMemoryDeriver
+import com.companion.chat.preference.PreferenceMemoryDeriver
 import com.companion.chat.data.preferences.PreferenceRepository
 import com.companion.chat.data.preferences.SecondEngineManager
 import com.companion.chat.data.preferences.SummaryRunResult
-import com.companion.chat.data.preferences.UnifiedExtractionParser
-import com.companion.chat.data.preferences.UnifiedExtractionPromptBuilder
+import com.companion.chat.preference.UnifiedExtractionParser
+import com.companion.chat.preference.UnifiedExtractionPromptBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay

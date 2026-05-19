@@ -1,11 +1,11 @@
 package com.companion.chat.engine
 
 import android.util.Log
-import com.companion.chat.data.engine.VoiceOutputConfig
-import com.companion.chat.data.engine.VoiceOutputEngine
-import com.companion.chat.data.engine.VoiceOutputMode
-import com.companion.chat.data.engine.VoiceOutputState
-import com.companion.chat.data.role.RoleCardRepository
+import com.companion.chat.engine.VoiceOutputConfig
+import com.companion.chat.engine.VoiceOutputEngine
+import com.companion.chat.engine.VoiceOutputMode
+import com.companion.chat.engine.VoiceOutputState
+import com.companion.chat.identity.RoleCardRepository
 import com.companion.chat.data.voice.VoiceCloneEngine
 import com.companion.chat.data.voice.VoiceCloneRequest
 import kotlinx.coroutines.flow.Flow

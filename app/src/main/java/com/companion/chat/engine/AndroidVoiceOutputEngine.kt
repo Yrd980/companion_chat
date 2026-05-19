@@ -5,9 +5,9 @@ import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
-import com.companion.chat.data.engine.VoiceOutputEngine
-import com.companion.chat.data.engine.VoiceOutputConfig
-import com.companion.chat.data.engine.VoiceOutputState
+import com.companion.chat.engine.VoiceOutputEngine
+import com.companion.chat.engine.VoiceOutputConfig
+import com.companion.chat.engine.VoiceOutputState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

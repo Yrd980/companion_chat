@@ -5,7 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import com.companion.chat.appContainer
 import com.companion.chat.data.local.CompanionDatabase
 import com.companion.chat.data.local.entity.Skill
-import com.companion.chat.data.skill.SkillRepository
+import com.companion.chat.capability.SkillRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

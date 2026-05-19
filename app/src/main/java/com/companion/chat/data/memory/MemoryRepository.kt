@@ -2,6 +2,10 @@ package com.companion.chat.data.memory
 
 import com.companion.chat.data.local.dao.MemoryDao
 import com.companion.chat.data.local.entity.Memory
+import com.companion.chat.memory.ExtractedMemory
+import com.companion.chat.memory.MemoryExtractor
+import com.companion.chat.memory.MemoryRetriever
+import com.companion.chat.memory.RuleBasedMemoryExtractor
 import kotlinx.coroutines.flow.Flow
 
 class MemoryRepository(

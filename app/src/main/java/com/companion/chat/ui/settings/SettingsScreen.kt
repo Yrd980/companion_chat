@@ -43,7 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.companion.chat.data.context.ContextConfigRepository
+import com.companion.chat.context.ContextConfigRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

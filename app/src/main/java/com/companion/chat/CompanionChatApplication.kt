@@ -2,7 +2,7 @@ package com.companion.chat
 
 import android.app.Application
 import android.content.Context
-import com.companion.chat.data.memory.MemoryLifecycleManager
+import com.companion.chat.memory.MemoryLifecycleManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

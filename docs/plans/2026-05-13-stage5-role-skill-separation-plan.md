@@ -1,6 +1,12 @@
 # Stage5 Role And Skill Separation Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> Canonical Stage 5 implementation plan. Supersedes
+> `2026-05-13-stage5-skill-management-plan.md`, which is retired because it
+> treated Skill management as the whole Stage 5 scope.
+
+> Historical execution note: the original plan mentioned a Claude-specific
+> execution skill. Current implementation should follow the repository's normal
+> agent instructions and verification commands.
 
 **Goal:** 将阶段五重构为“角色卡管理 + Skills 管理”双系统，支持单角色激活、单 skill 激活、两者同时参与聊天 prompt，并保持阶段二到阶段四链路稳定。
 
@@ -16,7 +22,7 @@
 - Create: `app/src/main/java/com/companion/chat/data/local/entity/RoleCard.kt`
 - Create: `app/src/main/java/com/companion/chat/data/local/dao/RoleCardDao.kt`
 - Modify: `app/src/main/java/com/companion/chat/data/local/CompanionDatabase.kt`
-- Test: `app/src/test/java/com/companion/chat/data/role/RoleCardDaoContractTest.kt`
+- Test: `app/src/test/java/com/companion/chat/identity/RoleCardDaoContractTest.kt`
 
 **Step 1: 写失败测试**
 
@@ -35,7 +41,7 @@ fun getActive_returns_only_one_active_role_card() = runTest {
 
 **Step 2: 运行测试确认失败**
 
-Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.data.role.RoleCardDaoContractTest"`
+Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.identity.RoleCardDaoContractTest"`
 
 Expected: FAIL，提示 `RoleCard` 或 `RoleCardDao` 不存在。
 
@@ -69,7 +75,7 @@ Expected: FAIL，提示 `RoleCard` 或 `RoleCardDao` 不存在。
 
 **Step 4: 再跑测试确认通过**
 
-Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.data.role.RoleCardDaoContractTest"`
+Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.identity.RoleCardDaoContractTest"`
 
 Expected: PASS
 
@@ -83,8 +89,8 @@ Expected: PASS，Room/KSP 代码生成正常。
 
 **Files:**
 - Modify: `app/src/main/java/com/companion/chat/data/local/CompanionDatabase.kt`
-- Create: `app/src/main/java/com/companion/chat/data/skill/SkillRepository.kt`
-- Test: `app/src/test/java/com/companion/chat/data/skill/SkillRepositoryTest.kt`
+- Create: `app/src/main/java/com/companion/chat/capability/SkillRepository.kt`
+- Test: `app/src/test/java/com/companion/chat/capability/SkillRepositoryTest.kt`
 
 **Step 1: 写失败测试**
 
@@ -106,7 +112,7 @@ fun deleteSkill_rejects_built_in_translation_skill() = runTest {
 
 **Step 2: 运行测试确认失败**
 
-Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.data.skill.SkillRepositoryTest"`
+Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.capability.SkillRepositoryTest"`
 
 Expected: FAIL，提示 `SkillRepository` 不存在或行为不符合预期。
 
@@ -130,7 +136,7 @@ Expected: FAIL，提示 `SkillRepository` 不存在或行为不符合预期。
 
 **Step 4: 再跑测试确认通过**
 
-Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.data.skill.SkillRepositoryTest"`
+Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.capability.SkillRepositoryTest"`
 
 Expected: PASS
 
@@ -143,10 +149,10 @@ Expected: PASS，或至少编译通过并能验证唯一内置 skill 逻辑。
 ### Task 3: 建立角色卡业务层与 Prompt 生成
 
 **Files:**
-- Create: `app/src/main/java/com/companion/chat/data/role/RoleCardRepository.kt`
-- Create: `app/src/main/java/com/companion/chat/data/role/RoleCardPromptBuilder.kt`
-- Test: `app/src/test/java/com/companion/chat/data/role/RoleCardRepositoryTest.kt`
-- Test: `app/src/test/java/com/companion/chat/data/role/RoleCardPromptBuilderTest.kt`
+- Create: `app/src/main/java/com/companion/chat/identity/RoleCardRepository.kt`
+- Create: `app/src/main/java/com/companion/chat/identity/RoleCardPromptBuilder.kt`
+- Test: `app/src/test/java/com/companion/chat/identity/RoleCardRepositoryTest.kt`
+- Test: `app/src/test/java/com/companion/chat/identity/RoleCardPromptBuilderTest.kt`
 
 **Step 1: 写失败测试**
 
@@ -172,7 +178,7 @@ fun buildPrompt_includes_persona_style_rules_and_taboos() {
 
 **Step 2: 运行测试确认失败**
 
-Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.data.role.RoleCardRepositoryTest" --tests "com.companion.chat.data.role.RoleCardPromptBuilderTest"`
+Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.identity.RoleCardRepositoryTest" --tests "com.companion.chat.identity.RoleCardPromptBuilderTest"`
 
 Expected: FAIL
 
@@ -193,7 +199,7 @@ Expected: FAIL
 
 **Step 4: 再跑测试确认通过**
 
-Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.data.role.RoleCardRepositoryTest" --tests "com.companion.chat.data.role.RoleCardPromptBuilderTest"`
+Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.identity.RoleCardRepositoryTest" --tests "com.companion.chat.identity.RoleCardPromptBuilderTest"`
 
 Expected: PASS
 
@@ -311,7 +317,7 @@ Expected: PASS
 
 **Step 1: 运行定向测试**
 
-Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.data.skill.*" --tests "com.companion.chat.data.role.*" --tests "com.companion.chat.ui.settings.*" --tests "com.companion.chat.ui.chat.ChatViewModelRoleSkillSwitchTest"`
+Run: `.\gradlew.bat :app:testDebugUnitTest --tests "com.companion.chat.capability.*" --tests "com.companion.chat.identity.*" --tests "com.companion.chat.ui.settings.*" --tests "com.companion.chat.ui.chat.ChatViewModelRoleSkillSwitchTest"`
 
 Expected: PASS
 
@@ -340,4 +346,3 @@ Expected: PASS
 git add docs/plans/2026-05-13-stage5-role-skill-separation-design.md docs/plans/2026-05-13-stage5-role-skill-separation-plan.md jindu.md
 git commit -m "docs: add stage5 role and skill separation design"
 ```
-

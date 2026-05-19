@@ -48,6 +48,7 @@ fun ChatInputBar(
     inputText: String,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
+    onCancelGeneration: () -> Unit,
     onPickImage: () -> Unit,
     onGenerateImage: () -> Unit,
     onVoiceInput: () -> Unit,
@@ -154,7 +155,22 @@ fun ChatInputBar(
                         active = isVoiceSpeaking
                     )
                     Spacer(Modifier.width(4.dp))
-                    if (inputText.isNotBlank() || selectedImages.isNotEmpty()) {
+                    if (isGenerating) {
+                        FilledIconButton(
+                            onClick = onCancelGeneration,
+                            modifier = Modifier.size(44.dp),
+                            shape = CircleShape,
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Stop,
+                                contentDescription = "取消生成"
+                            )
+                        }
+                    } else if (inputText.isNotBlank() || selectedImages.isNotEmpty()) {
                         FilledIconButton(
                             onClick = onSend,
                             modifier = Modifier.size(44.dp),

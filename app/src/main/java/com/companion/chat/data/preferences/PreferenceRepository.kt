@@ -2,6 +2,7 @@ package com.companion.chat.data.preferences
 
 import com.companion.chat.data.local.dao.PreferenceDao
 import com.companion.chat.data.local.entity.UserPreference
+import com.companion.chat.preference.ExtractedPreference
 
 class PreferenceRepository(
     private val preferenceDao: PreferenceDao,

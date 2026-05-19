@@ -2,6 +2,7 @@ package com.companion.chat.data.preferences
 
 import com.companion.chat.data.local.dao.PreferenceDao
 import com.companion.chat.data.local.entity.UserPreference
+import com.companion.chat.preference.ExtractedPreference
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

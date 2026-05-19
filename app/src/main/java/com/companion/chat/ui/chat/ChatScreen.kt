@@ -39,8 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.companion.chat.data.engine.InferenceState
-import com.companion.chat.data.image.ImageGenerationState
+import com.companion.chat.engine.InferenceState
+import com.companion.chat.engine.image.ImageGenerationState
 import com.companion.chat.ui.chat.components.ChatInputBar
 import com.companion.chat.ui.chat.components.ConversationDrawerSheet
 import com.companion.chat.ui.chat.components.MessageBubble
@@ -189,6 +189,7 @@ fun ChatScreen(
                 inputText = uiState.inputText,
                 onInputChange = viewModel::updateInputText,
                 onSend = viewModel::sendMessage,
+                onCancelGeneration = viewModel::cancelGeneration,
                 onPickImage = {
                     photoPickerLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)

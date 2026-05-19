@@ -532,7 +532,7 @@
 - `RoleManagementViewModelTest`
 - `SkillsManagementViewModelTest`
 - 本轮本地验证结果：
-- `:app:testDebugUnitTest --tests "com.companion.chat.data.skill.*" --tests "com.companion.chat.data.role.*" --tests "com.companion.chat.ui.settings.*"` 通过。
+- `:app:testDebugUnitTest --tests "com.companion.chat.capability.*" --tests "com.companion.chat.identity.*" --tests "com.companion.chat.ui.settings.*"` 通过。
 - `:app:testDebugUnitTest` 全量通过。
 - `:app:assembleDebug` 通过。
 - 本轮真机部署已按固定流程完成：
@@ -627,3 +627,14 @@
 - 本轮发现的待查项：
 - 点击聊天页麦克风按钮后，本轮未观察到 `VoiceInputEngine` / `SpeechRecognizer` logcat 记录，也未看到“正在听...”状态变化；设备上 `RECORD_AUDIO` 权限已授予。后续需要继续定位是点击坐标/Compose 命中问题，还是语音入口回调未触发。
 - 图片生成 HTTP 端到端仍待配置真实服务后复测。
+- 2026-05-19 ADR 边界剩余任务收口：
+- `context` 包已承接 ContextWindow、PromptAssembler、ContextManager、SummaryGenerator、ContextConfigRepository 等上下文窗口应用编排代码，不再放在 `data/context`。
+- `memory` 包已承接纯记忆提取、检索、prompt、生命周期 helper；`data/memory/MemoryRepository.kt` 仍作为持久化适配层保留。
+- `preference` 包已承接偏好提取结果、总结 prompt/parser、统一提取 prompt/parser、PreferenceMemoryDeriver；`data/preferences/PreferenceRepository.kt` 与 `SecondEngineManager.kt` 仍作为持久化/运行适配层保留。
+- `engine` 包已承接 `InferenceEngine`、`VoiceInputEngine`、`VoiceOutputEngine`、`DefaultModelConfig`、`ModelConfigRepository` 等技术端口和适配器。
+- `engine/image` 包已承接图片生成端口、配置模型、文件存储、本地 Stable Diffusion/DreamLite 适配器和 HTTP 图片生成适配器。
+- `identity` 与 `capability` 继续承接 RoleCard 与 Skill 业务仓库/构建器。
+- 本轮明确未引入 `RelationshipState`，符合 ADR-0003；未把 Room entity/DAO 强行迁出 `data/local`，避免扩大 Room/KSP 风险。
+- 本轮本地验证结果：
+- `./gradlew :app:compileDebugKotlin` 通过。
+- `./gradlew :app:testDebugUnitTest` 通过。

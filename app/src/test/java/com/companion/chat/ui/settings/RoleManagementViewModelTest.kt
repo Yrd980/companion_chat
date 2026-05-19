@@ -3,7 +3,7 @@ package com.companion.chat.ui.settings
 import android.app.Application
 import com.companion.chat.data.local.dao.RoleCardDao
 import com.companion.chat.data.local.entity.RoleCard
-import com.companion.chat.data.role.RoleCardRepository
+import com.companion.chat.identity.RoleCardRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

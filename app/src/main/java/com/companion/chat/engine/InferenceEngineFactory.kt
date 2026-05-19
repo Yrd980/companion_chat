@@ -1,8 +1,8 @@
 package com.companion.chat.engine
 
 import android.content.Context
-import com.companion.chat.data.engine.InferenceEngine
-import com.companion.chat.data.engine.ModelRuntime
+import com.companion.chat.engine.InferenceEngine
+import com.companion.chat.engine.ModelRuntime
 
 class InferenceEngineFactory(
     private val context: Context

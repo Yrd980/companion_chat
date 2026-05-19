@@ -1,12 +1,12 @@
 package com.companion.chat.companion
 
 import androidx.sqlite.db.SupportSQLiteQuery
-import com.companion.chat.data.context.ContextManager
-import com.companion.chat.data.context.ContextSettings
-import com.companion.chat.data.context.ContextWindow
-import com.companion.chat.data.engine.EngineConfig
-import com.companion.chat.data.engine.InferenceEngine
-import com.companion.chat.data.engine.InferenceState
+import com.companion.chat.context.ContextManager
+import com.companion.chat.context.ContextSettings
+import com.companion.chat.context.ContextWindow
+import com.companion.chat.engine.EngineConfig
+import com.companion.chat.engine.InferenceEngine
+import com.companion.chat.engine.InferenceState
 import com.companion.chat.data.local.dao.MemoryDao
 import com.companion.chat.data.local.dao.PreferenceDao
 import com.companion.chat.data.local.dao.RoleCardDao
@@ -17,20 +17,23 @@ import com.companion.chat.data.local.entity.Skill
 import com.companion.chat.data.local.entity.UserPreference
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.MessageRole
-import com.companion.chat.data.memory.MemoryPromptBuilder
+import com.companion.chat.memory.MemoryPromptBuilder
 import com.companion.chat.data.memory.MemoryRepository
 import com.companion.chat.data.preferences.PreferenceRepository
-import com.companion.chat.data.role.RoleCardRepository
-import com.companion.chat.data.skill.SkillRepository
+import com.companion.chat.identity.RoleCardRepository
+import com.companion.chat.capability.SkillRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class CompanionRuntimeTest {
@@ -298,7 +301,56 @@ class CompanionRuntimeTest {
     }
 
     @Test
-    fun `runTurn rebuilds context and emits assistant token events`() = runBlocking {
+    fun `conversation boundaries trigger immediate learning with previous session messages`() {
+        val learner = FakePostTurnLearning()
+        val runtime = CompanionRuntime(
+            roleCardRepository = RoleCardRepository(FakeRoleCardDao()),
+            skillRepository = SkillRepository(FakeSkillDao()),
+            postTurnLearning = learner
+        )
+        val messages = listOf(
+            ChatMessage(id = "u1", role = MessageRole.USER, content = "我喜欢简洁回答"),
+            ChatMessage(id = "a1", role = MessageRole.ASSISTANT, content = "我记住了")
+        )
+        val reasons = listOf("新建会话前", "角色对话前", "切换会话", "应用进入后台")
+
+        reasons.forEach { reason ->
+            runtime.onConversationBoundary(
+                reason = reason,
+                sessionId = "old-session",
+                messages = messages
+            )
+        }
+
+        assertTrue(learner.triggeredBoundaries == reasons.map { reason ->
+            TriggeredBoundary(
+                reason = reason,
+                sessionId = "old-session",
+                messages = messages
+            )
+        })
+    }
+
+    @Test
+    fun `prompt change with no user message rebuilds conversation from base prompt only`() = runBlocking {
+        val engine = FakeInferenceEngine()
+        val runtime = CompanionRuntime(
+            roleCardRepository = RoleCardRepository(FakeRoleCardDao()),
+            skillRepository = SkillRepository(FakeSkillDao()),
+            inferenceEngineProvider = { engine }
+        )
+
+        val result = runtime.rebuildBasePromptForPromptChange("新的基础 prompt")
+
+        assertTrue(result.rebuildAttempted)
+        assertTrue(result.rebuildSucceeded == true)
+        assertTrue(engine.rebuildPrompts.single() == "新的基础 prompt")
+        assertTrue(engine.replayedMessages.isEmpty())
+        assertTrue(engine.fallbackPrompts.isEmpty())
+    }
+
+    @Test
+    fun `runTurn emits context rebuild diagnostic before assistant token events`() = runBlocking {
         val engine = FakeInferenceEngine(tokens = listOf("你好", "呀"))
         val runtime = CompanionRuntime(
             roleCardRepository = RoleCardRepository(FakeRoleCardDao()),
@@ -317,10 +369,62 @@ class CompanionRuntimeTest {
             settings = ContextSettings()
         ).toList()
 
-        assertTrue(events == listOf(CompanionTurnEvent.AssistantToken("你好"), CompanionTurnEvent.AssistantToken("呀")))
+        val rebuildEvent = events[0] as CompanionTurnEvent.ContextRebuildCompleted
+        assertTrue(rebuildEvent.result.rebuildAttempted)
+        assertTrue(rebuildEvent.result.replaySucceeded == true)
+        assertTrue(
+            events.drop(1) == listOf(
+                CompanionTurnEvent.AssistantToken("你好"),
+                CompanionTurnEvent.AssistantToken("呀")
+            )
+        )
         assertTrue(engine.rebuildPrompts.single() == "基础 prompt")
         assertTrue(engine.replayedMessages == messages.filterNot { it.isStreaming })
         assertTrue(engine.sentMessages == messages)
+    }
+
+    @Test
+    fun `runTurn emits failure event when turn streaming fails`() = runBlocking {
+        val engine = FakeInferenceEngine(streamFailure = IllegalStateException("stream failed"))
+        val runtime = CompanionRuntime(
+            roleCardRepository = RoleCardRepository(FakeRoleCardDao()),
+            skillRepository = SkillRepository(FakeSkillDao()),
+            contextManager = FakeContextManager(shouldCompress = false),
+            inferenceEngineProvider = { engine }
+        )
+        val messages = listOf(ChatMessage(id = "u1", role = MessageRole.USER, content = "你好"))
+
+        val events = runtime.runTurn(
+            messages = messages,
+            baseSystemPrompt = "基础 prompt",
+            settings = ContextSettings()
+        ).toList()
+
+        assertTrue(events[0] is CompanionTurnEvent.ContextRebuildCompleted)
+        val failure = events[1] as CompanionTurnEvent.TurnFailed
+        assertTrue(failure.message == "stream failed")
+    }
+
+    @Test
+    fun `runTurn propagates cancellation instead of emitting failure event`() = runBlocking {
+        val engine = FakeInferenceEngine(streamFailure = CancellationException("cancelled"))
+        val runtime = CompanionRuntime(
+            roleCardRepository = RoleCardRepository(FakeRoleCardDao()),
+            skillRepository = SkillRepository(FakeSkillDao()),
+            contextManager = FakeContextManager(shouldCompress = false),
+            inferenceEngineProvider = { engine }
+        )
+
+        try {
+            runtime.runTurn(
+                messages = listOf(ChatMessage(id = "u1", role = MessageRole.USER, content = "你好")),
+                baseSystemPrompt = "基础 prompt",
+                settings = ContextSettings()
+            ).toList()
+            fail("Expected cancellation to be propagated")
+        } catch (e: CancellationException) {
+            assertTrue(e.message == "cancelled")
+        }
     }
 
     private fun roleCard(
@@ -595,7 +699,8 @@ class CompanionRuntimeTest {
         private val rebuildResult: Boolean = true,
         private val replayResult: Boolean = true,
         private val fallbackResult: Boolean = true,
-        private val tokens: List<String> = emptyList()
+        private val tokens: List<String> = emptyList(),
+        private val streamFailure: Throwable? = null
     ) : InferenceEngine {
 
         private val mutableState = MutableStateFlow<InferenceState>(InferenceState.Ready)
@@ -627,6 +732,9 @@ class CompanionRuntimeTest {
 
         override fun sendMessageStream(messages: List<ChatMessage>): Flow<String> {
             sentMessages = messages
+            streamFailure?.let { failure ->
+                return flow { throw failure }
+            }
             return flowOf(*tokens.toTypedArray())
         }
 
@@ -641,6 +749,7 @@ class CompanionRuntimeTest {
         var triggeredReason = ""
         var triggeredSessionId = ""
         var triggeredMessages: List<ChatMessage> = emptyList()
+        val triggeredBoundaries = mutableListOf<TriggeredBoundary>()
         var cancelCalled = false
         var releaseCalled = false
 
@@ -660,6 +769,11 @@ class CompanionRuntimeTest {
             triggeredReason = reason
             triggeredSessionId = sessionId
             triggeredMessages = messages
+            triggeredBoundaries += TriggeredBoundary(
+                reason = reason,
+                sessionId = sessionId,
+                messages = messages
+            )
         }
 
         override fun cancelRunningSummary() {
@@ -670,4 +784,10 @@ class CompanionRuntimeTest {
             releaseCalled = true
         }
     }
+
+    private data class TriggeredBoundary(
+        val reason: String,
+        val sessionId: String,
+        val messages: List<ChatMessage>
+    )
 }

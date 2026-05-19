@@ -3,7 +3,7 @@ package com.companion.chat.data.discover
 import android.content.SharedPreferences
 import com.companion.chat.data.local.dao.RoleCardDao
 import com.companion.chat.data.local.entity.RoleCard
-import com.companion.chat.data.role.RoleCardRepository
+import com.companion.chat.identity.RoleCardRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

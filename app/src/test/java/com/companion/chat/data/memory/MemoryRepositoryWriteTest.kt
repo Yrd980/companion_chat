@@ -3,6 +3,9 @@ package com.companion.chat.data.memory
 import androidx.sqlite.db.SupportSQLiteQuery
 import com.companion.chat.data.local.dao.MemoryDao
 import com.companion.chat.data.local.entity.Memory
+import com.companion.chat.memory.ExtractedMemory
+import com.companion.chat.memory.MemoryExtractor
+import com.companion.chat.memory.RuleBasedMemoryExtractor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -56,6 +59,32 @@ class MemoryRepositoryWriteTest {
         assertEquals(now + MemoryRepository.SHORT_TERM_TTL_MILLIS, insertedMemories[0].expiresAt)
         assertEquals(now + MemoryRepository.SHORT_TERM_TTL_MILLIS, insertedMemories[1].expiresAt)
         assertEquals(0, insertedMemories[0].referenceCount)
+    }
+
+    @Test
+    fun `规则提取器写入用户偏好记忆并保留会话归属`() = runBlocking {
+        val insertedMemories = mutableListOf<Memory>()
+        val fakeDao = FakeMemoryDao(insertedMemories)
+        val now = 1_700_000_000_000L
+        val repository = MemoryRepository(
+            memoryDao = fakeDao,
+            extractor = RuleBasedMemoryExtractor(),
+            nowProvider = { now }
+        )
+
+        val result = repository.extractAndStoreMemories(
+            userMessage = "我喜欢吃火锅",
+            sessionId = "session-1"
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("用户喜欢吃火锅", result.single().content)
+        assertEquals("preference", result.single().category)
+        assertEquals("short_term", result.single().layer)
+        assertEquals("rule_extractor", result.single().source)
+        assertEquals("session-1", result.single().sessionId)
+        assertEquals(now + MemoryRepository.SHORT_TERM_TTL_MILLIS, result.single().expiresAt)
+        assertEquals(result, insertedMemories)
     }
 
     @Test
