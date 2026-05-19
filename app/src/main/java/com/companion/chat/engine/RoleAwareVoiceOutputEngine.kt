@@ -6,8 +6,8 @@ import com.companion.chat.engine.VoiceOutputEngine
 import com.companion.chat.engine.VoiceOutputMode
 import com.companion.chat.engine.VoiceOutputState
 import com.companion.chat.identity.RoleCardRepository
-import com.companion.chat.data.voice.VoiceCloneEngine
-import com.companion.chat.data.voice.VoiceCloneRequest
+import com.companion.chat.engine.voice.VoiceCloneEngine
+import com.companion.chat.engine.voice.VoiceCloneRequest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 

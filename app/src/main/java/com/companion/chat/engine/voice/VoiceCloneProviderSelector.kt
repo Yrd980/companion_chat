@@ -1,4 +1,4 @@
-package com.companion.chat.data.voice
+package com.companion.chat.engine.voice
 
 class VoiceCloneProviderSelector(
     private val systemTtsEngine: VoiceCloneEngine = PlaceholderVoiceCloneEngine(VoiceCloneProvider.SYSTEM_TTS),

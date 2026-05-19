@@ -1,4 +1,4 @@
-package com.companion.chat.data.voice
+package com.companion.chat.engine.voice
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

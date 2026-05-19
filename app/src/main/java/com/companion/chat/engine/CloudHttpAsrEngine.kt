@@ -1,7 +1,7 @@
 package com.companion.chat.engine
 
-import com.companion.chat.data.voice.CloudAsrConfigRepository
-import com.companion.chat.data.voice.CloudAsrResponseParser
+import com.companion.chat.engine.voice.CloudAsrConfigRepository
+import com.companion.chat.engine.voice.CloudAsrResponseParser
 import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL

@@ -76,7 +76,7 @@
 - 发现页与详情页：`app/src/main/java/com/companion/chat/ui/home/`
 - 导航：`app/src/main/java/com/companion/chat/MainActivity.kt`、`app/src/main/java/com/companion/chat/ui/navigation/AppNavigation.kt`
 - 图片生成：`app/src/main/java/com/companion/chat/data/image/`
-- 语音克隆占位：`app/src/main/java/com/companion/chat/data/voice/VoiceCloneProvider*.kt`
+- 语音克隆占位：`app/src/main/java/com/companion/chat/engine/voice/VoiceCloneProvider*.kt`
 - 角色编辑：`app/src/main/java/com/companion/chat/ui/settings/RoleCardEditorDialog.kt`
 - 产品与设计文档：`PRODUCT.md`、`DESIGN.md`
 
@@ -633,6 +633,7 @@
 - `preference` 包已承接偏好提取结果、总结 prompt/parser、统一提取 prompt/parser、PreferenceMemoryDeriver；`data/preferences/PreferenceRepository.kt` 与 `SecondEngineManager.kt` 仍作为持久化/运行适配层保留。
 - `engine` 包已承接 `InferenceEngine`、`VoiceInputEngine`、`VoiceOutputEngine`、`DefaultModelConfig`、`ModelConfigRepository` 等技术端口和适配器。
 - `engine/image` 包已承接图片生成端口、配置模型、文件存储、本地 Stable Diffusion/DreamLite 适配器和 HTTP 图片生成适配器。
+- `engine/voice` 包已承接语音输入/输出配置模型、云 ASR 配置/解析、语音克隆 provider 端口和 MOSS TTS Nano 模型包校验。
 - `identity` 与 `capability` 继续承接 RoleCard 与 Skill 业务仓库/构建器。
 - 本轮明确未引入 `RelationshipState`，符合 ADR-0003；未把 Room entity/DAO 强行迁出 `data/local`，避免扩大 Room/KSP 风险。
 - 本轮本地验证结果：

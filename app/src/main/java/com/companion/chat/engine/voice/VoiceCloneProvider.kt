@@ -1,4 +1,4 @@
-package com.companion.chat.data.voice
+package com.companion.chat.engine.voice
 
 enum class VoiceCloneProvider {
     SYSTEM_TTS,

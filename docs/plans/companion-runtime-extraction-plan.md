@@ -38,6 +38,7 @@ The `ChatViewModel` should keep:
 - `app/src/main/java/com/companion/chat/capability/SkillRepository.kt`
 - `app/src/main/java/com/companion/chat/engine/InferenceEngine.kt`
 - `app/src/main/java/com/companion/chat/engine/image/*`
+- `app/src/main/java/com/companion/chat/engine/voice/*`
 
 ### Problem
 
@@ -185,7 +186,7 @@ The first runtime seam is in place:
 - `ChatViewModel` maps runtime turn events into UI state and diagnostic logs while retaining session, voice, image, drawer, and streaming placeholder projection.
 - `CompanionTurnEvent.ContextRebuildCompleted` preserves send-path rebuild/replay/fallback diagnostics before assistant tokens.
 - `CompanionTurnEvent.TurnFailed` reports stream failures while preserving the existing UI error projection.
-- The ADR package migration slice is complete for non-persistence modules: RoleCard business code lives in `identity`, Skill business code lives in `capability`, context orchestration lives in `context`, pure Memory helpers live in `memory`, pure UserPreference helpers live in `preference`, model/voice engine ports live in `engine`, and image generation ports/adapters live in `engine/image`.
+- The ADR package migration slice is complete for non-persistence modules: RoleCard business code lives in `identity`, Skill business code lives in `capability`, context orchestration lives in `context`, pure Memory helpers live in `memory`, pure UserPreference helpers live in `preference`, model/voice engine ports live in `engine`, image generation ports/adapters live in `engine/image`, and voice configuration/ASR/clone ports live in `engine/voice`.
 - Room persistence remains in `data/local`, with persistence-facing repositories still under `data/memory`, `data/preferences`, and `data/repository`.
 
 Remaining work:

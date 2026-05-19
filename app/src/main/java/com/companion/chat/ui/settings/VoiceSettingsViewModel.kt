@@ -1,14 +1,14 @@
 package com.companion.chat.ui.settings
 
 import androidx.lifecycle.ViewModel
-import com.companion.chat.data.voice.CloudAsrConfig
-import com.companion.chat.data.voice.CloudAsrConfigRepository
-import com.companion.chat.data.voice.LocalSenseVoiceModelStatus
-import com.companion.chat.data.voice.MossTtsNanoModelStatus
-import com.companion.chat.data.voice.VoiceCloneConfig
-import com.companion.chat.data.voice.VoiceCloneConfigRepository
-import com.companion.chat.data.voice.VoiceInputConfig
-import com.companion.chat.data.voice.VoiceInputConfigRepository
+import com.companion.chat.engine.voice.CloudAsrConfig
+import com.companion.chat.engine.voice.CloudAsrConfigRepository
+import com.companion.chat.engine.voice.LocalSenseVoiceModelStatus
+import com.companion.chat.engine.voice.MossTtsNanoModelStatus
+import com.companion.chat.engine.voice.VoiceCloneConfig
+import com.companion.chat.engine.voice.VoiceCloneConfigRepository
+import com.companion.chat.engine.voice.VoiceInputConfig
+import com.companion.chat.engine.voice.VoiceInputConfigRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

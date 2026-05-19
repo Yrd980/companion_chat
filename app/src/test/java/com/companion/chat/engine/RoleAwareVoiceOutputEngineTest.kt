@@ -4,10 +4,10 @@ import com.companion.chat.engine.VoiceOutputConfig
 import com.companion.chat.engine.VoiceOutputEngine
 import com.companion.chat.engine.VoiceOutputMode
 import com.companion.chat.engine.VoiceOutputState
-import com.companion.chat.data.voice.VoiceCloneEngine
-import com.companion.chat.data.voice.VoiceCloneProvider
-import com.companion.chat.data.voice.VoiceCloneRequest
-import com.companion.chat.data.voice.VoiceCloneResult
+import com.companion.chat.engine.voice.VoiceCloneEngine
+import com.companion.chat.engine.voice.VoiceCloneProvider
+import com.companion.chat.engine.voice.VoiceCloneRequest
+import com.companion.chat.engine.voice.VoiceCloneResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

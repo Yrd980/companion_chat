@@ -21,9 +21,9 @@ import com.companion.chat.data.repository.ChatSessionRepository
 import com.companion.chat.identity.RoleCardPromptBuilder
 import com.companion.chat.identity.RoleCardRepository
 import com.companion.chat.capability.SkillRepository
-import com.companion.chat.data.voice.CloudAsrConfigRepository
-import com.companion.chat.data.voice.VoiceCloneConfigRepository
-import com.companion.chat.data.voice.VoiceInputConfigRepository
+import com.companion.chat.engine.voice.CloudAsrConfigRepository
+import com.companion.chat.engine.voice.VoiceCloneConfigRepository
+import com.companion.chat.engine.voice.VoiceInputConfigRepository
 import com.companion.chat.engine.AndroidVoiceInputEngine
 import com.companion.chat.engine.AndroidVoiceOutputEngine
 import com.companion.chat.engine.InferenceEngineFactory

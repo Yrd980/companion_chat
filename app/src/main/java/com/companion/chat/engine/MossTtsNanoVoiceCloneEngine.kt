@@ -2,13 +2,13 @@ package com.companion.chat.engine
 
 import android.content.Context
 import android.net.Uri
-import com.companion.chat.data.voice.MossTtsNanoConfig
-import com.companion.chat.data.voice.MossTtsNanoModelPackage
-import com.companion.chat.data.voice.MossTtsNanoModelStatus
-import com.companion.chat.data.voice.VoiceCloneEngine
-import com.companion.chat.data.voice.VoiceCloneProvider
-import com.companion.chat.data.voice.VoiceCloneRequest
-import com.companion.chat.data.voice.VoiceCloneResult
+import com.companion.chat.engine.voice.MossTtsNanoConfig
+import com.companion.chat.engine.voice.MossTtsNanoModelPackage
+import com.companion.chat.engine.voice.MossTtsNanoModelStatus
+import com.companion.chat.engine.voice.VoiceCloneEngine
+import com.companion.chat.engine.voice.VoiceCloneProvider
+import com.companion.chat.engine.voice.VoiceCloneRequest
+import com.companion.chat.engine.voice.VoiceCloneResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File

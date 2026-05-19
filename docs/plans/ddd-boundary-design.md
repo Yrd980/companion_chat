@@ -154,6 +154,7 @@ Current files that likely belong here:
 
 - `engine/*`
 - `engine/image/*`
+- `engine/voice/*`
 - local inference adapters
 - ASR adapters
 - TTS adapters
@@ -196,6 +197,7 @@ Current migration status:
 - `preference` now owns pure preference parsers, prompt builders, extraction results, and memory derivation; `data/preferences/PreferenceRepository.kt` remains a persistence-facing adapter.
 - `engine` now owns model/voice engine ports plus concrete adapters.
 - `engine/image` now owns image generation ports, configuration models, file storage, local Stable Diffusion/DreamLite adapters, and HTTP image generation adapters.
+- `engine/voice` now owns voice input/output configuration models, cloud ASR parsing/config, voice clone provider ports, and MOSS TTS Nano model package checks.
 - Room entities and DAOs remain under `data/local` until persistence adapters can be migrated separately.
 
 ## First Candidate API

@@ -10,11 +10,11 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.companion.chat.engine.VoiceInputEngine
 import com.companion.chat.engine.VoiceInputEvent
-import com.companion.chat.data.voice.CloudAsrConfigRepository
-import com.companion.chat.data.voice.LocalSenseVoiceModelStatus
-import com.companion.chat.data.voice.VoiceInputBackend
-import com.companion.chat.data.voice.VoiceInputConfig
-import com.companion.chat.data.voice.VoiceInputConfigRepository
+import com.companion.chat.engine.voice.CloudAsrConfigRepository
+import com.companion.chat.engine.voice.LocalSenseVoiceModelStatus
+import com.companion.chat.engine.voice.VoiceInputBackend
+import com.companion.chat.engine.voice.VoiceInputConfig
+import com.companion.chat.engine.voice.VoiceInputConfigRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

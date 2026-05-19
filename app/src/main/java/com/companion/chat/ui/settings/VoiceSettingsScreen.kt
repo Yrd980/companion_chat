@@ -29,9 +29,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.companion.chat.data.voice.LocalSenseVoiceModelStatus
-import com.companion.chat.data.voice.MossTtsNanoModelStatus
-import com.companion.chat.data.voice.VoiceInputBackend
+import com.companion.chat.engine.voice.LocalSenseVoiceModelStatus
+import com.companion.chat.engine.voice.MossTtsNanoModelStatus
+import com.companion.chat.engine.voice.VoiceInputBackend
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
