@@ -132,7 +132,7 @@ Expected: PASS
 **Files:**
 - Modify: `app/src/main/java/com/companion/chat/engine/LiteRTLMInferenceEngine.kt`
 - Modify: `app/src/main/java/com/companion/chat/data/engine/InferenceEngine.kt`
-- Test: `app/src/test/java/com/companion/chat/engine/LiteRTLMInferenceEngineRebuildPlan.md` 
+- Test: `docs/plans/litert/LiteRTLMInferenceEngineRebuildPlan.md` 
 
 **Step 1: 先写接口层测试或伪测试计划**
 

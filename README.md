@@ -363,7 +363,7 @@ app/
       memory/         # memory management UI with filters, lightweight tags, and compact actions
       settings/       # settings, role management, skills management, grouped Material rows
 docs/plans/          # design and implementation documents
-jindu.md             # progress log
+docs/progress/jindu.md             # progress log
 ```
 
 ## Runtime Requirements
@@ -448,7 +448,7 @@ You should see the model path detected and the inference engine entering `Ready`
 ## Documentation
 
 - Chinese README: [README_CN.md](./README_CN.md)
-- Progress log: [jindu.md](./jindu.md)
+- Progress log: [docs/progress/jindu.md](./docs/progress/jindu.md)
 - Design and implementation docs: [`docs/plans/`](./docs/plans/)
 
 ## Repository Purpose

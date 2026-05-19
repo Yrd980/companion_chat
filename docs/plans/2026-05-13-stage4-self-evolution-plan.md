@@ -285,7 +285,7 @@ git commit -m "feat: keep stage4 fallback and toggle behavior safe"
 **Files:**
 - Check: `app/src/test/java/com/companion/chat/data/preferences/`
 - Check: `app/src/test/java/com/companion/chat/ui/chat/`
-- Update: `jindu.md`
+- Update: `docs/progress/jindu.md`
 
 **Step 1: 运行阶段四后端单测**
 
@@ -318,11 +318,11 @@ Expected: PASS
 
 **Step 6: 记录结果**
 
-- 将已完成验收项、受设备条件限制的项和日志证据写入 `jindu.md`
+- 将已完成验收项、受设备条件限制的项和日志证据写入 `docs/progress/jindu.md`
 
 **Step 7: Commit**
 
 ```bash
-git add jindu.md
+git add docs/progress/jindu.md
 git commit -m "test: verify stage4 self evolution flow"
 ```

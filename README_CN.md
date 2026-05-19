@@ -351,7 +351,7 @@ app/
       memory/         # 记忆管理页面
       settings/       # 设置、角色管理、Skills 管理
 docs/plans/          # 设计与实施文档
-jindu.md             # 开发进度记录
+docs/progress/jindu.md             # 开发进度记录
 ```
 
 ## 运行依赖
@@ -439,7 +439,7 @@ adb shell run-as com.companion.chat cat files/viewmodel_log.txt
 ## 文档入口
 
 - 英文 README：[README.md](./README.md)
-- 开发进度：[jindu.md](./jindu.md)
+- 开发进度：[docs/progress/jindu.md](./docs/progress/jindu.md)
 - 设计/计划文档：[docs/plans/](./docs/plans/)
 
 ## 这个仓库适合用来做什么

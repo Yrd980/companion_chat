@@ -57,7 +57,7 @@ Expected: PASS
 ### Task 3: 做最小回归并记录进度
 
 **Files:**
-- Update: `jindu.md`
+- Update: `docs/progress/jindu.md`
 
 **Step 1: 运行 prompt 相关测试**
 
@@ -74,7 +74,7 @@ Expected: PASS
 Run: `.\gradlew.bat :app:assembleDebug`
 Expected: PASS
 
-**Step 4: 更新 `jindu.md`**
+**Step 4: 更新 `docs/progress/jindu.md`**
 
 - 记录问题现象、根因和本次修复方式
 - 记录已通过的测试与当前真机结论

@@ -273,7 +273,7 @@ Expected: PASS
 ### Task 10: 真机部署与阶段三集成验收
 
 **Files:**
-- Update: `jindu.md`
+- Update: `docs/progress/jindu.md`
 - Check: `app/build/outputs/apk/debug/app-debug.apk`
 
 **Step 1: 真机部署**
@@ -304,4 +304,4 @@ Expected: PASS
 
 **Step 6: 记录结果**
 
-- 将已完成验收项、未完成项和证据写入 `jindu.md`
+- 将已完成验收项、未完成项和证据写入 `docs/progress/jindu.md`

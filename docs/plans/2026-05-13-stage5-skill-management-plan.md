@@ -91,7 +91,7 @@ tags: [feature, stage5, skills, prompt, compose, room]
 | TASK-022 | 补充或更新 `app/src/test/java/com/companion/chat/ui/settings/SettingsScreenTest.kt`（如项目中尚无则新建），验证设置页点击“角色管理”后进入技能管理页。 |  |  |
 | TASK-023 | 运行定向测试：技能仓库、技能 ViewModel、技能切换、设置页接入；再运行 `:app:assembleDebug`。 |  |  |
 | TASK-024 | 真机/手工验证阶段五 `5.1.1-5.3.5`：四条内置技能、CRUD、切换生效、切换后会话不断、模型回答体现技能 prompt。 |  |  |
-| TASK-025 | 完成阶段五实施后，将结果追加写入 `jindu.md`，记录实现范围、验证命令、真机结果和未解决项。 |  |  |
+| TASK-025 | 完成阶段五实施后，将结果追加写入 `docs/progress/jindu.md`，记录实现范围、验证命令、真机结果和未解决项。 |  |  |
 
 ## 3. Alternatives
 
@@ -126,7 +126,7 @@ tags: [feature, stage5, skills, prompt, compose, room]
 - **FILE-012**: `app/src/test/java/com/companion/chat/ui/settings/SkillManagementViewModelTest.kt`，新增 UI 状态测试。
 - **FILE-013**: `app/src/test/java/com/companion/chat/ui/chat/ChatViewModelSkillSwitchTest.kt`，新增技能切换集成测试。
 - **FILE-014**: `app/src/test/java/com/companion/chat/ui/settings/SettingsScreenTest.kt`，新增或补充导航测试。
-- **FILE-015**: `jindu.md`，记录阶段五计划与后续实施结论。
+- **FILE-015**: `docs/progress/jindu.md`，记录阶段五计划与后续实施结论。
 
 ## 6. Testing
 

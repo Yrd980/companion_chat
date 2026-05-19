@@ -311,7 +311,7 @@ Expected: PASS
 ### Task 6: 端到端回归与文档收口
 
 **Files:**
-- Modify: `jindu.md`
+- Modify: `docs/progress/jindu.md`
 - Verify: `docs/plans/2026-05-13-stage5-role-skill-separation-design.md`
 - Verify: `docs/plans/2026-05-13-stage5-role-skill-separation-plan.md`
 
@@ -338,11 +338,11 @@ Expected: PASS
 
 **Step 4: 更新进度记录**
 
-- 将本轮设计、计划、唯一内置翻译助手、角色卡与 skills 分离方案追加写入 `jindu.md`
+- 将本轮设计、计划、唯一内置翻译助手、角色卡与 skills 分离方案追加写入 `docs/progress/jindu.md`
 
 **Step 5: 提交**
 
 ```bash
-git add docs/plans/2026-05-13-stage5-role-skill-separation-design.md docs/plans/2026-05-13-stage5-role-skill-separation-plan.md jindu.md
+git add docs/plans/2026-05-13-stage5-role-skill-separation-design.md docs/plans/2026-05-13-stage5-role-skill-separation-plan.md docs/progress/jindu.md
 git commit -m "docs: add stage5 role and skill separation design"
 ```

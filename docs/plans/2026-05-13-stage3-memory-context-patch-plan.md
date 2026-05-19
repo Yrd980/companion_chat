@@ -180,7 +180,7 @@ Expected: PASS
 ### Task 7: 真机部署与补丁验收
 
 **Files:**
-- Update: `jindu.md`
+- Update: `docs/progress/jindu.md`
 - Check: `app/build/outputs/apk/debug/app-debug.apk`
 
 **Step 1: 真机部署**
@@ -202,4 +202,4 @@ Expected: PASS
 
 **Step 4: 记录结果**
 
-- 将完成项、未完成项、限制和证据写入 `jindu.md`
+- 将完成项、未完成项、限制和证据写入 `docs/progress/jindu.md`

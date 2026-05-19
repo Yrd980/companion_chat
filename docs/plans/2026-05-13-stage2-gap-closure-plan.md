@@ -202,7 +202,7 @@ Expected: 模型推送成功
 **Files:**
 - Check: `app/src/main/java/com/companion/chat/ui/chat/ChatViewModel.kt`
 - Check: `app/src/main/java/com/companion/chat/engine/LiteRTLMInferenceEngine.kt`
-- Update: `jindu.md`
+- Update: `docs/progress/jindu.md`
 
 **Step 1: 设置 `N=5`**
 
@@ -221,12 +221,12 @@ Expected: 模型推送成功
 
 **Step 4: 记录结果**
 
-- 把触发阈值、触发消息数、最终分支和追问结果写入 `jindu.md`
+- 把触发阈值、触发消息数、最终分支和追问结果写入 `docs/progress/jindu.md`
 
 ### Task 9: 完成 UI 可操作性专项验收
 
 **Files:**
-- Update: `jindu.md`
+- Update: `docs/progress/jindu.md`
 
 **Step 1: 在压缩前后执行人工操作**
 
@@ -242,14 +242,14 @@ Expected: 模型推送成功
 
 **Step 3: 写入进度记录**
 
-- 将 UI 验收结论写入 `jindu.md`
+- 将 UI 验收结论写入 `docs/progress/jindu.md`
 
 ### Task 10: 对照阶段二清单重新核对
 
 **Files:**
 - Check: `d:\Desktop\phone\COMPANIONCHAT_TEST_CHECKLIST.md`
 - Check: `docs/plans/2026-05-12-stage2-context-management-design.md`
-- Update: `jindu.md`
+- Update: `docs/progress/jindu.md`
 
 **Step 1: 逐条核对 `2.1` ~ `2.4`**
 
@@ -260,6 +260,6 @@ Expected: 模型推送成功
 
 - 明确“主功能完成 / 清单完成度 / 剩余风险”
 
-**Step 3: 更新 `jindu.md`**
+**Step 3: 更新 `docs/progress/jindu.md`**
 
 - 写入最终阶段二核对结果

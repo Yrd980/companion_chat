@@ -4,6 +4,15 @@
 third_party/models/
 CompanionChat/app/src/main/assets/models/
 
+# Third-party local caches and build outputs
+third_party/.cache/
+third_party/**/build/
+third_party/**/.cache/
+third_party/**/.ccache/
+third_party/**/models/
+third_party/**/venv/
+third_party/**/.venv/
+
 # Local Android AAR cache
 app/libs/*.aar
 
