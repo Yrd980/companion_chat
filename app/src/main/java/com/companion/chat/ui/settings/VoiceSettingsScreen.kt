@@ -104,8 +104,10 @@ fun VoiceSettingsScreen(
             VoiceInfoRow("云响应字段", cloudAsrConfig.responseTextFieldPath)
             VoiceInfoRow("MOSS 目录", voiceCloneConfig.mossModelDirectory.ifBlank { "未配置" })
             VoiceInfoRow("MOSS 状态", mossModelStatus.displayName())
+            VoiceInfoRow("HTTP 克隆", if (voiceCloneConfig.isHttpCloneConfigured) "已配置" else "未配置")
+            VoiceInfoRow("HTTP 声线", voiceCloneConfig.httpCloneVoice)
             VoiceInfoRow("本地克隆", if (mossModelStatus is MossTtsNanoModelStatus.Ready) "可用" else "回退系统 TTS")
-            VoiceInfoRow("输出模式", "系统 TTS / MOSS 本地克隆")
+            VoiceInfoRow("输出模式", "系统 TTS / HTTP 克隆 / MOSS 本地克隆")
             VoiceInfoRow("角色语音", "在角色管理中配置参考音频 URI、模式和显示名称")
         }
     }

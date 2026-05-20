@@ -171,6 +171,12 @@ adb push third_party/models/asr/sensevoice/tokens.txt /sdcard/Android/data/com.c
 adb push third_party/models/asr/sensevoice/silero_vad.onnx /sdcard/Android/data/com.companion.chat/files/models/asr/sensevoice/silero_vad.onnx
 ```
 
+Waydroid 本地 x86_64 运行可参考 `docs/waydroid.md`，常用启动命令：
+
+```bash
+scripts/waydroid-companion.sh
+```
+
 设备目录最终需要包含：
 
 ```text

@@ -26,10 +26,15 @@ import com.companion.chat.engine.voice.VoiceCloneConfigRepository
 import com.companion.chat.engine.voice.VoiceInputConfigRepository
 import com.companion.chat.engine.AndroidVoiceInputEngine
 import com.companion.chat.engine.AndroidVoiceOutputEngine
+import com.companion.chat.engine.HttpVoiceCloneEngine
 import com.companion.chat.engine.InferenceEngineFactory
 import com.companion.chat.engine.LocalAudioPlaybackEngine
+import com.companion.chat.engine.AndroidMossTtsNanoRunner
 import com.companion.chat.engine.MossTtsNanoVoiceCloneEngine
 import com.companion.chat.engine.RoleAwareVoiceOutputEngine
+import com.companion.chat.engine.voice.VoiceCloneEngine
+import com.companion.chat.engine.voice.VoiceCloneRequest
+import com.companion.chat.engine.voice.VoiceCloneResult
 
 class AppContainer(
     private val application: Application
@@ -64,14 +69,33 @@ class AppContainer(
     val mossTtsNanoVoiceCloneEngine: MossTtsNanoVoiceCloneEngine by lazy {
         MossTtsNanoVoiceCloneEngine(
             context = application,
-            modelDirectoryProvider = { voiceCloneConfigRepository.getConfig().mossModelDirectory }
+            modelDirectoryProvider = { voiceCloneConfigRepository.getConfig().mossModelDirectory },
+            runner = AndroidMossTtsNanoRunner()
         )
+    }
+    val httpVoiceCloneEngine: HttpVoiceCloneEngine by lazy {
+        HttpVoiceCloneEngine(
+            context = application,
+            configProvider = { voiceCloneConfigRepository.getConfig() }
+        )
+    }
+    val voiceCloneEngine: VoiceCloneEngine by lazy {
+        object : VoiceCloneEngine {
+            override suspend fun synthesize(request: VoiceCloneRequest): Result<VoiceCloneResult> {
+                val config = voiceCloneConfigRepository.getConfig()
+                return if (config.isHttpCloneConfigured) {
+                    httpVoiceCloneEngine.synthesize(request)
+                } else {
+                    mossTtsNanoVoiceCloneEngine.synthesize(request)
+                }
+            }
+        }
     }
     val voiceOutputEngine: RoleAwareVoiceOutputEngine by lazy {
         RoleAwareVoiceOutputEngine(
             fallbackEngine = androidVoiceOutputEngine,
             roleCardRepository = roleCardRepository,
-            cloneEngine = mossTtsNanoVoiceCloneEngine,
+            cloneEngine = voiceCloneEngine,
             localAudioPlaybackEngine = localAudioPlaybackEngine
         )
     }

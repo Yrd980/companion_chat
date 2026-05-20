@@ -5,6 +5,7 @@ import android.net.Uri
 import com.companion.chat.engine.voice.MossTtsNanoConfig
 import com.companion.chat.engine.voice.MossTtsNanoModelPackage
 import com.companion.chat.engine.voice.MossTtsNanoModelStatus
+import com.companion.chat.engine.voice.MossTtsNanoRunnerPlan
 import com.companion.chat.engine.voice.VoiceCloneEngine
 import com.companion.chat.engine.voice.VoiceCloneProvider
 import com.companion.chat.engine.voice.VoiceCloneRequest
@@ -18,7 +19,9 @@ import kotlin.math.roundToInt
 
 class MossTtsNanoVoiceCloneEngine(
     private val context: Context,
-    private val modelDirectoryProvider: () -> String
+    private val modelDirectoryProvider: () -> String,
+    private val runner: MossTtsNanoRunner = UnsupportedMossTtsNanoRunner(),
+    private val tokenizer: MossTtsNanoTokenizer = JavaScriptSandboxMossTtsNanoTokenizer(context)
 ) : VoiceCloneEngine {
 
     override suspend fun synthesize(request: VoiceCloneRequest): Result<VoiceCloneResult> = withContext(Dispatchers.IO) {
@@ -36,8 +39,13 @@ class MossTtsNanoVoiceCloneEngine(
 
             val directory = File(modelDirectory)
             val config = MossTtsNanoConfig.fromDirectory(directory)
+            val plan = MossTtsNanoRunnerPlan.fromDirectory(directory)
             val referenceAudio = readReferenceAudio(request.referenceAudioUri)
-            val waveform = runOnnxPipeline(directory, config, request.text, referenceAudio)
+            val textTokenIds = tokenizer.encode(
+                modelFile = File(directory, config.tokenizerModelPath),
+                text = request.text
+            )
+            val waveform = runOnnxPipeline(directory, config, plan, request.text, textTokenIds, referenceAudio)
             val outputFile = writeWaveFile(waveform, config.sampleRate)
 
             VoiceCloneResult(
@@ -58,7 +66,9 @@ class MossTtsNanoVoiceCloneEngine(
     private fun runOnnxPipeline(
         directory: File,
         config: MossTtsNanoConfig,
+        plan: MossTtsNanoRunnerPlan,
         text: String,
+        textTokenIds: IntArray,
         referenceAudio: FloatArray
     ): FloatArray {
         require(referenceAudio.isNotEmpty()) { "参考音频为空或格式不支持" }
@@ -76,7 +86,16 @@ class MossTtsNanoVoiceCloneEngine(
         )
         val missing = expectedFiles.filterNot { File(directory, it).isFile }
         require(missing.isEmpty()) { "moss-tts-nano 文件缺失：${missing.joinToString()}" }
-        error("当前 MOSS 包是 OpenMOSS browser ONNX 拆分格式，需要按 tts_browser_onnx_meta.json 执行自回归解码；本版本先校验模型并回退系统 TTS")
+        return runner.synthesize(
+            MossTtsNanoRunnerRequest(
+                modelDirectory = directory,
+                config = config,
+                plan = plan,
+                text = text,
+                textTokenIds = textTokenIds,
+                referenceAudio = referenceAudio
+            )
+        )
     }
 
     private fun readReferenceAudio(uriString: String): FloatArray {
@@ -115,5 +134,32 @@ class MossTtsNanoVoiceCloneEngine(
 
     private companion object {
         const val WAV_HEADER_BYTES = 44
+    }
+}
+
+data class MossTtsNanoRunnerRequest(
+    val modelDirectory: File,
+    val config: MossTtsNanoConfig,
+    val plan: MossTtsNanoRunnerPlan,
+    val text: String,
+    val textTokenIds: IntArray,
+    val referenceAudio: FloatArray
+)
+
+interface MossTtsNanoTokenizer {
+    suspend fun encode(modelFile: File, text: String): IntArray
+}
+
+interface MossTtsNanoRunner {
+    fun synthesize(request: MossTtsNanoRunnerRequest): FloatArray
+}
+
+class UnsupportedMossTtsNanoRunner : MossTtsNanoRunner {
+    override fun synthesize(request: MossTtsNanoRunnerRequest): FloatArray {
+        val stages = request.plan.sessionOrder.joinToString(" -> ") { it.name }
+        error(
+            "MOSS browser ONNX runner 尚未接入 Android 自回归执行器；" +
+                "已解析执行计划: $stages"
+        )
     }
 }

@@ -6,46 +6,59 @@ import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
-class CloudHttpAsrEngine(
-    private val configRepository: CloudAsrConfigRepository,
-    private val responseParser: CloudAsrResponseParser = CloudAsrResponseParser()
+class CloudHttpAsrEngine private constructor(
+    private val configProvider: () -> com.companion.chat.engine.voice.CloudAsrConfig,
+    private val responseParser: CloudAsrResponseParser = CloudAsrResponseParser(),
+    private val httpClient: CloudAsrHttpClient = UrlConnectionCloudAsrHttpClient()
 ) {
+    constructor(
+        configRepository: CloudAsrConfigRepository,
+        responseParser: CloudAsrResponseParser = CloudAsrResponseParser(),
+        httpClient: CloudAsrHttpClient = UrlConnectionCloudAsrHttpClient()
+    ) : this(configProvider = configRepository::getConfig, responseParser = responseParser, httpClient = httpClient)
+
+    internal constructor(
+        config: com.companion.chat.engine.voice.CloudAsrConfig,
+        responseParser: CloudAsrResponseParser = CloudAsrResponseParser(),
+        httpClient: CloudAsrHttpClient = UrlConnectionCloudAsrHttpClient()
+    ) : this(configProvider = { config }, responseParser = responseParser, httpClient = httpClient)
+
     fun transcribe(audio: RecordedAudio): String {
-        val config = configRepository.getConfig()
+        val config = configProvider()
         if (!config.isConfigured) {
             throw IllegalStateException("云 ASR 未配置")
         }
+        NetworkEndpointPolicy.requireHttpsOrLoopback(config.baseUrl, "云 ASR")
 
         val boundary = "CompanionChatAsr${System.currentTimeMillis()}"
-        val connection = (URL(config.baseUrl).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = config.timeoutMillis
-            readTimeout = config.timeoutMillis
-            doOutput = true
-            setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
-            if (config.apiKey.isNotBlank()) {
-                setRequestProperty("Authorization", "Bearer ${config.apiKey}")
-            }
-        }
-
         val wavBytes = WavEncoder.encodePcm16Mono(audio)
-        connection.outputStream.use { output ->
+        val requestBody = buildByteArray { output ->
             output.writeMultipartFile(boundary, config.requestFieldName, "speech.wav", "audio/wav", wavBytes)
             output.writeAscii("--$boundary--\r\n")
         }
+        val response = httpClient.postMultipart(
+            url = config.baseUrl,
+            apiKey = config.apiKey,
+            timeoutMillis = config.timeoutMillis,
+            boundary = boundary,
+            body = requestBody
+        )
 
-        val statusCode = connection.responseCode
-        val body = if (statusCode in 200..299) {
-            connection.inputStream.bufferedReader().use { it.readText() }
-        } else {
-            val errorBody = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            throw IllegalStateException("云 ASR 请求失败 ($statusCode): $errorBody")
+        if (response.statusCode !in 200..299) {
+            throw IllegalStateException("云 ASR 请求失败 (${response.statusCode}): ${response.body}")
         }
 
-        return responseParser.extractText(body, config.responseTextFieldPath)
+        return responseParser.extractText(response.body, config.responseTextFieldPath)
     }
 
-    private fun OutputStream.writeMultipartFile(
+    private inline fun buildByteArray(writeBody: (OutputStream) -> Unit): ByteArray {
+        return java.io.ByteArrayOutputStream().use { output ->
+            writeBody(output)
+            output.toByteArray()
+        }
+    }
+
+    internal fun OutputStream.writeMultipartFile(
         boundary: String,
         fieldName: String,
         fileName: String,
@@ -59,7 +72,56 @@ class CloudHttpAsrEngine(
         writeAscii("\r\n")
     }
 
-    private fun OutputStream.writeAscii(value: String) {
+    internal fun OutputStream.writeAscii(value: String) {
         write(value.toByteArray(Charsets.US_ASCII))
+    }
+}
+
+data class CloudAsrHttpResponse(
+    val statusCode: Int,
+    val body: String
+)
+
+interface CloudAsrHttpClient {
+    fun postMultipart(
+        url: String,
+        apiKey: String,
+        timeoutMillis: Int,
+        boundary: String,
+        body: ByteArray
+    ): CloudAsrHttpResponse
+}
+
+private class UrlConnectionCloudAsrHttpClient : CloudAsrHttpClient {
+    override fun postMultipart(
+        url: String,
+        apiKey: String,
+        timeoutMillis: Int,
+        boundary: String,
+        body: ByteArray
+    ): CloudAsrHttpResponse {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = timeoutMillis
+            readTimeout = timeoutMillis
+            doOutput = true
+            setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+            if (apiKey.isNotBlank()) {
+                setRequestProperty("Authorization", "Bearer $apiKey")
+            }
+        }
+
+        try {
+            connection.outputStream.use { it.write(body) }
+            val statusCode = connection.responseCode
+            val responseBody = if (statusCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            }
+            return CloudAsrHttpResponse(statusCode, responseBody)
+        } finally {
+            connection.disconnect()
+        }
     }
 }

@@ -17,7 +17,7 @@ android {
         versionName = "0.1.0"
 
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            abiFilters += listOf("arm64-v8a", "x86_64")
         }
 
         externalNativeBuild {
@@ -47,6 +47,12 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    sourceSets {
+        getByName("main") {
+            assets.srcDir("../third_party/MOSS-TTS-Nano-Reader/extension")
+        }
     }
 
     packaging {
@@ -89,13 +95,13 @@ dependencies {
 
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.11.0")
     implementation(libs.onnxruntime.android)
+    implementation(libs.androidx.javascriptengine)
+    implementation(libs.kotlinx.coroutines.guava)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
-    testImplementation(libs.junit4)
-    testImplementation(libs.json)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

@@ -1,7 +1,7 @@
 package com.companion.chat.engine.image
 
 import android.content.Context
-import android.util.Base64
+import com.companion.chat.engine.NetworkEndpointPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -9,15 +9,29 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Base64
 
-class HttpImageGenerationEngine(
-    context: Context
-) : ImageGenerationEngine {
+class HttpImageGenerationEngine : ImageGenerationEngine {
 
-    private val imageFileStore = ImageFileStore(context)
+    constructor(context: Context) : this(
+        httpClient = UrlConnectionImageHttpClient(),
+        imageStore = GeneratedImageStore { bytes, purpose ->
+            ImageFileStore(context).saveBytes(bytes, purpose)
+        }
+    )
+
+    internal constructor(
+        httpClient: ImageGenerationHttpClient,
+        imageStore: GeneratedImageStore
+    ) {
+        this.httpClient = httpClient
+        this.imageStore = imageStore
+    }
+
+    private val httpClient: ImageGenerationHttpClient
+    private val imageStore: GeneratedImageStore
     private val _state = MutableStateFlow<ImageGenerationState>(ImageGenerationState.Idle)
     override val state: StateFlow<ImageGenerationState> = _state.asStateFlow()
 
@@ -39,7 +53,8 @@ class HttpImageGenerationEngine(
 
         _state.value = ImageGenerationState.Generating
         runCatching {
-            val response = postJson(
+            NetworkEndpointPolicy.requireHttpsOrLoopback(config.baseUrl, "图片生成")
+            val response = httpClient.postJson(
                 url = config.baseUrl,
                 apiKey = config.apiKey,
                 body = renderTemplate(config.requestTemplate, config.model, prompt),
@@ -49,7 +64,7 @@ class HttpImageGenerationEngine(
                 ?: error("响应中未找到图片字段: ${config.responseImageFieldPath}")
             val uri = when {
                 imageValue.startsWith("http://") || imageValue.startsWith("https://") ->
-                    downloadImage(imageValue, purpose, config.timeoutMillis)
+                    saveBytes(httpClient.getBytes(imageValue, config.timeoutMillis), purpose)
                 imageValue.startsWith("data:image") ->
                     saveBase64Image(imageValue.substringAfter(","), purpose)
                 else -> saveBase64Image(imageValue, purpose)
@@ -61,7 +76,52 @@ class HttpImageGenerationEngine(
         }
     }
 
-    private fun postJson(
+    private fun renderTemplate(template: String, model: String, prompt: String): String {
+        return template
+            .replace("{{model}}", escapeJson(model))
+            .replace("{{prompt}}", escapeJson(prompt))
+    }
+
+    private fun escapeJson(value: String): String =
+        JSONObject.quote(value).removePrefix("\"").removeSuffix("\"")
+
+    private fun readFieldPath(root: JSONObject, path: String): String? {
+        var current: Any = root
+        path.split(".").filter { it.isNotBlank() }.forEach { part ->
+            current = when (current) {
+                is JSONObject -> current.opt(part) ?: return null
+                is JSONArray -> current.opt(part.toIntOrNull() ?: return null)
+                    ?: return null
+                else -> return null
+            }
+        }
+        return current.toString().takeIf { it.isNotBlank() && it != "null" }
+    }
+
+    private fun saveBase64Image(base64: String, purpose: ImageGenerationPurpose): String =
+        saveBytes(Base64.getMimeDecoder().decode(base64), purpose)
+
+    private fun saveBytes(bytes: ByteArray, purpose: ImageGenerationPurpose): String =
+        imageStore.saveBytes(bytes, purpose)
+}
+
+internal fun interface GeneratedImageStore {
+    fun saveBytes(bytes: ByteArray, purpose: ImageGenerationPurpose): String
+}
+
+internal interface ImageGenerationHttpClient {
+    fun postJson(
+        url: String,
+        apiKey: String,
+        body: String,
+        timeoutMillis: Int
+    ): String
+
+    fun getBytes(url: String, timeoutMillis: Int): ByteArray
+}
+
+private class UrlConnectionImageHttpClient : ImageGenerationHttpClient {
+    override fun postJson(
         url: String,
         apiKey: String,
         body: String,
@@ -94,29 +154,7 @@ class HttpImageGenerationEngine(
         }
     }
 
-    private fun renderTemplate(template: String, model: String, prompt: String): String {
-        return template
-            .replace("{{model}}", escapeJson(model))
-            .replace("{{prompt}}", escapeJson(prompt))
-    }
-
-    private fun escapeJson(value: String): String =
-        JSONObject.quote(value).removePrefix("\"").removeSuffix("\"")
-
-    private fun readFieldPath(root: JSONObject, path: String): String? {
-        var current: Any = root
-        path.split(".").filter { it.isNotBlank() }.forEach { part ->
-            current = when (current) {
-                is JSONObject -> current.opt(part) ?: return null
-                is JSONArray -> current.opt(part.toIntOrNull() ?: return null)
-                    ?: return null
-                else -> return null
-            }
-        }
-        return current.toString().takeIf { it.isNotBlank() && it != "null" }
-    }
-
-    private fun downloadImage(url: String, purpose: ImageGenerationPurpose, timeoutMillis: Int): String {
+    override fun getBytes(url: String, timeoutMillis: Int): ByteArray {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = timeoutMillis
             readTimeout = timeoutMillis
@@ -125,16 +163,9 @@ class HttpImageGenerationEngine(
             if (connection.responseCode !in 200..299) {
                 error("图片下载 HTTP ${connection.responseCode}")
             }
-            val bytes = connection.inputStream.use { it.readBytes() }
-            return saveBytes(bytes, purpose)
+            return connection.inputStream.use { it.readBytes() }
         } finally {
             connection.disconnect()
         }
     }
-
-    private fun saveBase64Image(base64: String, purpose: ImageGenerationPurpose): String =
-        imageFileStore.saveBytes(Base64.decode(base64, Base64.DEFAULT), purpose)
-
-    private fun saveBytes(bytes: ByteArray, purpose: ImageGenerationPurpose): String =
-        imageFileStore.saveBytes(bytes, purpose)
 }
