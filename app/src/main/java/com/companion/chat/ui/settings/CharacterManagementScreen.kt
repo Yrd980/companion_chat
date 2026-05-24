@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -35,11 +37,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companion.chat.data.local.entity.RoleCard
+import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -265,6 +270,7 @@ private fun RoleCardItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                RoleAvatarPreview(roleCard.avatarImageUri)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = roleCard.name,
@@ -337,6 +343,31 @@ private fun RoleCardItem(
             }
         }
     }
+}
+
+@Composable
+private fun RoleAvatarPreview(avatarImageUri: String) {
+    if (avatarImageUri.isBlank()) {
+        Icon(
+            imageVector = Icons.Default.Person,
+            contentDescription = null,
+            modifier = Modifier
+                .padding(end = 12.dp)
+                .size(44.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        return
+    }
+
+    AsyncImage(
+        model = avatarImageUri,
+        contentDescription = "角色头像",
+        modifier = Modifier
+            .padding(end = 12.dp)
+            .size(44.dp)
+            .clip(CircleShape),
+        contentScale = ContentScale.Crop
+    )
 }
 
 @Composable

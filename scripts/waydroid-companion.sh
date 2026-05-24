@@ -76,7 +76,8 @@ ensure_model_link() {
   if root_shell "
     test -f '$WAYDROID_MODELS/Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf' &&
     test -f '$WAYDROID_MODELS/mmproj-Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-f16.gguf' &&
-    test -f '$WAYDROID_MODELS/asr/sensevoice/model.int8.onnx'
+    test -f '$WAYDROID_MODELS/asr/sensevoice/model.int8.onnx' &&
+    test -f '$WAYDROID_MODELS/image/sd15-hypersd/sd_config.json'
   " >/dev/null 2>&1; then
     return
   fi
@@ -88,11 +89,19 @@ ensure_model_link() {
     src='$MODEL_SRC'
     rm -rf \"\$dst\"
     mkdir -p \"\$dst/asr/sensevoice\"
+    mkdir -p \"\$dst/image/sd15-hypersd\"
     ln \"\$src/gguf/Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf\" \"\$dst/Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf\"
     ln \"\$src/gguf/mmproj-Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-f16.gguf\" \"\$dst/mmproj-Gemma-4-E2B-Uncensored-HauhauCS-Aggressive-f16.gguf\"
     ln \"\$src/asr/sensevoice/model.int8.onnx\" \"\$dst/asr/sensevoice/model.int8.onnx\"
     ln \"\$src/asr/sensevoice/silero_vad.onnx\" \"\$dst/asr/sensevoice/silero_vad.onnx\"
     ln \"\$src/asr/sensevoice/tokens.txt\" \"\$dst/asr/sensevoice/tokens.txt\"
+    image_src=\"\$src/image/sd15-hypersd-fast\"
+    if [ ! -f \"\$image_src/sd_config.json\" ]; then
+      image_src=\"\$src/image/sd15-hypersd\"
+    fi
+    if [ -f \"\$image_src/sd_config.json\" ]; then
+      find \"\$image_src\" -maxdepth 1 -type f -exec ln {} \"\$dst/image/sd15-hypersd/\" \\;
+    fi
     chown -R 1023:1023 \"\$dst\"
   "
 }

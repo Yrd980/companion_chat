@@ -18,6 +18,8 @@ import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Engine
+import com.google.ai.edge.litertlm.ExperimentalApi
+import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.ai.edge.litertlm.EngineConfig as LiteRTConfig
@@ -166,6 +168,32 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
         }
     }
 
+    @OptIn(ExperimentalApi::class)
+    private fun enableBenchmarkLogging() {
+        ExperimentalFlags.enableBenchmark = true
+    }
+
+    @OptIn(ExperimentalApi::class)
+    private fun logBenchmarkInfo(conv: Conversation) {
+        try {
+            val info = conv.getBenchmarkInfo()
+            logToFile(
+                "性能指标: init=${formatMetric(info.initTimeInSecond)}s, " +
+                    "ttft=${formatMetric(info.timeToFirstTokenInSecond)}s, " +
+                    "prefill=${info.lastPrefillTokenCount} tokens @ " +
+                    "${formatMetric(info.lastPrefillTokensPerSecond)} tok/s, " +
+                    "decode=${info.lastDecodeTokenCount} tokens @ " +
+                    "${formatMetric(info.lastDecodeTokensPerSecond)} tok/s"
+            )
+        } catch (e: Exception) {
+            logToFile("性能指标不可用: ${e.javaClass.simpleName}: ${e.message}")
+        }
+    }
+
+    private fun formatMetric(value: Double): String {
+        return String.format(Locale.US, "%.2f", value)
+    }
+
     private fun getDefaultModelPath(): String {
         val internalDir = File(context.filesDir, "models")
         return "${internalDir.absolutePath}/$DEFAULT_MODEL_FILE"
@@ -278,50 +306,112 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
                 return@withContext
             }
 
-            val backend = when (config.backend) {
-                BackendType.GPU -> {
-                    logToFile("使用 GPU 后端")
-                    Backend.GPU()
-                }
-                else -> {
-                    logToFile("使用 CPU 后端")
-                    Backend.CPU()
-                }
-            }
-
-            logToFile("创建 EngineConfig...")
-            val litertConfig = LiteRTConfig(
-                modelPath = modelPath,
-                backend = backend,
-                visionBackend = Backend.CPU(),
-                maxNumImages = 4,
-                cacheDir = context.cacheDir.absolutePath
-            )
-            logToFile("EngineConfig 创建成功 (含 visionBackend=CPU, maxNumImages=4)")
-
-            logToFile("创建 Engine...")
-            val eng = Engine(litertConfig)
-            logToFile("Engine 创建成功")
-
-            logToFile("Engine.initialize() 开始...")
-            eng.initialize()
-            logToFile("Engine.initialize() 完成")
-
             val systemPrompt = config.systemPrompt.ifBlank {
                 "你是一个友善的AI助手，请用中文回答用户的问题。"
             }
-            logToFile("系统提示词: ${systemPrompt.take(50)}...")
 
-            val convConfig = createConversationConfig(systemPrompt)
-            logToFile("ConversationConfig 创建成功")
+            enableBenchmarkLogging()
+            logToFile("已启用 LiteRT-LM benchmark 诊断")
 
-            logToFile("创建 Conversation...")
-            val conv = eng.createConversation(convConfig)
-            logToFile("Conversation 创建成功")
+            fun initializeWithBackend(backendType: BackendType): Pair<Engine, Conversation> {
+                val backend = when (backendType) {
+                    BackendType.GPU -> {
+                        logToFile("使用 GPU 后端")
+                        Backend.GPU()
+                    }
+                    BackendType.NPU -> {
+                        logToFile("使用 NPU 后端")
+                        Backend.NPU(nativeLibraryDir = context.applicationInfo.nativeLibraryDir)
+                    }
+                    else -> {
+                        logToFile("使用 CPU 后端")
+                        Backend.CPU()
+                    }
+                }
+
+                logToFile("创建 EngineConfig...")
+                val litertConfig = LiteRTConfig(
+                    modelPath = modelPath,
+                    backend = backend,
+                    visionBackend = Backend.CPU(),
+                    maxNumImages = 4,
+                    cacheDir = context.cacheDir.absolutePath
+                )
+                logToFile("EngineConfig 创建成功 (含 visionBackend=CPU, maxNumImages=4)")
+
+                logToFile("创建 Engine...")
+                val eng = Engine(litertConfig)
+                logToFile("Engine 创建成功")
+
+                try {
+                    logToFile("Engine.initialize() 开始...")
+                    eng.initialize()
+                    logToFile("Engine.initialize() 完成")
+
+                    logToFile("系统提示词: ${systemPrompt.take(50)}...")
+
+                    val convConfig = createConversationConfig(systemPrompt)
+                    logToFile("ConversationConfig 创建成功")
+
+                    logToFile("创建 Conversation...")
+                    val conv = eng.createConversation(convConfig)
+                    logToFile("Conversation 创建成功")
+
+                    return eng to conv
+                } catch (e: Exception) {
+                    try {
+                        eng.close()
+                    } catch (closeError: Exception) {
+                        logToFile("初始化失败后释放 Engine 出错: ${closeError.message}")
+                    }
+                    throw e
+                }
+            }
+
+            var activeConfig = config.copy(modelPath = modelPath, systemPrompt = systemPrompt)
+            val requestedBackend = config.backend
+            val (eng, conv) = when (requestedBackend) {
+                BackendType.CPU -> initializeWithBackend(BackendType.CPU)
+                BackendType.GPU -> {
+                    try {
+                        initializeWithBackend(BackendType.GPU)
+                    } catch (acceleratorError: Exception) {
+                        logToFile("GPU 后端初始化失败，回退 CPU")
+                        logToFile("GPU 异常类型: ${acceleratorError.javaClass.simpleName}")
+                        logToFile("GPU 异常信息: ${acceleratorError.message}")
+                        logToFile("GPU 异常堆栈: ${acceleratorError.stackTraceToString().take(500)}")
+                        activeConfig = activeConfig.copy(backend = BackendType.CPU)
+                        initializeWithBackend(BackendType.CPU)
+                    }
+                }
+                BackendType.NPU -> {
+                    try {
+                        initializeWithBackend(BackendType.NPU)
+                    } catch (npuError: Exception) {
+                        logToFile("NPU 后端初始化失败，尝试回退 GPU")
+                        logToFile("NPU 异常类型: ${npuError.javaClass.simpleName}")
+                        logToFile("NPU 异常信息: ${npuError.message}")
+                        logToFile("NPU 异常堆栈: ${npuError.stackTraceToString().take(500)}")
+
+                        try {
+                            val fallback = initializeWithBackend(BackendType.GPU)
+                            activeConfig = activeConfig.copy(backend = BackendType.GPU)
+                            fallback
+                        } catch (gpuError: Exception) {
+                            logToFile("GPU 回退也失败，最终回退 CPU")
+                            logToFile("GPU 异常类型: ${gpuError.javaClass.simpleName}")
+                            logToFile("GPU 异常信息: ${gpuError.message}")
+                            logToFile("GPU 异常堆栈: ${gpuError.stackTraceToString().take(500)}")
+                            activeConfig = activeConfig.copy(backend = BackendType.CPU)
+                            initializeWithBackend(BackendType.CPU)
+                        }
+                    }
+                }
+            }
 
             engine = eng
             conversation = conv
-            currentConfig = config
+            currentConfig = activeConfig
             _state.value = InferenceState.Ready
 
             logToFile("=== 引擎初始化完成，状态: Ready ===")
@@ -392,6 +482,7 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
                 }
             }
             logToFile("推理完成")
+            logBenchmarkInfo(conv)
         } catch (e: CancellationException) {
             logToFile("推理被取消")
             throw e

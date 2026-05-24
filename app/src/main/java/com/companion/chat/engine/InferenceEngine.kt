@@ -6,7 +6,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 enum class BackendType {
     CPU,
-    GPU
+    GPU,
+    NPU
 }
 
 enum class ModelRuntime {

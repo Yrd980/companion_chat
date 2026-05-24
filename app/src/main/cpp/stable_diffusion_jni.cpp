@@ -138,7 +138,7 @@ std::vector<uint8_t> encode_png(const sd_image_t & image) {
 }  // namespace
 
 extern "C" JNIEXPORT jbyteArray JNICALL
-Java_com_companion_chat_data_image_StableDiffusionNative_generateTxt2ImgPng(
+Java_com_companion_chat_engine_image_StableDiffusionNative_generateTxt2ImgPng(
     JNIEnv * env,
     jobject,
     jstring model_path,
@@ -241,7 +241,7 @@ Java_com_companion_chat_data_image_StableDiffusionNative_generateTxt2ImgPng(
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_companion_chat_data_image_StableDiffusionNative_systemInfo(JNIEnv * env, jobject) {
+Java_com_companion_chat_engine_image_StableDiffusionNative_systemInfo(JNIEnv * env, jobject) {
     ensure_callbacks();
     const char * info = sd_get_system_info();
     return env->NewStringUTF(info == nullptr ? "" : info);

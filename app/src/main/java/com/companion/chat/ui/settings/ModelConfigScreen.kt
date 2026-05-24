@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.companion.chat.engine.BackendType
 import com.companion.chat.engine.ModelRuntime
 import com.companion.chat.engine.image.ImageGenerationConfig
 import com.companion.chat.engine.image.ImageGenerationProvider
@@ -150,6 +151,41 @@ fun ModelConfigScreen(
                         onModelConfigChanged()
                     }
                 )
+                if (modelConfig.runtime == ModelRuntime.LITERT_LM) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "LiteRT-LM 加速后端",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    BackendOptionItem(
+                        title = "CPU",
+                        description = "当前已验证可用，使用 XNNPack 执行。",
+                        selected = modelConfig.backend == BackendType.CPU,
+                        onClick = {
+                            viewModel.setBackend(BackendType.CPU)
+                            onModelConfigChanged()
+                        }
+                    )
+                    BackendOptionItem(
+                        title = "GPU",
+                        description = "尝试 Mali/OpenCL/OpenGL 加速；失败会自动回退 CPU。",
+                        selected = modelConfig.backend == BackendType.GPU,
+                        onClick = {
+                            viewModel.setBackend(BackendType.GPU)
+                            onModelConfigChanged()
+                        }
+                    )
+                    BackendOptionItem(
+                        title = "NPU",
+                        description = "尝试厂商 NPU runtime；模型不兼容时会先回退 GPU。",
+                        selected = modelConfig.backend == BackendType.NPU,
+                        onClick = {
+                            viewModel.setBackend(BackendType.NPU)
+                            onModelConfigChanged()
+                        }
+                    )
+                }
                 ModelConfigField("模型路径", modelConfig.modelPath) {
                     viewModel.updateModelPath(it)
                 }
@@ -433,6 +469,39 @@ private fun ModelRuntimeOptionItem(
             selected = selected,
             onClick = null
         )
+        Column(modifier = Modifier.padding(start = 12.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun BackendOptionItem(
+    title: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                onClick = onClick
+            )
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = null)
         Column(modifier = Modifier.padding(start = 12.dp)) {
             Text(
                 text = title,

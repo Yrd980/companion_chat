@@ -134,7 +134,7 @@ fun SettingsScreen(
                 SettingsItem(
                     icon = Icons.Default.Memory,
                     title = "模型配置",
-                    subtitle = "选择模型、GPU/CPU 后端",
+                    subtitle = "选择模型与端侧推理配置",
                     onClick = onNavigateToModel
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))

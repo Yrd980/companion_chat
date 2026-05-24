@@ -2,6 +2,7 @@ package com.companion.chat.ui.settings
 
 import androidx.lifecycle.ViewModel
 import com.companion.chat.context.ContextConfigRepository
+import com.companion.chat.engine.BackendType
 import com.companion.chat.engine.ModelConfig
 import com.companion.chat.engine.ModelConfigRepository
 import com.companion.chat.engine.ModelRuntime
@@ -38,6 +39,10 @@ class ModelConfigViewModel(
 
     fun setRuntime(runtime: ModelRuntime) {
         updateModelConfig(_uiState.value.modelConfig.copy(runtime = runtime, modelPath = ""))
+    }
+
+    fun setBackend(backend: BackendType) {
+        updateModelConfig(_uiState.value.modelConfig.copy(backend = backend))
     }
 
     fun updateModelPath(path: String) {

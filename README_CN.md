@@ -23,8 +23,6 @@ Anime Companion 是一款融合本地大模型与语音能力的 AI 智能头盔
 
 当前这个仓库主要承载的是它的软件侧核心实现，也就是 Android 本地 AI 伴侣应用部分。
 
-根目录 `app/` 模块是当前唯一有效的 Android 应用源码。旧的嵌套 `CompanionChat/` Android 工程目录已经清理；`CompanionChat` 仍保留为产品和仓库名称。
-
 ## 软件层面简介
 
 Anime Companion 是一款专注于移动端场景的本地 AI 私密陪伴应用。项目以“角色陪伴”而非“工具问答”为核心，围绕以下四个方向构建体验：

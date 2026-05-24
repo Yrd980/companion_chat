@@ -34,7 +34,7 @@ data class ImageGenerationRequest(
     val negativePrompt: String = "",
     val size: String = "1024x1024",
     val seed: Long? = null,
-    val steps: Int = 24,
+    val steps: Int = 0,
     val roleId: String = "",
     val purpose: ImageGenerationPurpose = ImageGenerationPurpose.CHAT_SCENE
 )

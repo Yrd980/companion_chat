@@ -178,7 +178,10 @@ fun ChatScreen(
                         items = uiState.messages,
                         key = { it.id }
                     ) { message ->
-                        MessageBubble(message = message)
+                        MessageBubble(
+                            message = message,
+                            assistantAvatarImageUri = uiState.assistantAvatarImageUri
+                        )
                     }
 
                 }

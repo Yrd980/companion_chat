@@ -45,6 +45,7 @@ import java.util.Locale
 @Composable
 fun MessageBubble(
     message: ChatMessage,
+    assistantAvatarImageUri: String = "",
     modifier: Modifier = Modifier
 ) {
     val isUser = message.role == MessageRole.USER
@@ -58,7 +59,7 @@ fun MessageBubble(
         verticalAlignment = Alignment.Top
     ) {
         if (!isUser) {
-            AvatarIcon(isUser = false)
+            AvatarIcon(isUser = false, imageUri = assistantAvatarImageUri)
             Column(
                 modifier = Modifier
                     .padding(start = 8.dp)
@@ -111,7 +112,7 @@ fun MessageBubble(
 }
 
 @Composable
-private fun AvatarIcon(isUser: Boolean) {
+private fun AvatarIcon(isUser: Boolean, imageUri: String = "") {
     Box(
         modifier = Modifier
             .size(30.dp)
@@ -122,16 +123,25 @@ private fun AvatarIcon(isUser: Boolean) {
             ),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = if (isUser) Icons.Default.Person else Icons.Default.SmartToy,
-            contentDescription = if (isUser) "用户" else "AI",
-            tint = if (isUser) {
-                MaterialTheme.colorScheme.onPrimaryContainer
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.size(17.dp)
-        )
+        if (!isUser && imageUri.isNotBlank()) {
+            AsyncImage(
+                model = imageUri,
+                contentDescription = "AI",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Icon(
+                imageVector = if (isUser) Icons.Default.Person else Icons.Default.SmartToy,
+                contentDescription = if (isUser) "用户" else "AI",
+                tint = if (isUser) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.size(17.dp)
+            )
+        }
     }
 }
 

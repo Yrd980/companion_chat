@@ -15,6 +15,7 @@ import com.companion.chat.companion.PreferenceLearningAdapter
 import com.companion.chat.context.ContextConfigRepository
 import com.companion.chat.context.ContextManager
 import com.companion.chat.context.ContextSettings
+import com.companion.chat.engine.BackendType
 import com.companion.chat.engine.InferenceState
 import com.companion.chat.engine.VoiceInputEvent
 import com.companion.chat.engine.VoiceOutputState
@@ -56,6 +57,7 @@ data class ChatUiState(
     val lastVoiceTranscript: String = "",
     val imageGenerationState: ImageGenerationState = ImageGenerationState.Idle,
     val imageGenerationError: String = "",
+    val assistantAvatarImageUri: String = "",
     val engineState: InferenceState = InferenceState.Idle,
     val showVoicePermissionDialog: Boolean = false,
     val diagnosticLog: String = "",
@@ -156,6 +158,7 @@ class ChatViewModel(
         collectImageGenerationState()
         loadContextSettings()
         loadSessionsFromStorage()
+        refreshAssistantAvatar()
         voiceInputEngine.warmUp()
 
         viewModelScope.launch {
@@ -182,6 +185,13 @@ class ChatViewModel(
                 }
                 _uiState.update { it.copy(diagnosticLog = it.diagnosticLog + "LOG_INIT_ERROR: ${e.message}\n") }
             } catch (_: Exception) {}
+        }
+    }
+
+    private fun refreshAssistantAvatar() {
+        viewModelScope.launch {
+            val avatarUri = roleCardRepository.getActiveRoleCard()?.avatarImageUri.orEmpty()
+            _uiState.update { it.copy(assistantAvatarImageUri = avatarUri) }
         }
     }
 
@@ -689,6 +699,7 @@ class ChatViewModel(
                 }
                 logToFile("开始调用 engine.initialize...")
                 inferenceEngine.initialize(config)
+                persistActualBackendIfNeeded(modelConfig.backend)
                 logToFile("engine.initialize 返回, state = ${inferenceEngine.state.value}")
             } catch (e: Exception) {
                 logToFile("!!! initializeEngine 异常 !!! ${e.javaClass.simpleName}: ${e.message}")
@@ -697,6 +708,16 @@ class ChatViewModel(
                 }
             }
         }
+    }
+
+    private fun persistActualBackendIfNeeded(requestedBackend: BackendType) {
+        val actualBackend = inferenceEngine.getCurrentConfig()?.backend ?: return
+        if (actualBackend == requestedBackend) return
+        if (requestedBackend == BackendType.CPU) return
+
+        val latestConfig = modelConfigRepository.getConfig()
+        modelConfigRepository.updateConfig(latestConfig.copy(backend = actualBackend))
+        logToFile("模型后端已同步为实际可用后端: $requestedBackend -> $actualBackend")
     }
 
     override fun onCleared() {
@@ -748,6 +769,7 @@ class ChatViewModel(
         roleCardRepository.activateRoleCard(roleId)
         val roleCard = roleCardRepository.getRoleCard(roleId)
         refreshBaseSystemPrompt()
+        _uiState.update { it.copy(assistantAvatarImageUri = roleCard?.avatarImageUri.orEmpty()) }
 
         val openingMessage = roleCard?.openingMessage
             ?.trim()
@@ -1031,6 +1053,7 @@ class ChatViewModel(
 
     suspend fun activateRoleCard(roleId: Long) {
         baseSystemPrompt = companionRuntime.activateRoleCardAndRefreshPrompt(roleId)
+        refreshAssistantAvatar()
         rebuildConversationForPromptChange(reason = "角色卡切换")
     }
 
