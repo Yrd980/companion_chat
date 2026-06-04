@@ -571,6 +571,29 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
         success
     }
 
+    override suspend fun warmUp(messages: List<ChatMessage>): Boolean = withContext(Dispatchers.IO) {
+        val existingConfig = currentConfig ?: run {
+            logToFile("预热跳过: 引擎未初始化或配置缺失")
+            return@withContext false
+        }
+        if (_state.value is InferenceState.Generating) {
+            logToFile("预热跳过: 当前正在生成")
+            return@withContext false
+        }
+        val initialMessages = messages
+            .filterNot { it.isStreaming }
+            .filter { it.role == MessageRole.USER || it.role == MessageRole.ASSISTANT }
+            .mapNotNull(::toInitialMessage)
+        logToFile("开始对话预热: initialMessages=${initialMessages.size}")
+        replaceConversation(
+            systemPrompt = existingConfig.systemPrompt,
+            initialMessages = initialMessages,
+            reasonLabel = "对话预热"
+        ).also { success ->
+            logToFile("对话预热${if (success) "完成" else "失败"}")
+        }
+    }
+
     override fun release() {
         try {
             conversation?.close()

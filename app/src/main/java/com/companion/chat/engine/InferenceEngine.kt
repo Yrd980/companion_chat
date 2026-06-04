@@ -49,6 +49,8 @@ interface InferenceEngine {
 
     suspend fun replayMessages(messages: List<ChatMessage>): Boolean
 
+    suspend fun warmUp(messages: List<ChatMessage> = emptyList()): Boolean
+
     fun sendMessageStream(
         messages: List<ChatMessage>
     ): Flow<String>

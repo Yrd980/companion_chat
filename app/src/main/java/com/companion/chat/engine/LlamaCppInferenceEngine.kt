@@ -347,6 +347,16 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         true
     }
 
+    override suspend fun warmUp(messages: List<ChatMessage>): Boolean = withContext(runtimeDispatcher) {
+        if (handle == 0L) {
+            logToFile("llama.cpp 预热跳过: 引擎未初始化")
+            false
+        } else {
+            logToFile("llama.cpp 预热完成: promptMessages=${messages.size}")
+            true
+        }
+    }
+
     override fun release() {
         releaseLoadedModel()
         runtimeExecutor.shutdown()
