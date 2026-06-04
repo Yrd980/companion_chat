@@ -7,14 +7,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.companion.chat.AppContainer
 import com.companion.chat.appContainer
-import com.companion.chat.companion.CompanionRebuildResult
-import com.companion.chat.companion.CompanionRuntime
-import com.companion.chat.companion.CompanionTurnEvent
-import com.companion.chat.companion.PreferenceLearningCoordinator
-import com.companion.chat.companion.PreferenceLearningAdapter
-import com.companion.chat.context.ContextConfigRepository
-import com.companion.chat.context.ContextManager
-import com.companion.chat.context.ContextSettings
+import com.companion.chat.companion.turn.CompanionTurnDelivery
+import com.companion.chat.companion.turn.CompanionTurnEvent
+import com.companion.chat.companion.turn.CompanionTurnModule
+import com.companion.chat.companion.turn.CompanionTurnRejectReason
+import com.companion.chat.companion.turn.CompanionTurnRequest
+import com.companion.chat.companion.turn.DefaultCompanionTurnModule
 import com.companion.chat.engine.BackendType
 import com.companion.chat.engine.InferenceState
 import com.companion.chat.engine.VoiceInputEvent
@@ -25,12 +23,8 @@ import com.companion.chat.engine.image.ImageGenerationState
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.ConversationSession
 import com.companion.chat.data.model.DEFAULT_SESSION_TITLE
-import com.companion.chat.data.model.DEFAULT_WELCOME_MESSAGE
 import com.companion.chat.data.model.MessageRole
-import com.companion.chat.data.model.createDefaultSession
-import com.companion.chat.data.preferences.SecondEngineManager
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,6 +49,8 @@ data class ChatUiState(
     val isVoiceAutoSending: Boolean = false,
     val voiceInputError: String = "",
     val lastVoiceTranscript: String = "",
+    val voiceInputPreview: String = "",
+    val isConversationWarmingUp: Boolean = false,
     val imageGenerationState: ImageGenerationState = ImageGenerationState.Idle,
     val imageGenerationError: String = "",
     val assistantAvatarImageUri: String = "",
@@ -90,65 +86,34 @@ class ChatViewModel(
     var inferenceEngine = inferenceEngineFactory.create(modelConfigRepository.getConfig().runtime)
         private set
     val voiceInputEngine = container.voiceInputEngine
-    private val contextConfigRepository = container.contextConfigRepository
-    private val contextManager: ContextManager = container.contextManager
-    private val promptAssembler = container.promptAssembler
-    private val sessionRepository = container.chatSessionRepository
-    private val memoryRepository = container.memoryRepository
-    private val preferenceRepository = container.preferenceRepository
-    private val roleCardRepository = container.roleCardRepository
     val voiceOutputEngine = container.voiceOutputEngine
     private val imageGenerationConfigRepository = container.imageGenerationConfigRepository
-    private val imageGenerationEngine = container.imageGenerationEngine
     private val imageGenerationEngineSelector = container.imageGenerationEngineSelector
-    private val preferenceMemoryDeriver = container.preferenceMemoryDeriver
-    private val unifiedExtractionPromptBuilder = container.unifiedExtractionPromptBuilder
-    private val unifiedExtractionParser = container.unifiedExtractionParser
-    private val secondEngineManager = SecondEngineManager(
-        primaryEngineStateProvider = { inferenceEngine.state.value },
-        engineFactory = { inferenceEngineFactory.create(modelConfigRepository.getConfig().runtime) },
-        timeoutMillis = STAGE4_SUMMARY_TIMEOUT_MILLIS
-    )
-    private val preferenceLearningCoordinator = PreferenceLearningCoordinator(
+    private val companionTurnModule: CompanionTurnModule = DefaultCompanionTurnModule(
         scope = viewModelScope,
-        contextConfigRepository = contextConfigRepository,
-        memoryRepository = memoryRepository,
-        preferenceRepository = preferenceRepository,
-        preferenceMemoryDeriver = preferenceMemoryDeriver,
-        unifiedExtractionPromptBuilder = unifiedExtractionPromptBuilder,
-        unifiedExtractionParser = unifiedExtractionParser,
-        secondEngineManager = secondEngineManager,
-        engineStateProvider = { inferenceEngine.state.value },
+        contextConfigRepository = container.contextConfigRepository,
+        sessionRepository = container.chatSessionRepository,
+        memoryRepository = container.memoryRepository,
+        preferenceRepository = container.preferenceRepository,
+        roleCardRepository = container.roleCardRepository,
+        skillRepository = container.skillRepository,
+        voiceOutputEngine = voiceOutputEngine,
+        contextManager = container.contextManager,
+        promptAssembler = container.promptAssembler,
+        memoryPromptBuilder = container.memoryPromptBuilder,
+        roleCardPromptBuilder = container.roleCardPromptBuilder,
+        preferenceMemoryDeriver = container.preferenceMemoryDeriver,
+        unifiedExtractionPromptBuilder = container.unifiedExtractionPromptBuilder,
+        unifiedExtractionParser = container.unifiedExtractionParser,
+        inferenceEngineProvider = { inferenceEngine },
+        inferenceEngineFactory = { inferenceEngineFactory.create(modelConfigRepository.getConfig().runtime) },
         currentEngineConfigProvider = { inferenceEngine.getCurrentConfig() },
-        baseSystemPromptProvider = { baseSystemPrompt },
         logger = ::logToFile
     )
-    private val companionRuntime = CompanionRuntime(
-        roleCardRepository = roleCardRepository,
-        skillRepository = container.skillRepository,
-        preferenceRepository = preferenceRepository,
-        memoryRepository = memoryRepository,
-        contextManager = contextManager,
-        inferenceEngineProvider = { inferenceEngine },
-        postTurnLearning = PreferenceLearningAdapter(preferenceLearningCoordinator),
-        promptAssembler = promptAssembler,
-        memoryPromptBuilder = container.memoryPromptBuilder,
-        roleCardPromptBuilder = container.roleCardPromptBuilder
-    )
-    private val chatRuntimeActions = ChatRuntimeActions(
-        companionRuntime = companionRuntime,
-        memoryRepository = memoryRepository,
-        autoPreferenceLearningEnabledProvider = {
-            contextConfigRepository.getAutoPreferenceLearningEnabled()
-        }
-    )
-    private var contextSettings: ContextSettings = ContextConfigRepository.DEFAULT_SETTINGS
-    private var baseSystemPrompt: String = DEFAULT_BASE_SYSTEM_PROMPT
 
     private var generateJob: Job? = null
     private var voiceCollectJob: Job? = null
     private var inferenceStateJob: Job? = null
-    private var shouldSpeakNextAssistantResponse = false
 
     init {
         logToFile("=== ChatViewModel 创建 ===")
@@ -156,15 +121,13 @@ class ChatViewModel(
         collectVoiceEvents()
         collectVoiceOutputState()
         collectImageGenerationState()
-        loadContextSettings()
-        loadSessionsFromStorage()
-        refreshAssistantAvatar()
+        collectCompanionTurnSnapshot()
         voiceInputEngine.warmUp()
 
         viewModelScope.launch {
-            refreshBaseSystemPrompt()
+            companionTurnModule.start()
             logToFile("ChatViewModel 初始化完成，开始自动初始化引擎")
-            initializeEngine(systemPrompt = baseSystemPrompt)
+            initializeEngine(systemPrompt = companionTurnModule.currentBaseSystemPrompt)
         }
     }
 
@@ -188,26 +151,24 @@ class ChatViewModel(
         }
     }
 
-    private fun refreshAssistantAvatar() {
+    internal fun debugBaseSystemPrompt(): String = companionTurnModule.currentBaseSystemPrompt
+
+    private fun collectCompanionTurnSnapshot() {
         viewModelScope.launch {
-            val avatarUri = roleCardRepository.getActiveRoleCard()?.avatarImageUri.orEmpty()
-            _uiState.update { it.copy(assistantAvatarImageUri = avatarUri) }
+            companionTurnModule.snapshot.collectLatest { snapshot ->
+                _uiState.update {
+                    it.copy(
+                        sessions = snapshot.sessions,
+                        currentSessionId = snapshot.currentSessionId,
+                        messages = snapshot.messages,
+                        assistantAvatarImageUri = snapshot.assistantAvatarImageUri,
+                        isGenerating = snapshot.isGenerating,
+                        isConversationWarmingUp = snapshot.isConversationWarmingUp
+                    )
+                }
+            }
         }
     }
-
-    private fun loadContextSettings() {
-        contextSettings = contextConfigRepository.getSettings()
-        logToFile(
-            "上下文设置已加载: retainedRounds=${contextSettings.retainedRounds}, " +
-                "compressionBuffer=${contextSettings.compressionBuffer}"
-        )
-    }
-
-    private suspend fun refreshBaseSystemPrompt() {
-        baseSystemPrompt = companionRuntime.refreshBasePrompt()
-    }
-
-    internal fun debugBaseSystemPrompt(): String = baseSystemPrompt
 
     private fun collectInferenceState() {
         inferenceStateJob?.cancel()
@@ -230,7 +191,13 @@ class ChatViewModel(
                         _uiState.update { it.copy(isVoiceWarmedUp = true) }
                     }
                     is VoiceInputEvent.PartialResult -> {
-                        _uiState.update { it.copy(inputText = event.text, voiceInputError = "") }
+                        _uiState.update {
+                            it.copy(
+                                inputText = event.text,
+                                voiceInputPreview = event.text,
+                                voiceInputError = ""
+                            )
+                        }
                     }
                     is VoiceInputEvent.FinalResult -> {
                         val transcript = event.text.trim()
@@ -240,7 +207,8 @@ class ChatViewModel(
                                 isVoiceStarting = false,
                                 isVoiceListening = false,
                                 voiceInputError = "",
-                                lastVoiceTranscript = transcript
+                                lastVoiceTranscript = transcript,
+                                voiceInputPreview = transcript
                             )
                         }
                         handleVoiceTranscript(transcript)
@@ -250,7 +218,8 @@ class ChatViewModel(
                             it.copy(
                                 isVoiceStarting = false,
                                 isVoiceListening = true,
-                                voiceInputError = ""
+                                voiceInputError = "",
+                                voiceInputPreview = "正在听..."
                             )
                         }
                     }
@@ -262,7 +231,8 @@ class ChatViewModel(
                             it.copy(
                                 isVoiceStarting = false,
                                 isVoiceListening = false,
-                                voiceInputError = event.message
+                                voiceInputError = event.message,
+                                voiceInputPreview = ""
                             )
                         }
                     }
@@ -367,10 +337,7 @@ class ChatViewModel(
     }
 
     private fun submitCurrentMessage(autoSpeakResponse: Boolean) {
-        if (!autoSpeakResponse) {
-            shouldSpeakNextAssistantResponse = false
-        }
-        var state = _uiState.value
+        val state = _uiState.value
         if (state.inputText.isBlank() && state.selectedImages.isEmpty()) {
             _uiState.update { it.copy(isVoiceAutoSending = false) }
             return
@@ -379,196 +346,68 @@ class ChatViewModel(
             _uiState.update { it.copy(isVoiceAutoSending = false) }
             return
         }
-        companionRuntime.cancelPostTurnLearning()
-
-        if (state.currentSessionId.isBlank()) {
-            val newSession = ConversationSession(messages = emptyList())
-            _uiState.update {
-                it.copy(
-                    sessions = listOf(newSession) + it.sessions,
-                    currentSessionId = newSession.id,
-                    messages = emptyList()
-                )
-            }
-            persistSession(newSession)
-            state = _uiState.value
-        }
-
-        val userMessage = ChatMessage(
-            role = MessageRole.USER,
-            content = state.inputText.trim(),
-            images = state.selectedImages.toList()
-        )
-
-        val assistantPlaceholder = ChatMessage(
-            role = MessageRole.ASSISTANT,
-            content = "",
-            isStreaming = true
-        )
-
-        _uiState.update {
-            it.copy(
-                messages = it.messages + userMessage + assistantPlaceholder,
-                inputText = "",
-                selectedImages = emptyList(),
-                isGenerating = true,
-                isVoiceAutoSending = autoSpeakResponse
-            )
-        }
-        saveCurrentSession()
 
         generateJob?.cancel()
-        shouldSpeakNextAssistantResponse = autoSpeakResponse
         generateJob = viewModelScope.launch {
-            storeRuleBasedMemoriesForMessage(userMessage)
-            generateResponse(userMessage.content.trim())
-        }
-    }
-
-    private suspend fun generateResponse(userInput: String) {
-        val engineState = inferenceEngine.state.value
-        if (engineState !is InferenceState.Ready) {
-            updateAssistantMessage("模型未加载，请在设置中配置模型路径。")
-            return
-        }
-
-        try {
-            val messages = _uiState.value.messages
-            val memoryContext = buildMemoryContext(userInput)
-            contextSettings = contextConfigRepository.getSettings()
-            companionRuntime.runTurn(
-                messages = messages,
-                baseSystemPrompt = baseSystemPrompt,
-                settings = contextSettings,
-                userPreferences = memoryContext.confirmedPreferencePrompt,
-                persistentMemoryPrompt = memoryContext.persistentPrompt,
-                memoryPrompt = memoryContext.retrievedPrompt
+            companionTurnModule.submit(
+                CompanionTurnRequest(
+                    text = state.inputText,
+                    images = state.selectedImages.toList(),
+                    delivery = if (autoSpeakResponse) {
+                        CompanionTurnDelivery.VoiceFirst
+                    } else {
+                        CompanionTurnDelivery.TextOnly
+                    }
+                )
             ).collect { event ->
                 when (event) {
-                    is CompanionTurnEvent.ContextRebuildCompleted -> logContextRebuildResult(
-                        reason = "发送前上下文检查",
-                        rebuildResult = event.result,
-                        stableMessageCount = event.stableMessageCount
-                    )
-                    is CompanionTurnEvent.AssistantToken -> appendAssistantToken(event.token)
-                    is CompanionTurnEvent.TurnFailed -> updateAssistantMessage("推理出错: ${event.message}")
+                    is CompanionTurnEvent.Accepted -> {
+                        _uiState.update {
+                            it.copy(
+                                inputText = "",
+                                selectedImages = emptyList(),
+                                isVoiceAutoSending = event.voiceFirst
+                            )
+                        }
+                    }
+                    is CompanionTurnEvent.ContextRebuildCompleted -> {
+                        logContextRebuildResult(event)
+                    }
+                    is CompanionTurnEvent.Rejected -> {
+                        handleRejectedTurn(event)
+                    }
+                    is CompanionTurnEvent.Failed -> {
+                        logToFile(event.message)
+                    }
+                    CompanionTurnEvent.Completed -> {
+                        _uiState.update { it.copy(isVoiceAutoSending = false) }
+                    }
+                    is CompanionTurnEvent.AssistantToken -> Unit
                 }
             }
-        } catch (_: CancellationException) {
-            // User-initiated cancellation should leave the partial assistant message as-is.
-        } catch (e: Exception) {
-            updateAssistantMessage("推理出错: ${e.message}")
-        } finally {
-            finishStreaming()
         }
     }
 
-    private suspend fun buildMemoryContext(userInput: String): MemoryContext {
-        return try {
-            val confirmedPreferencePrompt = buildConfirmedPreferencePrompt()
-            val companionMemoryContext = companionRuntime.buildMemoryContext(userInput)
-            val persistentPrompt = companionMemoryContext.persistentPrompt
-            val memoryPrompt = companionMemoryContext.retrievedPrompt
-            if (confirmedPreferencePrompt.isNotBlank()) {
-                logToFile("confirmed 偏好注入: count=${preferenceRepository.getConfirmedPreferences().size}")
+    private fun handleRejectedTurn(event: CompanionTurnEvent.Rejected) {
+        when (event.reason) {
+            CompanionTurnRejectReason.BlankInput,
+            CompanionTurnRejectReason.AlreadyGenerating -> {
+                _uiState.update { it.copy(isVoiceAutoSending = false) }
             }
-            if (persistentPrompt.isNotBlank()) {
-                logToFile("常驻长期记忆注入: count=${companionMemoryContext.persistentMemoryCount}")
+            CompanionTurnRejectReason.EngineNotReady -> {
+                _uiState.update {
+                    it.copy(
+                        isVoiceAutoSending = false,
+                        voiceInputError = if (it.lastVoiceTranscript.isNotBlank()) {
+                            event.message
+                        } else {
+                            it.voiceInputError
+                        }
+                    )
+                }
             }
-            if (memoryPrompt.isNotBlank()) {
-                logToFile(
-                    "动态记忆检索成功: count=${companionMemoryContext.retrievedMemoryCount}, " +
-                        "query=${userInput.trim()}"
-                )
-            } else {
-                logToFile("动态记忆检索为空: query=${userInput.trim()}")
-            }
-            MemoryContext(
-                confirmedPreferencePrompt = confirmedPreferencePrompt,
-                persistentPrompt = persistentPrompt,
-                retrievedPrompt = memoryPrompt
-            )
-        } catch (e: Exception) {
-            logToFile("发送前记忆检索失败: ${e.message}")
-            MemoryContext()
         }
-    }
-
-    private data class MemoryContext(
-        val confirmedPreferencePrompt: String = "",
-        val persistentPrompt: String = "",
-        val retrievedPrompt: String = ""
-    )
-
-    private suspend fun storeRuleBasedMemoriesForMessage(userMessage: ChatMessage) {
-        try {
-            if (userMessage.content.isBlank()) {
-                return
-            }
-            val sessionId = _uiState.value.currentSessionId.ifBlank { return }
-            val insertedMemoryCount = chatRuntimeActions.storeRuleBasedMemoriesBeforeGeneration(
-                userMessage = userMessage,
-                sessionId = sessionId
-            )
-            if (insertedMemoryCount > 0) {
-                logToFile("规则兜底记忆写入成功: count=$insertedMemoryCount")
-            }
-        } catch (e: Exception) {
-            logToFile("规则兜底记忆写入失败: ${e.message}")
-        }
-    }
-
-    private fun appendAssistantToken(token: String) {
-        _uiState.update { state ->
-            val updatedMessages = state.messages.toMutableList()
-            val lastIndex = updatedMessages.lastIndex
-            if (lastIndex >= 0 && updatedMessages[lastIndex].isStreaming) {
-                updatedMessages[lastIndex] = updatedMessages[lastIndex].copy(
-                    content = updatedMessages[lastIndex].content + token
-                )
-            }
-            state.copy(messages = updatedMessages)
-        }
-    }
-
-    private fun updateAssistantMessage(content: String) {
-        _uiState.update { state ->
-            val updatedMessages = state.messages.toMutableList()
-            val lastIndex = updatedMessages.lastIndex
-            if (lastIndex >= 0 && updatedMessages[lastIndex].isStreaming) {
-                updatedMessages[lastIndex] = updatedMessages[lastIndex].copy(
-                    content = content,
-                    isStreaming = false
-                )
-            }
-            state.copy(messages = updatedMessages, isGenerating = false, isVoiceAutoSending = false)
-        }
-    }
-
-    private fun finishStreaming() {
-        _uiState.update { state ->
-            val updatedMessages = state.messages.toMutableList()
-            val lastIndex = updatedMessages.lastIndex
-            if (lastIndex >= 0 && updatedMessages[lastIndex].isStreaming) {
-                updatedMessages[lastIndex] = updatedMessages[lastIndex].copy(
-                    isStreaming = false
-                )
-            }
-            state.copy(messages = updatedMessages, isGenerating = false, isVoiceAutoSending = false)
-        }
-
-        val lastMessage = _uiState.value.messages.lastOrNull()
-        if (
-            shouldSpeakNextAssistantResponse &&
-            lastMessage?.role == MessageRole.ASSISTANT &&
-            lastMessage.content.isNotBlank()
-        ) {
-            speakMessage(lastMessage.content)
-        }
-        shouldSpeakNextAssistantResponse = false
-
-        saveCurrentSession()
-        schedulePreferenceSummaryAfterDelay()
+        logToFile(event.message)
     }
 
     fun toggleVoiceListening() {
@@ -591,6 +430,7 @@ class ChatViewModel(
                 it.copy(
                     isVoiceStarting = true,
                     voiceInputError = "",
+                    voiceInputPreview = "正在启动语音识别...",
                     showVoicePermissionDialog = true
                 )
             }
@@ -609,7 +449,8 @@ class ChatViewModel(
             it.copy(
                 isVoiceStarting = false,
                 showVoicePermissionDialog = false,
-                voiceInputError = "缺少录音权限，无法使用语音输入"
+                voiceInputError = "缺少录音权限，无法使用语音输入",
+                voiceInputPreview = ""
             )
         }
     }
@@ -651,9 +492,7 @@ class ChatViewModel(
 
     fun cancelGeneration() {
         generateJob?.cancel()
-        inferenceEngine.cancel()
-        companionRuntime.cancelPostTurnLearning()
-        shouldSpeakNextAssistantResponse = false
+        companionTurnModule.cancelActiveTurn()
         _uiState.update { it.copy(isGenerating = false, isVoiceAutoSending = false) }
     }
 
@@ -662,8 +501,7 @@ class ChatViewModel(
             try {
                 if (inferenceEngine.state.value is InferenceState.Generating) {
                     generateJob?.cancel()
-                    inferenceEngine.cancel()
-                    companionRuntime.cancelPostTurnLearning()
+                    companionTurnModule.cancelActiveTurn()
                     _uiState.update { it.copy(isGenerating = false) }
                     logToFile("模型配置变更: 已取消当前生成并准备重建引擎")
                 }
@@ -685,9 +523,8 @@ class ChatViewModel(
                 }
 
                 val resolvedSystemPrompt = systemPrompt.ifBlank {
-                    baseSystemPrompt.ifBlank { DEFAULT_BASE_SYSTEM_PROMPT }
+                    companionTurnModule.currentBaseSystemPrompt
                 }
-                baseSystemPrompt = resolvedSystemPrompt
                 val config = modelConfigRepository.toEngineConfig(
                     systemPrompt = resolvedSystemPrompt
                 ).copy(modelPath = actualPath)
@@ -725,7 +562,7 @@ class ChatViewModel(
         generateJob?.cancel()
         voiceCollectJob?.cancel()
         inferenceStateJob?.cancel()
-        companionRuntime.release()
+        companionTurnModule.release()
         inferenceEngine.release()
         voiceInputEngine.release()
         voiceOutputEngine.release()
@@ -744,63 +581,22 @@ class ChatViewModel(
     }
 
     fun createNewSession() {
-        if (_uiState.value.currentSessionId.isNotBlank()) {
-            triggerPreferenceSummaryNow(reason = "新建会话前")
-            saveCurrentSession()
+        viewModelScope.launch {
+            companionTurnModule.createSession()
+            _uiState.update { it.copy(showSessionDrawer = false, sessionSearchQuery = "") }
         }
-        val newSession = createDefaultSession()
-        _uiState.update {
-            it.copy(
-                sessions = listOf(newSession) + it.sessions,
-                currentSessionId = newSession.id,
-                messages = newSession.messages,
-                showSessionDrawer = false,
-                sessionSearchQuery = ""
-            )
-        }
-        persistSession(newSession)
     }
 
     suspend fun startRoleConversation(roleId: Long) {
-        if (_uiState.value.currentSessionId.isNotBlank()) {
-            triggerPreferenceSummaryNow(reason = "角色对话前")
-            saveCurrentSession()
-        }
-        roleCardRepository.activateRoleCard(roleId)
-        val roleCard = roleCardRepository.getRoleCard(roleId)
-        refreshBaseSystemPrompt()
-        _uiState.update { it.copy(assistantAvatarImageUri = roleCard?.avatarImageUri.orEmpty()) }
-
-        val openingMessage = roleCard?.openingMessage
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?: DEFAULT_WELCOME_MESSAGE
-        val now = System.currentTimeMillis()
-        val newSession = ConversationSession(
-            title = roleCard?.name?.takeIf { it.isNotBlank() } ?: DEFAULT_SESSION_TITLE,
-            messages = listOf(
-                ChatMessage(
-                    role = MessageRole.ASSISTANT,
-                    content = openingMessage,
-                    timestamp = now
-                )
-            ),
-            createdAt = now,
-            updatedAt = now
-        )
+        companionTurnModule.startRoleConversation(roleId)
         _uiState.update {
             it.copy(
-                sessions = listOf(newSession) + it.sessions,
-                currentSessionId = newSession.id,
-                messages = newSession.messages,
                 showSessionDrawer = false,
                 sessionSearchQuery = "",
                 inputText = "",
                 selectedImages = emptyList()
             )
         }
-        persistSession(newSession)
-        rebuildConversationForPromptChange(reason = "角色对话开始")
     }
 
     fun setDateFilter(filter: DateFilter) {
@@ -820,21 +616,15 @@ class ChatViewModel(
         val state = _uiState.value
         if (state.editingSessionId.isBlank()) return
         val newTitle = state.editingTitle.trim().ifBlank { DEFAULT_SESSION_TITLE }
-        val updatedSessions = state.sessions.map { session ->
-            if (session.id == state.editingSessionId) {
-                session.copy(title = newTitle)
-            } else {
-                session
-            }
-        }
         _uiState.update {
             it.copy(
-                sessions = updatedSessions,
                 editingSessionId = "",
                 editingTitle = ""
             )
         }
-        updatedSessions.firstOrNull { it.id == state.editingSessionId }?.let(::persistSession)
+        viewModelScope.launch {
+            companionTurnModule.renameSession(state.editingSessionId, newTitle)
+        }
     }
 
     fun cancelEditingTitle() {
@@ -847,190 +637,50 @@ class ChatViewModel(
             _uiState.update { it.copy(showSessionDrawer = false, sessionSearchQuery = "") }
             return
         }
-        triggerPreferenceSummaryNow(
-            reason = "切换会话",
-            sessionId = state.currentSessionId,
-            messages = state.messages
-        )
-        saveCurrentSession()
-        val session = state.sessions.find { it.id == sessionId } ?: return
-        _uiState.update {
-            it.copy(
-                currentSessionId = sessionId,
-                messages = session.messages,
-                showSessionDrawer = false,
-                sessionSearchQuery = "",
-                inputText = "",
-                selectedImages = emptyList()
-            )
+        viewModelScope.launch {
+            companionTurnModule.openSession(sessionId)
+            _uiState.update {
+                it.copy(
+                    showSessionDrawer = false,
+                    sessionSearchQuery = "",
+                    inputText = "",
+                    selectedImages = emptyList()
+                )
+            }
         }
     }
 
     fun deleteSession(sessionId: String) {
-        val state = _uiState.value
-        val remainingSessions = state.sessions.filterNot { it.id == sessionId }
-        val nextSession = if (state.currentSessionId == sessionId) {
-            remainingSessions.firstOrNull()
-        } else {
-            state.sessions.firstOrNull { it.id == state.currentSessionId }
-        }
-
-        _uiState.update {
-            it.copy(
-                sessions = remainingSessions,
-                currentSessionId = nextSession?.id.orEmpty(),
-                messages = nextSession?.messages ?: emptyList(),
-                showSessionDrawer = false,
-                sessionSearchQuery = "",
-                editingSessionId = if (it.editingSessionId == sessionId) "" else it.editingSessionId,
-                editingTitle = if (it.editingSessionId == sessionId) "" else it.editingTitle
-            )
-        }
-
         viewModelScope.launch {
-            try {
-                sessionRepository.deleteSession(sessionId)
-            } catch (e: Exception) {
-                logToFile("删除会话失败: ${e.message}")
-            }
-        }
-    }
-
-    private fun saveCurrentSession() {
-        val state = _uiState.value
-        if (state.currentSessionId.isBlank()) return
-        val filteredMessages = state.messages.filter {
-            it.content != DEFAULT_WELCOME_MESSAGE || it.role != MessageRole.ASSISTANT
-        }
-        val title = filteredMessages.firstOrNull { it.role == MessageRole.USER }?.content?.take(20)
-            ?: state.sessions.firstOrNull { it.id == state.currentSessionId }?.title
-            ?: DEFAULT_SESSION_TITLE
-        val updatedAt = System.currentTimeMillis()
-        val updatedSessions = state.sessions.map { session ->
-            if (session.id == state.currentSessionId) {
-                session.copy(title = title, messages = state.messages, updatedAt = updatedAt)
-            } else {
-                session
-            }
-        }
-        _uiState.update { it.copy(sessions = updatedSessions) }
-        updatedSessions.firstOrNull { it.id == state.currentSessionId }?.let(::persistSession)
-    }
-
-    private fun loadSessionsFromStorage() {
-        viewModelScope.launch {
-            try {
-                sessionRepository.ensureInitialized()
-                val sessions = sessionRepository.getAllSessions()
-                val existing = sessions.firstOrNull()
-                if (existing != null) {
-                    _uiState.update {
-                        it.copy(
-                            sessions = sessions,
-                            messages = existing.messages,
-                            currentSessionId = existing.id
-                        )
-                    }
-                } else {
-                    _uiState.update {
-                        it.copy(
-                            sessions = emptyList(),
-                            currentSessionId = "",
-                            messages = emptyList()
-                        )
-                    }
-                }
-            } catch (e: Exception) {
-                logToFile("加载会话列表失败: ${e.message}")
-                _uiState.update {
-                    it.copy(
-                        sessions = emptyList(),
-                        currentSessionId = "",
-                        messages = emptyList()
-                    )
-                }
-            }
-        }
-    }
-
-    private fun persistSession(session: ConversationSession) {
-        viewModelScope.launch {
-            try {
-                sessionRepository.replaceSession(session)
-            } catch (e: Exception) {
-                logToFile("保存会话列表失败: ${e.message}")
+            companionTurnModule.deleteSession(sessionId)
+            _uiState.update {
+                it.copy(
+                    showSessionDrawer = false,
+                    sessionSearchQuery = "",
+                    editingSessionId = if (it.editingSessionId == sessionId) "" else it.editingSessionId,
+                    editingTitle = if (it.editingSessionId == sessionId) "" else it.editingTitle
+                )
             }
         }
     }
 
     fun onAppBackgrounded() {
-        triggerPreferenceSummaryNow(reason = "应用进入后台")
+        companionTurnModule.onAppBackgrounded()
     }
 
-    private fun schedulePreferenceSummaryAfterDelay() {
-        companionRuntime.onTurnFinished(
-            sessionIdProvider = { _uiState.value.currentSessionId },
-            messagesProvider = { _uiState.value.messages }
-        )
-    }
-
-    private fun triggerPreferenceSummaryNow(
-        reason: String,
-        sessionId: String = _uiState.value.currentSessionId,
-        messages: List<ChatMessage> = _uiState.value.messages
-    ) {
-        chatRuntimeActions.triggerConversationBoundary(
-            reason = reason,
-            sessionId = sessionId,
-            messages = messages
-        )
-    }
-
-    private suspend fun buildConfirmedPreferencePrompt(): String {
-        return companionRuntime.buildConfirmedPreferencePrompt()
-    }
-
-    private suspend fun rebuildConversationWithContext(
-        stableMessages: List<ChatMessage>,
-        userPreferences: String,
-        persistentMemoryPrompt: String,
-        memoryPrompt: String,
-        forceRebuild: Boolean,
-        reason: String
-    ) {
-        contextSettings = contextConfigRepository.getSettings()
-        val rebuildResult = companionRuntime.rebuildConversationWithContext(
-            stableMessages = stableMessages,
-            baseSystemPrompt = baseSystemPrompt,
-            settings = contextSettings,
-            userPreferences = userPreferences,
-            persistentMemoryPrompt = persistentMemoryPrompt,
-            memoryPrompt = memoryPrompt,
-            forceRebuild = forceRebuild
-        )
-        logContextRebuildResult(
-            reason = reason,
-            rebuildResult = rebuildResult,
-            stableMessageCount = stableMessages.size
-        )
-    }
-
-    private fun logContextRebuildResult(
-        reason: String,
-        rebuildResult: CompanionRebuildResult,
-        stableMessageCount: Int
-    ) {
+    private fun logContextRebuildResult(event: CompanionTurnEvent.ContextRebuildCompleted) {
+        val rebuildResult = event.result
         if (!rebuildResult.rebuildAttempted) {
             logToFile(
-                "$reason: 未触发压缩, " +
-                    "messageCount=$stableMessageCount, threshold=${contextSettings.compressionThreshold}, " +
+                "${event.reason}: 未触发压缩, " +
+                    "messageCount=${event.stableMessageCount}, threshold=${event.compressionThreshold}, " +
                     "contextInjected=false"
             )
             return
         }
 
         logToFile(
-            "$reason: recentMessages=${rebuildResult.recentMessageCount}, " +
+            "${event.reason}: recentMessages=${rebuildResult.recentMessageCount}, " +
                 "summaryEmpty=${rebuildResult.historySummaryEmpty}, " +
                 "preferenceInjected=${rebuildResult.preferenceInjected}, " +
                 "persistentMemoryInjected=${rebuildResult.persistentMemoryInjected}, " +
@@ -1038,68 +688,24 @@ class ChatViewModel(
         )
 
         if (rebuildResult.rebuildSucceeded == false) {
-            logToFile("$reason: Conversation 重建失败")
+            logToFile("${event.reason}: Conversation 重建失败")
             return
         }
 
         if (rebuildResult.replaySucceeded == true) {
-            logToFile("$reason: 最近消息回放成功")
+            logToFile("${event.reason}: 最近消息回放成功")
         } else if (rebuildResult.replaySucceeded == false && rebuildResult.fallbackSucceeded == true) {
-            logToFile("$reason: 最近消息回放失败，降级摘要注入成功")
+            logToFile("${event.reason}: 最近消息回放失败，降级摘要注入成功")
         } else if (rebuildResult.replaySucceeded == false) {
-            logToFile("$reason: 最近消息回放失败，降级摘要注入失败")
+            logToFile("${event.reason}: 最近消息回放失败，降级摘要注入失败")
         }
     }
 
     suspend fun activateRoleCard(roleId: Long) {
-        baseSystemPrompt = companionRuntime.activateRoleCardAndRefreshPrompt(roleId)
-        refreshAssistantAvatar()
-        rebuildConversationForPromptChange(reason = "角色卡切换")
+        companionTurnModule.activateRoleCard(roleId)
     }
 
     suspend fun activateSkill(skillId: Long) {
-        baseSystemPrompt = companionRuntime.activateSkillAndRefreshPrompt(skillId)
-        rebuildConversationForPromptChange(reason = "Skill 切换")
-    }
-
-    private suspend fun rebuildConversationForPromptChange(reason: String) {
-        if (inferenceEngine.state.value is InferenceState.Generating) {
-            logToFile("$reason: 当前正在生成，暂不重建 Conversation")
-            return
-        }
-        if (inferenceEngine.getCurrentConfig() == null) {
-            logToFile("$reason: 引擎尚未初始化，已仅更新基础 prompt")
-            return
-        }
-
-        val stableMessages = _uiState.value.messages
-            .filterNot { it.isStreaming }
-            .filter { it.role == MessageRole.USER || it.role == MessageRole.ASSISTANT }
-        val latestUserInput = stableMessages.lastOrNull { it.role == MessageRole.USER }?.content.orEmpty()
-        if (latestUserInput.isBlank()) {
-            val result = companionRuntime.rebuildBasePromptForPromptChange(baseSystemPrompt)
-            if (result.rebuildSucceeded == true) {
-                logToFile("$reason: 无用户消息，已仅使用基础 prompt 重建 Conversation")
-            } else {
-                logToFile("$reason: 无用户消息，基础 prompt 重建 Conversation 失败")
-            }
-            return
-        }
-        val memoryContext = buildMemoryContext(latestUserInput)
-
-        rebuildConversationWithContext(
-            stableMessages = stableMessages,
-            userPreferences = memoryContext.confirmedPreferencePrompt,
-            persistentMemoryPrompt = memoryContext.persistentPrompt,
-            memoryPrompt = memoryContext.retrievedPrompt,
-            forceRebuild = true,
-            reason = reason
-        )
-    }
-
-    companion object {
-        private const val DEFAULT_BASE_SYSTEM_PROMPT =
-            CompanionRuntime.DEFAULT_BASE_PROMPT
-        private const val STAGE4_SUMMARY_TIMEOUT_MILLIS = 90_000L
+        companionTurnModule.activateSkill(skillId)
     }
 }
