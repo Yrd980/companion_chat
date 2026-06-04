@@ -3,6 +3,7 @@ package com.companion.chat.companion.turn
 import com.companion.chat.capability.SkillRepository
 import com.companion.chat.companion.CompanionRebuildResult
 import com.companion.chat.companion.CompanionRuntime
+import com.companion.chat.companion.CompanionTurnContext
 import com.companion.chat.companion.CompanionTurnEvent as RuntimeTurnEvent
 import com.companion.chat.companion.PreferenceLearningCoordinator
 import com.companion.chat.context.ContextConfigRepository
@@ -119,6 +120,8 @@ class DefaultCompanionTurnModule(
         refreshBasePrompt()
         refreshAssistantAvatar()
         loadSessionsFromStorage()
+        logger("Companion Turn 初始化完成，开始自动初始化模型运行时")
+        initializeModelRuntime()
     }
 
     override suspend fun initializeModelRuntime(modelPath: String) {
@@ -461,17 +464,20 @@ class DefaultCompanionTurnModule(
         eventEmitter: suspend (CompanionTurnEvent) -> Unit
     ) {
         val messages = snapshot.value.messages
-        val memoryContext = buildMemoryContext(userInput)
         contextSettings = contextConfigRepository.getSettings()
         companionRuntime.runTurn(
             messages = messages,
             baseSystemPrompt = baseSystemPrompt,
             settings = contextSettings,
-            userPreferences = memoryContext.confirmedPreferencePrompt,
-            persistentMemoryPrompt = memoryContext.persistentPrompt,
-            memoryPrompt = memoryContext.retrievedPrompt
+            userInput = userInput
         ).collect { event ->
             when (event) {
+                is RuntimeTurnEvent.ContextPrepared -> {
+                    logPreparedTurnContext(
+                        context = event.context,
+                        failurePrefix = "发送前记忆检索失败"
+                    )
+                }
                 is RuntimeTurnEvent.ContextRebuildCompleted -> {
                     logContextRebuildResult(
                         reason = "发送前上下文检查",
@@ -489,37 +495,6 @@ class DefaultCompanionTurnModule(
                     eventEmitter(CompanionTurnEvent.Failed("推理出错: ${event.message}"))
                 }
             }
-        }
-    }
-
-    private suspend fun buildMemoryContext(userInput: String): MemoryContext {
-        return try {
-            val confirmedPreferencePrompt = companionRuntime.buildConfirmedPreferencePrompt()
-            val companionMemoryContext = companionRuntime.buildMemoryContext(userInput)
-            val persistentPrompt = companionMemoryContext.persistentPrompt
-            val memoryPrompt = companionMemoryContext.retrievedPrompt
-            if (confirmedPreferencePrompt.isNotBlank()) {
-                logger("confirmed 偏好注入: count=${preferenceRepository.getConfirmedPreferences().size}")
-            }
-            if (persistentPrompt.isNotBlank()) {
-                logger("常驻长期记忆注入: count=${companionMemoryContext.persistentMemoryCount}")
-            }
-            if (memoryPrompt.isNotBlank()) {
-                logger(
-                    "动态记忆检索成功: count=${companionMemoryContext.retrievedMemoryCount}, " +
-                        "query=${userInput.trim()}"
-                )
-            } else {
-                logger("动态记忆检索为空: query=${userInput.trim()}")
-            }
-            MemoryContext(
-                confirmedPreferencePrompt = confirmedPreferencePrompt,
-                persistentPrompt = persistentPrompt,
-                retrievedPrompt = memoryPrompt
-            )
-        } catch (error: Exception) {
-            logger("发送前记忆检索失败: ${error.message}")
-            MemoryContext()
         }
     }
 
@@ -638,12 +613,14 @@ class DefaultCompanionTurnModule(
             }
             return
         }
-        val memoryContext = buildMemoryContext(latestUserInput)
+        val turnContext = companionRuntime.prepareTurnContext(latestUserInput)
+        logPreparedTurnContext(
+            context = turnContext,
+            failurePrefix = "$reason: 记忆检索失败"
+        )
         rebuildConversationWithContext(
             stableMessages = stableMessages,
-            userPreferences = memoryContext.confirmedPreferencePrompt,
-            persistentMemoryPrompt = memoryContext.persistentPrompt,
-            memoryPrompt = memoryContext.retrievedPrompt,
+            turnContext = turnContext,
             forceRebuild = true,
             reason = reason
         )
@@ -651,9 +628,7 @@ class DefaultCompanionTurnModule(
 
     private suspend fun rebuildConversationWithContext(
         stableMessages: List<ChatMessage>,
-        userPreferences: String,
-        persistentMemoryPrompt: String,
-        memoryPrompt: String,
+        turnContext: CompanionTurnContext,
         forceRebuild: Boolean,
         reason: String
     ) {
@@ -662,9 +637,7 @@ class DefaultCompanionTurnModule(
             stableMessages = stableMessages,
             baseSystemPrompt = baseSystemPrompt,
             settings = contextSettings,
-            userPreferences = userPreferences,
-            persistentMemoryPrompt = persistentMemoryPrompt,
-            memoryPrompt = memoryPrompt,
+            turnContext = turnContext,
             forceRebuild = forceRebuild
         )
         logContextRebuildResult(
@@ -775,11 +748,29 @@ class DefaultCompanionTurnModule(
         }
     }
 
-    private data class MemoryContext(
-        val confirmedPreferencePrompt: String = "",
-        val persistentPrompt: String = "",
-        val retrievedPrompt: String = ""
-    )
+    private fun logPreparedTurnContext(
+        context: CompanionTurnContext,
+        failurePrefix: String
+    ) {
+        if (context.preparationError.isNotBlank()) {
+            logger("$failurePrefix: ${context.preparationError}")
+            return
+        }
+        if (context.hasConfirmedPreferences) {
+            logger("confirmed 偏好注入: count=${context.confirmedPreferenceCount}")
+        }
+        if (context.hasPersistentMemories) {
+            logger("常驻长期记忆注入: count=${context.persistentMemoryCount}")
+        }
+        if (context.hasRetrievedMemories) {
+            logger(
+                "动态记忆检索成功: count=${context.retrievedMemoryCount}, " +
+                    "query=${context.query}"
+            )
+        } else {
+            logger("动态记忆检索为空: query=${context.query}")
+        }
+    }
 
     private companion object {
         const val DEFAULT_SUMMARY_TIMEOUT_MILLIS = 90_000L

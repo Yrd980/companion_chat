@@ -119,8 +119,6 @@ class ChatViewModel(
 
         viewModelScope.launch {
             companionTurnModule.start()
-            logToFile("ChatViewModel 初始化完成，开始自动初始化引擎")
-            initializeEngine()
         }
     }
 

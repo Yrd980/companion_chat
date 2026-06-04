@@ -55,45 +55,44 @@ class CompanionRuntime(
         return refreshBasePrompt()
     }
 
-    suspend fun buildConfirmedPreferencePrompt(): String {
-        val confirmedPreferences = preferenceRepository?.getConfirmedPreferences().orEmpty()
-        if (confirmedPreferences.isEmpty()) {
-            return ""
+    suspend fun prepareTurnContext(userInput: String): CompanionTurnContext {
+        val query = userInput.trim()
+        return try {
+            val confirmedPreferences = preferenceRepository?.getConfirmedPreferences().orEmpty()
+            val repository = memoryRepository
+            val persistentMemories = repository?.getPersistentMemories().orEmpty()
+            val relevantMemories = repository?.retrieveRelevantMemories(userInput).orEmpty()
+            CompanionTurnContext(
+                query = query,
+                userPreferences = buildConfirmedPreferencePrompt(
+                    confirmedPreferences.map { it.content }
+                ),
+                persistentMemoryPrompt = memoryPromptBuilder.buildPersistent(persistentMemories),
+                memoryPrompt = memoryPromptBuilder.build(relevantMemories),
+                confirmedPreferenceCount = confirmedPreferences.size,
+                persistentMemoryCount = persistentMemories.size,
+                retrievedMemoryCount = relevantMemories.size
+            )
+        } catch (error: Exception) {
+            CompanionTurnContext(
+                query = query,
+                preparationError = error.message ?: error.javaClass.simpleName
+            )
         }
-        return buildString {
-            appendLine("关于当前用户的已知信息（请自然地融入对话，不要刻意提及你知道这些）：")
-            confirmedPreferences.forEach { preference ->
-                appendLine("- ${preference.content}")
-            }
-        }.trim()
-    }
-
-    suspend fun buildMemoryContext(userInput: String): CompanionMemoryContext {
-        val repository = memoryRepository ?: return CompanionMemoryContext()
-        val persistentMemories = repository.getPersistentMemories()
-        val relevantMemories = repository.retrieveRelevantMemories(userInput)
-        return CompanionMemoryContext(
-            persistentPrompt = memoryPromptBuilder.buildPersistent(persistentMemories),
-            retrievedPrompt = memoryPromptBuilder.build(relevantMemories),
-            persistentMemoryCount = persistentMemories.size,
-            retrievedMemoryCount = relevantMemories.size
-        )
     }
 
     suspend fun rebuildConversationWithContext(
         stableMessages: List<ChatMessage>,
         baseSystemPrompt: String,
         settings: ContextSettings,
-        userPreferences: String = "",
-        persistentMemoryPrompt: String = "",
-        memoryPrompt: String = "",
+        turnContext: CompanionTurnContext = CompanionTurnContext(),
         forceRebuild: Boolean = false
     ): CompanionRebuildResult {
         val manager = contextManager ?: return CompanionRebuildResult.skipped()
         val engine = inferenceEngineProvider() ?: return CompanionRebuildResult.skipped()
-        val shouldInjectContext = userPreferences.isNotBlank() ||
-            persistentMemoryPrompt.isNotBlank() ||
-            memoryPrompt.isNotBlank()
+        val shouldInjectContext = turnContext.userPreferences.isNotBlank() ||
+            turnContext.persistentMemoryPrompt.isNotBlank() ||
+            turnContext.memoryPrompt.isNotBlank()
 
         if (!forceRebuild && !manager.shouldCompress(stableMessages, settings) && !shouldInjectContext) {
             return CompanionRebuildResult.skipped()
@@ -102,9 +101,9 @@ class CompanionRuntime(
         val contextWindow = manager.buildContext(
             messages = stableMessages,
             systemPrompt = baseSystemPrompt,
-            userPreferences = userPreferences,
-            persistentMemoryPrompt = persistentMemoryPrompt,
-            memoryPrompt = memoryPrompt,
+            userPreferences = turnContext.userPreferences,
+            persistentMemoryPrompt = turnContext.persistentMemoryPrompt,
+            memoryPrompt = turnContext.memoryPrompt,
             settings = settings
         )
         val rebuildSucceeded = engine.rebuildConversation(contextWindow.systemPrompt)
@@ -175,6 +174,18 @@ class CompanionRuntime(
         }.joinToString(separator = "\n")
     }
 
+    private fun buildConfirmedPreferencePrompt(confirmedPreferences: List<String>): String {
+        if (confirmedPreferences.isEmpty()) {
+            return ""
+        }
+        return buildString {
+            appendLine("关于当前用户的已知信息（请自然地融入对话，不要刻意提及你知道这些）：")
+            confirmedPreferences.forEach { preference ->
+                appendLine("- $preference")
+            }
+        }.trim()
+    }
+
     fun onTurnFinished(
         sessionIdProvider: () -> String,
         messagesProvider: () -> List<ChatMessage>
@@ -219,19 +230,17 @@ class CompanionRuntime(
         messages: List<ChatMessage>,
         baseSystemPrompt: String,
         settings: ContextSettings,
-        userPreferences: String = "",
-        persistentMemoryPrompt: String = "",
-        memoryPrompt: String = ""
+        userInput: String
     ): Flow<CompanionTurnEvent> = flow {
         val engine = inferenceEngineProvider() ?: return@flow
         val stableMessages = messages.filterNot { it.isStreaming }
+        val turnContext = prepareTurnContext(userInput)
+        emit(CompanionTurnEvent.ContextPrepared(turnContext))
         val rebuildResult = rebuildConversationWithContext(
             stableMessages = stableMessages,
             baseSystemPrompt = baseSystemPrompt,
             settings = settings,
-            userPreferences = userPreferences,
-            persistentMemoryPrompt = persistentMemoryPrompt,
-            memoryPrompt = memoryPrompt,
+            turnContext = turnContext,
             forceRebuild = false
         )
         emit(CompanionTurnEvent.ContextRebuildCompleted(rebuildResult, stableMessages.size))
@@ -253,6 +262,8 @@ class CompanionRuntime(
 }
 
 sealed class CompanionTurnEvent {
+    data class ContextPrepared(val context: CompanionTurnContext) : CompanionTurnEvent()
+
     data class ContextRebuildCompleted(
         val result: CompanionRebuildResult,
         val stableMessageCount: Int
@@ -280,12 +291,25 @@ interface CompanionPostTurnLearning {
     fun release()
 }
 
-data class CompanionMemoryContext(
-    val persistentPrompt: String = "",
-    val retrievedPrompt: String = "",
+data class CompanionTurnContext(
+    val query: String = "",
+    val userPreferences: String = "",
+    val persistentMemoryPrompt: String = "",
+    val memoryPrompt: String = "",
+    val confirmedPreferenceCount: Int = 0,
     val persistentMemoryCount: Int = 0,
-    val retrievedMemoryCount: Int = 0
-)
+    val retrievedMemoryCount: Int = 0,
+    val preparationError: String = ""
+) {
+    val hasConfirmedPreferences: Boolean
+        get() = userPreferences.isNotBlank()
+
+    val hasPersistentMemories: Boolean
+        get() = persistentMemoryPrompt.isNotBlank()
+
+    val hasRetrievedMemories: Boolean
+        get() = memoryPrompt.isNotBlank()
+}
 
 data class CompanionBasePromptRebuildResult(
     val rebuildAttempted: Boolean,
