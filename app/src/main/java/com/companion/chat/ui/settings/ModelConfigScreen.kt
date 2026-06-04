@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companion.chat.engine.BackendType
+import com.companion.chat.engine.LocalLmFileStatus
 import com.companion.chat.engine.ModelRuntime
 import com.companion.chat.engine.image.ImageGenerationConfig
 import com.companion.chat.engine.image.ImageGenerationProvider
@@ -55,9 +56,7 @@ fun ModelConfigScreen(
     val dreamLiteModelStatus = uiState.dreamLiteModelStatus
     val stableDiffusionModelStatus = uiState.stableDiffusionModelStatus
     val options = listOf(3, 5, 10, 15, 20)
-    val resolvedModelPath = uiState.resolvedModelPath
-    val resolvedMmprojPath = uiState.resolvedMmprojPath
-    val mmprojReady = uiState.isMmprojReady
+    val localLmPackageStatus = uiState.localLmPackageStatus
 
     Scaffold(
         modifier = modifier,
@@ -190,21 +189,35 @@ fun ModelConfigScreen(
                     viewModel.updateModelPath(it)
                 }
                 Text(
-                    text = "留空使用默认路径：$resolvedModelPath",
+                    text = "留空使用默认路径：${localLmPackageStatus.modelPath}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
                 )
                 Text(
-                    text = "图片 projector：${if (mmprojReady) "已就绪" else "缺失"}\n$resolvedMmprojPath",
+                    text = "文本模型：${localLmPackageStatus.modelFileStatus.displayName()}\n" +
+                        localLmPackageStatus.modelPath,
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (mmprojReady) {
+                    color = if (localLmPackageStatus.isModelReady) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
                         MaterialTheme.colorScheme.error
                     },
                     modifier = Modifier.padding(top = 8.dp)
                 )
+                if (localLmPackageStatus.isMmprojRelevant) {
+                    Text(
+                        text = "图片 projector：${localLmPackageStatus.mmprojFileStatus.displayName()}（仅图片输入需要）\n" +
+                            localLmPackageStatus.mmprojPath,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (localLmPackageStatus.mmprojFileStatus is LocalLmFileStatus.Ready) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
                 ModelConfigField("Context Size", modelConfig.contextSize.toString()) {
@@ -377,6 +390,16 @@ private fun StableDiffusionModelStatus.displayName(): String {
         StableDiffusionModelStatus.DirectoryNotConfigured -> "模型目录未配置"
         is StableDiffusionModelStatus.InvalidConfig -> "配置无效：$message"
         is StableDiffusionModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"
+    }
+}
+
+private fun LocalLmFileStatus.displayName(): String {
+    return when (this) {
+        is LocalLmFileStatus.Ready -> "已就绪 (${byteCount} bytes)"
+        LocalLmFileStatus.Missing -> "缺失"
+        LocalLmFileStatus.Unreadable -> "不可读取"
+        LocalLmFileStatus.Empty -> "文件为空"
+        LocalLmFileStatus.NotRequired -> "不需要"
     }
 }
 

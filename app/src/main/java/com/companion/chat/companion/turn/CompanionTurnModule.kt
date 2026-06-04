@@ -1,7 +1,6 @@
 package com.companion.chat.companion.turn
 
 import android.net.Uri
-import com.companion.chat.companion.CompanionRebuildResult
 import com.companion.chat.context.ContextSettings
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.ConversationSession
@@ -65,12 +64,6 @@ sealed class CompanionTurnDelivery {
 sealed class CompanionTurnEvent {
     data class Accepted(val voiceFirst: Boolean) : CompanionTurnEvent()
     data class AssistantToken(val token: String) : CompanionTurnEvent()
-    data class ContextRebuildCompleted(
-        val reason: String,
-        val result: CompanionRebuildResult,
-        val stableMessageCount: Int,
-        val compressionThreshold: Int
-    ) : CompanionTurnEvent()
     data class Rejected(val reason: CompanionTurnRejectReason, val message: String) : CompanionTurnEvent()
     data class Failed(val message: String) : CompanionTurnEvent()
     data object Completed : CompanionTurnEvent()

@@ -42,6 +42,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.companion.chat.ui.chat.VoiceFirstInteractionUiState
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -55,13 +56,9 @@ fun ChatInputBar(
     onVoiceInput: () -> Unit,
     selectedImages: List<Uri>,
     onRemoveImage: (Uri) -> Unit,
-    isVoiceStarting: Boolean = false,
-    isVoiceListening: Boolean,
-    isVoiceAutoSending: Boolean = false,
-    voiceInputPreview: String = "",
+    voice: VoiceFirstInteractionUiState,
     isGenerating: Boolean = false,
     isImageGenerating: Boolean = false,
-    isVoiceSpeaking: Boolean = false,
     canVoiceOutput: Boolean = false,
     onVoiceOutput: () -> Unit = {},
     onStopSpeaking: () -> Unit = {},
@@ -90,12 +87,9 @@ fun ChatInputBar(
                         onRemoveImage = onRemoveImage
                     )
                 }
-                if (isVoiceStarting || isVoiceListening || isVoiceAutoSending || voiceInputPreview.isNotBlank()) {
+                if (voice.shouldShowInputPreview) {
                     VoiceInputPreview(
-                        isVoiceStarting = isVoiceStarting,
-                        isVoiceListening = isVoiceListening,
-                        isVoiceAutoSending = isVoiceAutoSending,
-                        text = voiceInputPreview
+                        voice = voice
                     )
                 }
 
@@ -132,11 +126,7 @@ fun ChatInputBar(
                             Box {
                                 if (inputText.isEmpty()) {
                                     Text(
-                                        text = inputPlaceholder(
-                                            isVoiceStarting = isVoiceStarting,
-                                            isVoiceListening = isVoiceListening,
-                                            isVoiceAutoSending = isVoiceAutoSending
-                                        ),
+                                        text = voice.inputPlaceholder,
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f)
                                     )
@@ -147,20 +137,20 @@ fun ChatInputBar(
                     )
                     ChatToolIconButton(
                         onClick = {
-                            if (isVoiceSpeaking) {
+                            if (voice.isSpeaking) {
                                 onStopSpeaking()
                             } else {
                                 onVoiceOutput()
                             }
                         },
-                        enabled = isVoiceSpeaking || canVoiceOutput,
-                        icon = if (isVoiceSpeaking) {
+                        enabled = voice.isSpeaking || canVoiceOutput,
+                        icon = if (voice.isSpeaking) {
                             Icons.Default.Stop
                         } else {
                             Icons.AutoMirrored.Filled.VolumeUp
                         },
-                        contentDescription = if (isVoiceSpeaking) "停止播放" else "朗读最近回复",
-                        active = isVoiceSpeaking
+                        contentDescription = if (voice.isSpeaking) "停止播放" else "朗读最近回复",
+                        active = voice.isSpeaking
                     )
                     Spacer(Modifier.width(4.dp))
                     if (isGenerating) {
@@ -193,9 +183,7 @@ fun ChatInputBar(
                         }
                     } else {
                         VoicePrimaryButton(
-                            isVoiceStarting = isVoiceStarting,
-                            isVoiceListening = isVoiceListening,
-                            isVoiceAutoSending = isVoiceAutoSending,
+                            voice = voice,
                             isGenerating = isGenerating,
                             onVoiceInput = onVoiceInput
                         )
@@ -208,23 +196,14 @@ fun ChatInputBar(
 
 @Composable
 private fun VoiceInputPreview(
-    isVoiceStarting: Boolean,
-    isVoiceListening: Boolean,
-    isVoiceAutoSending: Boolean,
-    text: String
+    voice: VoiceFirstInteractionUiState
 ) {
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
     ) {
         Text(
-            text = text.ifBlank {
-                inputPlaceholder(
-                    isVoiceStarting = isVoiceStarting,
-                    isVoiceListening = isVoiceListening,
-                    isVoiceAutoSending = isVoiceAutoSending
-                )
-            },
+            text = voice.inputPreview.ifBlank { voice.inputPlaceholder },
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -305,31 +284,16 @@ private fun ChatToolIconButton(
     }
 }
 
-private fun inputPlaceholder(
-    isVoiceStarting: Boolean,
-    isVoiceListening: Boolean,
-    isVoiceAutoSending: Boolean
-): String {
-    return when {
-        isVoiceStarting -> "正在启动语音识别..."
-        isVoiceListening -> "正在听..."
-        isVoiceAutoSending -> "正在发送语音..."
-        else -> "输入消息..."
-    }
-}
-
 @Composable
 private fun VoicePrimaryButton(
-    isVoiceStarting: Boolean,
-    isVoiceListening: Boolean,
-    isVoiceAutoSending: Boolean,
+    voice: VoiceFirstInteractionUiState,
     isGenerating: Boolean,
     onVoiceInput: () -> Unit
 ) {
-    val active = isVoiceStarting || isVoiceListening
+    val active = voice.isInputActive
     val description = when {
         active -> "停止语音输入"
-        isVoiceAutoSending -> "正在发送语音"
+        voice.isAutoSending -> "正在发送语音"
         isGenerating -> "正在生成回复"
         else -> "开始语音输入"
     }
@@ -339,7 +303,7 @@ private fun VoicePrimaryButton(
         modifier = Modifier
             .size(44.dp)
             .semantics { contentDescription = description },
-        enabled = !isVoiceAutoSending && !isGenerating,
+        enabled = !voice.isAutoSending && !isGenerating,
         shape = CircleShape,
         colors = IconButtonDefaults.filledIconButtonColors(
             containerColor = if (active) {

@@ -14,6 +14,28 @@ data class ModelConfig(
     val topP: Float = DefaultModelConfig.DefaultTopP
 )
 
+data class LocalLmPackageStatus(
+    val runtime: ModelRuntime,
+    val modelPath: String,
+    val modelFileStatus: LocalLmFileStatus,
+    val mmprojPath: String,
+    val mmprojFileStatus: LocalLmFileStatus
+) {
+    val isModelReady: Boolean
+        get() = modelFileStatus is LocalLmFileStatus.Ready
+
+    val isMmprojRelevant: Boolean
+        get() = runtime == ModelRuntime.LLAMA_CPP_GGUF
+}
+
+sealed class LocalLmFileStatus {
+    data class Ready(val byteCount: Long) : LocalLmFileStatus()
+    data object Missing : LocalLmFileStatus()
+    data object Unreadable : LocalLmFileStatus()
+    data object Empty : LocalLmFileStatus()
+    data object NotRequired : LocalLmFileStatus()
+}
+
 class ModelConfigRepository(
     context: Context
 ) {
@@ -82,6 +104,27 @@ class ModelConfigRepository(
         }
     }
 
+    fun getLocalLmPackageStatus(config: ModelConfig = getConfig()): LocalLmPackageStatus {
+        val normalized = config.normalized()
+        val modelPath = resolveModelPath(normalized)
+        val mmprojPath = if (normalized.runtime == ModelRuntime.LLAMA_CPP_GGUF) {
+            resolveMmprojPath()
+        } else {
+            ""
+        }
+        return LocalLmPackageStatus(
+            runtime = normalized.runtime,
+            modelPath = modelPath,
+            modelFileStatus = inspectModelFile(modelPath),
+            mmprojPath = mmprojPath,
+            mmprojFileStatus = if (mmprojPath.isBlank()) {
+                LocalLmFileStatus.NotRequired
+            } else {
+                inspectModelFile(mmprojPath)
+            }
+        )
+    }
+
     fun toEngineConfig(
         systemPrompt: String,
         config: ModelConfig = getConfig()
@@ -110,6 +153,16 @@ class ModelConfigRepository(
             topK = topK.coerceIn(1, 200),
             topP = topP.coerceIn(0.01f, 1.0f)
         )
+    }
+
+    private fun inspectModelFile(path: String): LocalLmFileStatus {
+        val file = File(path)
+        return when {
+            !file.exists() -> LocalLmFileStatus.Missing
+            !file.canRead() -> LocalLmFileStatus.Unreadable
+            file.length() <= 0L -> LocalLmFileStatus.Empty
+            else -> LocalLmFileStatus.Ready(file.length())
+        }
     }
 
     companion object {

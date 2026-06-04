@@ -72,8 +72,8 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(uiState.showVoicePermissionDialog) {
-        if (uiState.showVoicePermissionDialog) {
+    LaunchedEffect(uiState.voice.showPermissionDialog) {
+        if (uiState.voice.showPermissionDialog) {
             val hasPermission = ContextCompat.checkSelfPermission(
                 context, Manifest.permission.RECORD_AUDIO
             ) == PackageManager.PERMISSION_GRANTED
@@ -86,9 +86,9 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(uiState.voiceInputError) {
-        if (uiState.voiceInputError.isNotBlank()) {
-            snackbarHostState.showSnackbar(uiState.voiceInputError)
+    LaunchedEffect(uiState.voice.inputError) {
+        if (uiState.voice.inputError.isNotBlank()) {
+            snackbarHostState.showSnackbar(uiState.voice.inputError)
             viewModel.clearVoiceInputError()
         }
     }
@@ -204,13 +204,9 @@ fun ChatScreen(
                 onVoiceInput = viewModel::toggleVoiceListening,
                 selectedImages = uiState.selectedImages,
                 onRemoveImage = viewModel::removeImage,
-                isVoiceStarting = uiState.isVoiceStarting,
-                isVoiceListening = uiState.isVoiceListening,
-                isVoiceAutoSending = uiState.isVoiceAutoSending,
-                voiceInputPreview = uiState.voiceInputPreview,
+                voice = uiState.voice,
                 isGenerating = uiState.isGenerating,
                 isImageGenerating = uiState.imageGenerationState is ImageGenerationState.Generating,
-                isVoiceSpeaking = uiState.isVoiceSpeaking,
                 canVoiceOutput = uiState.hasSpeakableAssistantMessage,
                 onVoiceOutput = viewModel::speakLatestAssistantMessage,
                 onStopSpeaking = viewModel::stopSpeaking

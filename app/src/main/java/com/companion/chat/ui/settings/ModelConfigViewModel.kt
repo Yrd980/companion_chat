@@ -3,6 +3,7 @@ package com.companion.chat.ui.settings
 import androidx.lifecycle.ViewModel
 import com.companion.chat.context.ContextConfigRepository
 import com.companion.chat.engine.BackendType
+import com.companion.chat.engine.LocalLmPackageStatus
 import com.companion.chat.engine.ModelConfig
 import com.companion.chat.engine.ModelConfigRepository
 import com.companion.chat.engine.ModelRuntime
@@ -11,7 +12,6 @@ import com.companion.chat.engine.image.ImageGenerationConfig
 import com.companion.chat.engine.image.ImageGenerationConfigRepository
 import com.companion.chat.engine.image.ImageGenerationProvider
 import com.companion.chat.engine.image.StableDiffusionModelStatus
-import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,9 +23,7 @@ data class ModelConfigUiState(
     val imageConfig: ImageGenerationConfig,
     val dreamLiteModelStatus: DreamLiteModelStatus,
     val stableDiffusionModelStatus: StableDiffusionModelStatus,
-    val resolvedModelPath: String,
-    val resolvedMmprojPath: String,
-    val isMmprojReady: Boolean
+    val localLmPackageStatus: LocalLmPackageStatus
 )
 
 class ModelConfigViewModel(
@@ -155,16 +153,13 @@ class ModelConfigViewModel(
     private fun buildUiState(): ModelConfigUiState {
         val modelConfig = modelConfigRepository.getConfig()
         val imageConfig = imageConfigRepository.getConfig()
-        val resolvedMmprojPath = modelConfigRepository.resolveMmprojPath()
         return ModelConfigUiState(
             retainedRounds = contextConfigRepository.getSettings().retainedRounds,
             modelConfig = modelConfig,
             imageConfig = imageConfig,
             dreamLiteModelStatus = imageConfigRepository.getDreamLiteModelStatus(imageConfig),
             stableDiffusionModelStatus = imageConfigRepository.getStableDiffusionModelStatus(imageConfig),
-            resolvedModelPath = modelConfigRepository.resolveModelPath(modelConfig),
-            resolvedMmprojPath = resolvedMmprojPath,
-            isMmprojReady = File(resolvedMmprojPath).let { it.exists() && it.canRead() && it.length() > 0L }
+            localLmPackageStatus = modelConfigRepository.getLocalLmPackageStatus(modelConfig)
         )
     }
 }

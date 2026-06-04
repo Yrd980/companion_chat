@@ -40,20 +40,12 @@ data class ChatUiState(
     val inputText: String = "",
     val selectedImages: List<Uri> = emptyList(),
     val isGenerating: Boolean = false,
-    val isVoiceStarting: Boolean = false,
-    val isVoiceListening: Boolean = false,
-    val isVoiceWarmedUp: Boolean = false,
-    val isVoiceSpeaking: Boolean = false,
-    val isVoiceAutoSending: Boolean = false,
-    val voiceInputError: String = "",
-    val lastVoiceTranscript: String = "",
-    val voiceInputPreview: String = "",
+    val voice: VoiceFirstInteractionUiState = VoiceFirstInteractionUiState(),
     val isConversationWarmingUp: Boolean = false,
     val imageGenerationState: ImageGenerationState = ImageGenerationState.Idle,
     val imageGenerationError: String = "",
     val assistantAvatarImageUri: String = "",
     val engineState: InferenceState = InferenceState.Idle,
-    val showVoicePermissionDialog: Boolean = false,
     val diagnosticLog: String = "",
     val sessions: List<ConversationSession> = emptyList(),
     val currentSessionId: String = "",
@@ -68,6 +60,32 @@ data class ChatUiState(
             message.role == MessageRole.ASSISTANT &&
                 !message.isStreaming &&
                 message.content.isNotBlank()
+        }
+}
+
+data class VoiceFirstInteractionUiState(
+    val isStarting: Boolean = false,
+    val isListening: Boolean = false,
+    val isWarmedUp: Boolean = false,
+    val isSpeaking: Boolean = false,
+    val isAutoSending: Boolean = false,
+    val inputError: String = "",
+    val lastTranscript: String = "",
+    val inputPreview: String = "",
+    val showPermissionDialog: Boolean = false
+) {
+    val isInputActive: Boolean
+        get() = isStarting || isListening
+
+    val shouldShowInputPreview: Boolean
+        get() = isInputActive || isAutoSending || inputPreview.isNotBlank()
+
+    val inputPlaceholder: String
+        get() = when {
+            isStarting -> "正在启动语音识别..."
+            isListening -> "正在听..."
+            isAutoSending -> "正在发送语音..."
+            else -> "输入消息..."
         }
 }
 
@@ -152,14 +170,16 @@ class ChatViewModel(
                 logToFile("语音输入事件: ${voiceEventLabel(event)}")
                 when (event) {
                     is VoiceInputEvent.WarmedUp -> {
-                        _uiState.update { it.copy(isVoiceWarmedUp = true) }
+                        _uiState.update { it.copy(voice = it.voice.copy(isWarmedUp = true)) }
                     }
                     is VoiceInputEvent.PartialResult -> {
                         _uiState.update {
                             it.copy(
                                 inputText = event.text,
-                                voiceInputPreview = event.text,
-                                voiceInputError = ""
+                                voice = it.voice.copy(
+                                    inputPreview = event.text,
+                                    inputError = ""
+                                )
                             )
                         }
                     }
@@ -168,11 +188,13 @@ class ChatViewModel(
                         _uiState.update {
                             it.copy(
                                 inputText = transcript,
-                                isVoiceStarting = false,
-                                isVoiceListening = false,
-                                voiceInputError = "",
-                                lastVoiceTranscript = transcript,
-                                voiceInputPreview = transcript
+                                voice = it.voice.copy(
+                                    isStarting = false,
+                                    isListening = false,
+                                    inputError = "",
+                                    lastTranscript = transcript,
+                                    inputPreview = transcript
+                                )
                             )
                         }
                         handleVoiceTranscript(transcript)
@@ -180,23 +202,34 @@ class ChatViewModel(
                     is VoiceInputEvent.Listening -> {
                         _uiState.update {
                             it.copy(
-                                isVoiceStarting = false,
-                                isVoiceListening = true,
-                                voiceInputError = "",
-                                voiceInputPreview = "正在听..."
+                                voice = it.voice.copy(
+                                    isStarting = false,
+                                    isListening = true,
+                                    inputError = "",
+                                    inputPreview = "正在听..."
+                                )
                             )
                         }
                     }
                     is VoiceInputEvent.NotListening -> {
-                        _uiState.update { it.copy(isVoiceStarting = false, isVoiceListening = false) }
+                        _uiState.update {
+                            it.copy(
+                                voice = it.voice.copy(
+                                    isStarting = false,
+                                    isListening = false
+                                )
+                            )
+                        }
                     }
                     is VoiceInputEvent.Error -> {
                         _uiState.update {
                             it.copy(
-                                isVoiceStarting = false,
-                                isVoiceListening = false,
-                                voiceInputError = event.message,
-                                voiceInputPreview = ""
+                                voice = it.voice.copy(
+                                    isStarting = false,
+                                    isListening = false,
+                                    inputError = event.message,
+                                    inputPreview = ""
+                                )
                             )
                         }
                     }
@@ -209,7 +242,9 @@ class ChatViewModel(
         viewModelScope.launch {
             voiceOutputEngine.state.collectLatest { state ->
                 _uiState.update {
-                    it.copy(isVoiceSpeaking = state is VoiceOutputState.Speaking)
+                    it.copy(
+                        voice = it.voice.copy(isSpeaking = state is VoiceOutputState.Speaking)
+                    )
                 }
             }
         }
@@ -292,8 +327,10 @@ class ChatViewModel(
             is VoiceTranscriptDecision.HoldForUser -> {
                 _uiState.update {
                     it.copy(
-                        voiceInputError = decision.message,
-                        isVoiceAutoSending = false
+                        voice = it.voice.copy(
+                            inputError = decision.message,
+                            isAutoSending = false
+                        )
                     )
                 }
             }
@@ -303,11 +340,11 @@ class ChatViewModel(
     private fun submitCurrentMessage(autoSpeakResponse: Boolean) {
         val state = _uiState.value
         if (state.inputText.isBlank() && state.selectedImages.isEmpty()) {
-            _uiState.update { it.copy(isVoiceAutoSending = false) }
+            _uiState.update { it.copy(voice = it.voice.copy(isAutoSending = false)) }
             return
         }
         if (state.isGenerating) {
-            _uiState.update { it.copy(isVoiceAutoSending = false) }
+            _uiState.update { it.copy(voice = it.voice.copy(isAutoSending = false)) }
             return
         }
 
@@ -330,12 +367,9 @@ class ChatViewModel(
                             it.copy(
                                 inputText = "",
                                 selectedImages = emptyList(),
-                                isVoiceAutoSending = event.voiceFirst
+                                voice = it.voice.copy(isAutoSending = event.voiceFirst)
                             )
                         }
-                    }
-                    is CompanionTurnEvent.ContextRebuildCompleted -> {
-                        logContextRebuildResult(event)
                     }
                     is CompanionTurnEvent.Rejected -> {
                         handleRejectedTurn(event)
@@ -344,7 +378,7 @@ class ChatViewModel(
                         logToFile(event.message)
                     }
                     CompanionTurnEvent.Completed -> {
-                        _uiState.update { it.copy(isVoiceAutoSending = false) }
+                        _uiState.update { it.copy(voice = it.voice.copy(isAutoSending = false)) }
                     }
                     is CompanionTurnEvent.AssistantToken -> Unit
                 }
@@ -356,17 +390,19 @@ class ChatViewModel(
         when (event.reason) {
             CompanionTurnRejectReason.BlankInput,
             CompanionTurnRejectReason.AlreadyGenerating -> {
-                _uiState.update { it.copy(isVoiceAutoSending = false) }
+                _uiState.update { it.copy(voice = it.voice.copy(isAutoSending = false)) }
             }
             CompanionTurnRejectReason.EngineNotReady -> {
                 _uiState.update {
                     it.copy(
-                        isVoiceAutoSending = false,
-                        voiceInputError = if (it.lastVoiceTranscript.isNotBlank()) {
-                            event.message
-                        } else {
-                            it.voiceInputError
-                        }
+                        voice = it.voice.copy(
+                            isAutoSending = false,
+                            inputError = if (it.voice.lastTranscript.isNotBlank()) {
+                                event.message
+                            } else {
+                                it.voice.inputError
+                            }
+                        )
                     )
                 }
             }
@@ -376,26 +412,30 @@ class ChatViewModel(
 
     fun toggleVoiceListening() {
         logToFile(
-            "语音输入按钮点击: isVoiceStarting=${_uiState.value.isVoiceStarting}, " +
-                "isVoiceListening=${_uiState.value.isVoiceListening}, " +
-                "showPermission=${_uiState.value.showVoicePermissionDialog}"
+            "语音输入按钮点击: isVoiceStarting=${_uiState.value.voice.isStarting}, " +
+                "isVoiceListening=${_uiState.value.voice.isListening}, " +
+                "showPermission=${_uiState.value.voice.showPermissionDialog}"
         )
-        if (_uiState.value.isVoiceListening || _uiState.value.isVoiceStarting) {
+        if (_uiState.value.voice.isInputActive) {
             voiceInputEngine.stopListening()
             _uiState.update {
                 it.copy(
-                    isVoiceStarting = false,
-                    isVoiceListening = false,
-                    showVoicePermissionDialog = false
+                    voice = it.voice.copy(
+                        isStarting = false,
+                        isListening = false,
+                        showPermissionDialog = false
+                    )
                 )
             }
         } else {
             _uiState.update {
                 it.copy(
-                    isVoiceStarting = true,
-                    voiceInputError = "",
-                    voiceInputPreview = "正在启动语音识别...",
-                    showVoicePermissionDialog = true
+                    voice = it.voice.copy(
+                        isStarting = true,
+                        inputError = "",
+                        inputPreview = "正在启动语音识别...",
+                        showPermissionDialog = true
+                    )
                 )
             }
         }
@@ -403,7 +443,7 @@ class ChatViewModel(
 
     fun onVoicePermissionGranted() {
         logToFile("语音权限已授予，开始启动语音输入")
-        _uiState.update { it.copy(showVoicePermissionDialog = false) }
+        _uiState.update { it.copy(voice = it.voice.copy(showPermissionDialog = false)) }
         voiceInputEngine.startListening()
     }
 
@@ -411,16 +451,18 @@ class ChatViewModel(
         logToFile("语音权限被拒绝")
         _uiState.update {
             it.copy(
-                isVoiceStarting = false,
-                showVoicePermissionDialog = false,
-                voiceInputError = "缺少录音权限，无法使用语音输入",
-                voiceInputPreview = ""
+                voice = it.voice.copy(
+                    isStarting = false,
+                    showPermissionDialog = false,
+                    inputError = "缺少录音权限，无法使用语音输入",
+                    inputPreview = ""
+                )
             )
         }
     }
 
     fun clearVoiceInputError() {
-        _uiState.update { it.copy(voiceInputError = "") }
+        _uiState.update { it.copy(voice = it.voice.copy(inputError = "")) }
     }
 
     private fun voiceEventLabel(event: VoiceInputEvent): String {
@@ -457,7 +499,12 @@ class ChatViewModel(
     fun cancelGeneration() {
         generateJob?.cancel()
         companionTurnModule.cancelActiveTurn()
-        _uiState.update { it.copy(isGenerating = false, isVoiceAutoSending = false) }
+        _uiState.update {
+            it.copy(
+                isGenerating = false,
+                voice = it.voice.copy(isAutoSending = false)
+            )
+        }
     }
 
     fun initializeEngine(modelPath: String = "") {
@@ -573,39 +620,6 @@ class ChatViewModel(
 
     fun onAppBackgrounded() {
         companionTurnModule.onAppBackgrounded()
-    }
-
-    private fun logContextRebuildResult(event: CompanionTurnEvent.ContextRebuildCompleted) {
-        val rebuildResult = event.result
-        if (!rebuildResult.rebuildAttempted) {
-            logToFile(
-                "${event.reason}: 未触发压缩, " +
-                    "messageCount=${event.stableMessageCount}, threshold=${event.compressionThreshold}, " +
-                    "contextInjected=false"
-            )
-            return
-        }
-
-        logToFile(
-            "${event.reason}: recentMessages=${rebuildResult.recentMessageCount}, " +
-                "summaryEmpty=${rebuildResult.historySummaryEmpty}, " +
-                "preferenceInjected=${rebuildResult.preferenceInjected}, " +
-                "persistentMemoryInjected=${rebuildResult.persistentMemoryInjected}, " +
-                "memoryInjected=${rebuildResult.memoryInjected}"
-        )
-
-        if (rebuildResult.rebuildSucceeded == false) {
-            logToFile("${event.reason}: Conversation 重建失败")
-            return
-        }
-
-        if (rebuildResult.replaySucceeded == true) {
-            logToFile("${event.reason}: 最近消息回放成功")
-        } else if (rebuildResult.replaySucceeded == false && rebuildResult.fallbackSucceeded == true) {
-            logToFile("${event.reason}: 最近消息回放失败，降级摘要注入成功")
-        } else if (rebuildResult.replaySucceeded == false) {
-            logToFile("${event.reason}: 最近消息回放失败，降级摘要注入失败")
-        }
     }
 
     suspend fun activateRoleCard(roleId: Long) {

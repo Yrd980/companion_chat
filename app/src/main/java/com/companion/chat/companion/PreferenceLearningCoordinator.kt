@@ -30,15 +30,15 @@ class PreferenceLearningCoordinator(
     private val currentEngineConfigProvider: () -> EngineConfig?,
     private val baseSystemPromptProvider: () -> String,
     private val logger: (String) -> Unit
-) {
+) : CompanionPostTurnLearning {
     private var delayJob: Job? = null
     private val lastSummaryTimestamps = mutableMapOf<String, Long>()
 
-    fun cancelRunningSummary() {
+    override fun cancelRunningSummary() {
         secondEngineManager.cancelRunningSummary()
     }
 
-    fun scheduleAfterIdle(
+    override fun scheduleAfterIdle(
         sessionIdProvider: () -> String,
         messagesProvider: () -> List<ChatMessage>
     ) {
@@ -53,7 +53,7 @@ class PreferenceLearningCoordinator(
         }
     }
 
-    fun triggerNow(
+    override fun triggerNow(
         reason: String,
         sessionId: String,
         messages: List<ChatMessage>
@@ -68,7 +68,7 @@ class PreferenceLearningCoordinator(
         }
     }
 
-    fun release() {
+    override fun release() {
         delayJob?.cancel()
         secondEngineManager.release()
     }

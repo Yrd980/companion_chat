@@ -4,7 +4,6 @@ import com.companion.chat.capability.SkillRepository
 import com.companion.chat.companion.CompanionRebuildResult
 import com.companion.chat.companion.CompanionRuntime
 import com.companion.chat.companion.CompanionTurnEvent as RuntimeTurnEvent
-import com.companion.chat.companion.PreferenceLearningAdapter
 import com.companion.chat.companion.PreferenceLearningCoordinator
 import com.companion.chat.context.ContextConfigRepository
 import com.companion.chat.context.ContextManager
@@ -108,7 +107,7 @@ class DefaultCompanionTurnModule(
         memoryRepository = memoryRepository,
         contextManager = contextManager,
         inferenceEngineProvider = { inferenceEngine },
-        postTurnLearning = PreferenceLearningAdapter(preferenceLearningCoordinator),
+        postTurnLearning = preferenceLearningCoordinator,
         promptAssembler = promptAssembler,
         memoryPromptBuilder = memoryPromptBuilder,
         roleCardPromptBuilder = roleCardPromptBuilder
@@ -474,13 +473,11 @@ class DefaultCompanionTurnModule(
         ).collect { event ->
             when (event) {
                 is RuntimeTurnEvent.ContextRebuildCompleted -> {
-                    eventEmitter(
-                        CompanionTurnEvent.ContextRebuildCompleted(
-                            reason = "发送前上下文检查",
-                            result = event.result,
-                            stableMessageCount = event.stableMessageCount,
-                            compressionThreshold = contextSettings.compressionThreshold
-                        )
+                    logContextRebuildResult(
+                        reason = "发送前上下文检查",
+                        rebuildResult = event.result,
+                        stableMessageCount = event.stableMessageCount,
+                        compressionThreshold = contextSettings.compressionThreshold
                     )
                 }
                 is RuntimeTurnEvent.AssistantToken -> {
