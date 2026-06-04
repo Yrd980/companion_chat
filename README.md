@@ -121,7 +121,7 @@ The current implementation already covers the main product loop:
 ### 2. Voice input and output
 
 - Voice input defaults to local `sherpa-onnx + SenseVoiceSmall int8`
-- It no longer depends on Android `SpeechRecognizer`, Google speech services, or system recognition services
+- Voice capture uses Android `AudioRecord`, then runs local VAD and SenseVoice transcription
 - SenseVoice model files are loaded from the app external files directory instead of being bundled into the APK
 - `silero_vad.onnx` is used by sherpa-onnx Silero VAD for on-device speech segmentation before SenseVoice transcription; it is not just a presence-check file
 - Cloud ASR remains available as a manually selected generic HTTP backend, not as an automatic fallback path
@@ -275,16 +275,16 @@ adb push third_party/models/image/sd15-hypersd/. /sdcard/Android/data/com.compan
 
 ## Current Status
 
-The project has completed the main implementation for:
+The project currently includes:
 
-- Stage 0-1: Room foundation and session migration
-- Stage 2: context management
-- Stage 3: memory system
-- Stage 4: preference extraction and prompt injection
-- Stage 5: role card and skills separation
-- Stage 6: discover catalog, image generation providers, role media, DreamLite package status, and local MOSS voice clone fallback
-- Stage 7 UI pass: quieter Material 3 chat input panel, lighter message rhythm, and consistency cleanup for discover, memory, and settings surfaces
-- Stage 8 chat hardening: role-card chat starts a fresh role session, long chat replies scroll to the latest content, llama.cpp repeated-output loops are guarded, and GGUF image prompts are more explicit
+- Room-backed conversations, messages, memories, preferences, role cards, and skills
+- Context compression, recent-message replay, memory retrieval, and confirmed preference prompt injection
+- Role-card identity, skill prompts, discover role import, and fresh role-specific chat sessions
+- Local SenseVoice ASR, Android system TTS, HTTP voice clone, and local MOSS voice clone fallback
+- LiteRT-LM CPU/GPU/NPU backend selection with accelerator fallback and benchmark logging
+- llama.cpp GGUF runtime with image prompt support through a configured projector model
+- HTTP image generation, DreamLite package status checks, and local SD1.5 Hyper-SD generation through `stable-diffusion.cpp`
+- Material 3 screens for chat, discover, memory, model settings, voice settings, role cards, and skills
 
 The current build has passed:
 
@@ -335,7 +335,10 @@ From an investor-style perspective, the larger opportunity is that this is not j
 - Navigation Compose
 - Room + KSP
 - LiteRT-LM Android
-- Android SpeechRecognizer
+- sherpa-onnx
+- ONNX Runtime Android
+- llama.cpp
+- stable-diffusion.cpp
 - Android TextToSpeech
 - Coil
 

@@ -12,6 +12,10 @@ _Avoid_: Chatbot, assistant app
 One user-initiated exchange with the Anime Companion, including input capture, durable memory preparation, model generation, session persistence, optional voice playback, and preference learning.
 _Avoid_: Chat request, generation call
 
+**Model Runtime Lifecycle**:
+The local model state needed for companion turns: runtime selection, model package resolution, initialization, backend fallback, cancellation, and release.
+_Avoid_: Engine setup, model plumbing
+
 **Role Card**:
 The active companion identity: persona, speaking style, background, rules, media, and voice profile used to shape companion turns.
 _Avoid_: Character config, persona preset

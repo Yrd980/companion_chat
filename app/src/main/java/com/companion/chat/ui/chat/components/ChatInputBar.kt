@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -59,6 +58,7 @@ fun ChatInputBar(
     isVoiceStarting: Boolean = false,
     isVoiceListening: Boolean,
     isVoiceAutoSending: Boolean = false,
+    voiceInputPreview: String = "",
     isGenerating: Boolean = false,
     isImageGenerating: Boolean = false,
     isVoiceSpeaking: Boolean = false,
@@ -70,9 +70,7 @@ fun ChatInputBar(
     Surface(
         tonalElevation = 2.dp,
         color = MaterialTheme.colorScheme.surface,
-        modifier = modifier
-            .fillMaxWidth()
-            .imePadding()
+        modifier = modifier.fillMaxWidth()
     ) {
         Surface(
             modifier = Modifier
@@ -90,6 +88,14 @@ fun ChatInputBar(
                     SelectedImagePreviewRow(
                         selectedImages = selectedImages,
                         onRemoveImage = onRemoveImage
+                    )
+                }
+                if (isVoiceStarting || isVoiceListening || isVoiceAutoSending || voiceInputPreview.isNotBlank()) {
+                    VoiceInputPreview(
+                        isVoiceStarting = isVoiceStarting,
+                        isVoiceListening = isVoiceListening,
+                        isVoiceAutoSending = isVoiceAutoSending,
+                        text = voiceInputPreview
                     )
                 }
 
@@ -197,6 +203,32 @@ fun ChatInputBar(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VoiceInputPreview(
+    isVoiceStarting: Boolean,
+    isVoiceListening: Boolean,
+    isVoiceAutoSending: Boolean,
+    text: String
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
+    ) {
+        Text(
+            text = text.ifBlank {
+                inputPlaceholder(
+                    isVoiceStarting = isVoiceStarting,
+                    isVoiceListening = isVoiceListening,
+                    isVoiceAutoSending = isVoiceAutoSending
+                )
+            },
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
     }
 }
 

@@ -47,7 +47,13 @@ class RoleAwareVoiceOutputEngine(
     }
 
     override suspend fun speak(text: String, config: VoiceOutputConfig) {
-        val roleConfig = activeRoleConfigProvider?.invoke()
+        val explicitConfig = config.takeIf {
+            it.mode != VoiceOutputMode.SYSTEM_TTS ||
+                it.referenceAudioUri.isNotBlank() ||
+                it.displayName.isNotBlank()
+        }
+        val roleConfig = explicitConfig
+            ?: activeRoleConfigProvider?.invoke()
             ?: roleCardRepository?.getActiveRoleCard()?.let {
                 VoiceOutputConfig(
                     mode = runCatching { VoiceOutputMode.valueOf(it.voiceMode) }

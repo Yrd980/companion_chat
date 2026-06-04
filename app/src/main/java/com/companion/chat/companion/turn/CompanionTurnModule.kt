@@ -5,6 +5,7 @@ import com.companion.chat.companion.CompanionRebuildResult
 import com.companion.chat.context.ContextSettings
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.ConversationSession
+import com.companion.chat.engine.InferenceState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -14,6 +15,8 @@ interface CompanionTurnModule {
     val currentContextSettings: ContextSettings
 
     suspend fun start()
+
+    suspend fun initializeModelRuntime(modelPath: String = "")
 
     fun submit(request: CompanionTurnRequest): Flow<CompanionTurnEvent>
 
@@ -43,6 +46,7 @@ data class CompanionTurnSnapshot(
     val currentSessionId: String = "",
     val messages: List<ChatMessage> = emptyList(),
     val assistantAvatarImageUri: String = "",
+    val engineState: InferenceState = InferenceState.Idle,
     val isGenerating: Boolean = false,
     val isConversationWarmingUp: Boolean = false
 )

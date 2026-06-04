@@ -55,7 +55,9 @@ class AppViewModelFactory(
             modelClass.isAssignableFrom(VoiceSettingsViewModel::class.java) -> VoiceSettingsViewModel(
                 voiceInputConfigRepository = container.voiceInputConfigRepository,
                 cloudAsrConfigRepository = container.cloudAsrConfigRepository,
-                voiceCloneConfigRepository = container.voiceCloneConfigRepository
+                voiceCloneConfigRepository = container.voiceCloneConfigRepository,
+                voiceOutputEngine = container.voiceOutputEngine,
+                voiceCloneTestRepository = container.voiceCloneTestRepository
             ) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }

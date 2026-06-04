@@ -35,6 +35,9 @@ data class DiscoverRoleCard(
     val contentRating: ContentRating = ContentRating.SAFE,
     val imageStyle: String = "",
     val voiceSummary: String = "系统 TTS",
+    val voiceProfileUri: String = "",
+    val voiceMode: String = "SYSTEM_TTS",
+    val voiceDisplayName: String = "",
     val generationPreset: RoleGenerationPreset
 )
 

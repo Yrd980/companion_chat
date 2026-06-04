@@ -1,6 +1,8 @@
 package com.companion.chat
 
 import android.app.Application
+import com.companion.chat.companion.turn.CompanionTurnModule
+import com.companion.chat.companion.turn.DefaultCompanionTurnModule
 import com.companion.chat.context.ContextConfigRepository
 import com.companion.chat.context.DefaultContextManager
 import com.companion.chat.context.PromptAssembler
@@ -35,6 +37,8 @@ import com.companion.chat.engine.RoleAwareVoiceOutputEngine
 import com.companion.chat.engine.voice.VoiceCloneEngine
 import com.companion.chat.engine.voice.VoiceCloneRequest
 import com.companion.chat.engine.voice.VoiceCloneResult
+import com.companion.chat.engine.voice.VoiceCloneTestRepository
+import kotlinx.coroutines.CoroutineScope
 
 class AppContainer(
     private val application: Application
@@ -49,6 +53,7 @@ class AppContainer(
     val voiceInputConfigRepository: VoiceInputConfigRepository by lazy { VoiceInputConfigRepository(application) }
     val cloudAsrConfigRepository: CloudAsrConfigRepository by lazy { CloudAsrConfigRepository(application) }
     val voiceCloneConfigRepository: VoiceCloneConfigRepository by lazy { VoiceCloneConfigRepository(application) }
+    val voiceCloneTestRepository: VoiceCloneTestRepository by lazy { VoiceCloneTestRepository(application) }
 
     val chatSessionRepository: ChatSessionRepository by lazy { ChatSessionRepository(application, database) }
     val memoryRepository: MemoryRepository by lazy { MemoryRepository(database.memoryDao()) }
@@ -117,6 +122,32 @@ class AppContainer(
     }
     val unifiedExtractionParser: UnifiedExtractionParser by lazy { UnifiedExtractionParser() }
     val preferenceMemoryDeriver: PreferenceMemoryDeriver by lazy { PreferenceMemoryDeriver() }
+
+    fun createCompanionTurnModule(
+        scope: CoroutineScope,
+        logger: (String) -> Unit
+    ): CompanionTurnModule {
+        return DefaultCompanionTurnModule(
+            scope = scope,
+            modelConfigRepository = modelConfigRepository,
+            contextConfigRepository = contextConfigRepository,
+            sessionRepository = chatSessionRepository,
+            memoryRepository = memoryRepository,
+            preferenceRepository = preferenceRepository,
+            roleCardRepository = roleCardRepository,
+            skillRepository = skillRepository,
+            voiceOutputEngine = voiceOutputEngine,
+            contextManager = contextManager,
+            promptAssembler = promptAssembler,
+            memoryPromptBuilder = memoryPromptBuilder,
+            roleCardPromptBuilder = roleCardPromptBuilder,
+            preferenceMemoryDeriver = preferenceMemoryDeriver,
+            unifiedExtractionPromptBuilder = unifiedExtractionPromptBuilder,
+            unifiedExtractionParser = unifiedExtractionParser,
+            inferenceEngineFactory = inferenceEngineFactory,
+            logger = logger
+        )
+    }
 }
 
 val Application.appContainer: AppContainer

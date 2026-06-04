@@ -20,9 +20,10 @@ import com.companion.chat.data.model.createDefaultSession
 import com.companion.chat.data.preferences.PreferenceRepository
 import com.companion.chat.data.preferences.SecondEngineManager
 import com.companion.chat.data.repository.ChatSessionRepository
-import com.companion.chat.engine.EngineConfig
-import com.companion.chat.engine.InferenceEngine
+import com.companion.chat.engine.BackendType
+import com.companion.chat.engine.InferenceEngineFactory
 import com.companion.chat.engine.InferenceState
+import com.companion.chat.engine.ModelConfigRepository
 import com.companion.chat.engine.VoiceOutputEngine
 import com.companion.chat.identity.RoleCardPromptBuilder
 import com.companion.chat.identity.RoleCardRepository
@@ -32,15 +33,19 @@ import com.companion.chat.preference.UnifiedExtractionParser
 import com.companion.chat.preference.UnifiedExtractionPromptBuilder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 
 class DefaultCompanionTurnModule(
     private val scope: CoroutineScope,
+    private val modelConfigRepository: ModelConfigRepository,
     private val contextConfigRepository: ContextConfigRepository,
     private val sessionRepository: ChatSessionRepository,
     private val memoryRepository: MemoryRepository,
@@ -55,9 +60,7 @@ class DefaultCompanionTurnModule(
     private val preferenceMemoryDeriver: PreferenceMemoryDeriver,
     private val unifiedExtractionPromptBuilder: UnifiedExtractionPromptBuilder,
     private val unifiedExtractionParser: UnifiedExtractionParser,
-    private val inferenceEngineProvider: () -> InferenceEngine,
-    private val inferenceEngineFactory: () -> InferenceEngine,
-    private val currentEngineConfigProvider: () -> EngineConfig?,
+    private val inferenceEngineFactory: InferenceEngineFactory,
     private val logger: (String) -> Unit,
     private val summaryTimeoutMillis: Long = DEFAULT_SUMMARY_TIMEOUT_MILLIS,
     private val nowProvider: () -> Long = { System.currentTimeMillis() }
@@ -74,9 +77,12 @@ class DefaultCompanionTurnModule(
     override val currentBaseSystemPrompt: String
         get() = baseSystemPrompt
 
+    private var inferenceEngine = inferenceEngineFactory.create(modelConfigRepository.getConfig().runtime)
+    private var inferenceStateJob: Job? = null
+
     private val secondEngineManager = SecondEngineManager(
-        primaryEngineStateProvider = { inferenceEngineProvider().state.value },
-        engineFactory = inferenceEngineFactory,
+        primaryEngineStateProvider = { inferenceEngine.state.value },
+        engineFactory = { inferenceEngineFactory.create(modelConfigRepository.getConfig().runtime) },
         timeoutMillis = summaryTimeoutMillis
     )
 
@@ -89,8 +95,8 @@ class DefaultCompanionTurnModule(
         unifiedExtractionPromptBuilder = unifiedExtractionPromptBuilder,
         unifiedExtractionParser = unifiedExtractionParser,
         secondEngineManager = secondEngineManager,
-        engineStateProvider = { inferenceEngineProvider().state.value },
-        currentEngineConfigProvider = currentEngineConfigProvider,
+        engineStateProvider = { inferenceEngine.state.value },
+        currentEngineConfigProvider = { inferenceEngine.getCurrentConfig() },
         baseSystemPromptProvider = { baseSystemPrompt },
         logger = logger
     )
@@ -101,7 +107,7 @@ class DefaultCompanionTurnModule(
         preferenceRepository = preferenceRepository,
         memoryRepository = memoryRepository,
         contextManager = contextManager,
-        inferenceEngineProvider = inferenceEngineProvider,
+        inferenceEngineProvider = { inferenceEngine },
         postTurnLearning = PreferenceLearningAdapter(preferenceLearningCoordinator),
         promptAssembler = promptAssembler,
         memoryPromptBuilder = memoryPromptBuilder,
@@ -109,10 +115,50 @@ class DefaultCompanionTurnModule(
     )
 
     override suspend fun start() {
+        collectInferenceState()
         loadContextSettings()
         refreshBasePrompt()
         refreshAssistantAvatar()
         loadSessionsFromStorage()
+    }
+
+    override suspend fun initializeModelRuntime(modelPath: String) {
+        try {
+            if (inferenceEngine.state.value is InferenceState.Generating) {
+                inferenceEngine.cancel()
+                companionRuntime.cancelPostTurnLearning()
+                _snapshot.update { it.copy(isGenerating = false) }
+                logger("模型配置变更: 已取消当前生成并准备重建引擎")
+            }
+
+            val modelConfig = modelConfigRepository.getConfig()
+            val actualPath = modelPath.ifBlank { modelConfigRepository.resolveModelPath(modelConfig) }
+            val file = File(actualPath)
+
+            logger("模型运行时 = ${modelConfig.runtime}")
+            logger("实际模型路径 = $actualPath")
+            logger("文件存在 = ${file.exists()}")
+            logger("文件大小 = ${file.length()} bytes")
+
+            val config = modelConfigRepository.toEngineConfig(
+                systemPrompt = baseSystemPrompt
+            ).copy(modelPath = actualPath)
+            if (config.runtime != inferenceEngine.getCurrentConfig()?.runtime) {
+                logger("切换模型运行时: ${inferenceEngine.getCurrentConfig()?.runtime} -> ${config.runtime}")
+                inferenceEngine.release()
+                inferenceEngine = inferenceEngineFactory.create(config.runtime)
+                collectInferenceState()
+            }
+            logger("开始调用 engine.initialize...")
+            inferenceEngine.initialize(config)
+            persistActualBackendIfNeeded(modelConfig.backend)
+            logger("engine.initialize 返回, state = ${inferenceEngine.state.value}")
+        } catch (error: Exception) {
+            logger("!!! initializeModelRuntime 异常 !!! ${error.javaClass.simpleName}: ${error.message}")
+            _snapshot.update {
+                it.copy(engineState = InferenceState.Error("初始化异常: ${error.message}"))
+            }
+        }
     }
 
     override fun submit(request: CompanionTurnRequest): Flow<CompanionTurnEvent> = flow {
@@ -140,7 +186,7 @@ class DefaultCompanionTurnModule(
             return@flow
         }
 
-        val engineState = inferenceEngineProvider().state.value
+        val engineState = inferenceEngine.state.value
         if (engineState !is InferenceState.Ready) {
             emit(
                 CompanionTurnEvent.Rejected(
@@ -318,13 +364,29 @@ class DefaultCompanionTurnModule(
     }
 
     override fun cancelActiveTurn() {
-        inferenceEngineProvider().cancel()
+        inferenceEngine.cancel()
         companionRuntime.cancelPostTurnLearning()
         _snapshot.update { it.copy(isGenerating = false) }
     }
 
     override fun release() {
+        inferenceStateJob?.cancel()
         companionRuntime.release()
+        inferenceEngine.release()
+    }
+
+    private fun collectInferenceState() {
+        inferenceStateJob?.cancel()
+        inferenceStateJob = scope.launch {
+            inferenceEngine.state.collectLatest { state ->
+                _snapshot.update {
+                    it.copy(
+                        engineState = state,
+                        isGenerating = if (state is InferenceState.Idle) false else it.isGenerating
+                    )
+                }
+            }
+        }
     }
 
     private fun loadContextSettings() {
@@ -556,7 +618,7 @@ class DefaultCompanionTurnModule(
     }
 
     private suspend fun rebuildConversationForPromptChange(reason: String) {
-        val engine = inferenceEngineProvider()
+        val engine = inferenceEngine
         if (engine.state.value is InferenceState.Generating) {
             logger("$reason: 当前正在生成，暂不重建 Conversation")
             return
@@ -618,7 +680,7 @@ class DefaultCompanionTurnModule(
 
     private suspend fun warmUpConversation(messages: List<ChatMessage>) {
         try {
-            val engine = inferenceEngineProvider()
+            val engine = inferenceEngine
             if (engine.getCurrentConfig() == null) {
                 logger("对话预热跳过: 引擎尚未初始化")
                 return
@@ -667,6 +729,16 @@ class DefaultCompanionTurnModule(
         launch {
             persistSession(session)
         }
+    }
+
+    private fun persistActualBackendIfNeeded(requestedBackend: BackendType) {
+        val actualBackend = inferenceEngine.getCurrentConfig()?.backend ?: return
+        if (actualBackend == requestedBackend) return
+        if (requestedBackend == BackendType.CPU) return
+
+        val latestConfig = modelConfigRepository.getConfig()
+        modelConfigRepository.updateConfig(latestConfig.copy(backend = actualBackend))
+        logger("模型后端已同步为实际可用后端: $requestedBackend -> $actualBackend")
     }
 
     private fun logContextRebuildResult(

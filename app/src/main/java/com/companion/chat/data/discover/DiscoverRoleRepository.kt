@@ -82,9 +82,9 @@ class DiscoverRoleRepository(
             avatarImageUri = role.coverImageUri,
             galleryImageUris = listOf(role.coverImageUri).filter { it.isNotBlank() },
             imageStylePrompt = role.imageStyle,
-            voiceProfileUri = "",
-            voiceMode = if (role.voiceSummary.contains("克隆")) "CLONE" else "SYSTEM_TTS",
-            voiceDisplayName = role.voiceSummary
+            voiceProfileUri = role.voiceProfileUri,
+            voiceMode = role.voiceMode,
+            voiceDisplayName = role.voiceDisplayName.ifBlank { role.voiceSummary }
         )
         sharedPreferences.edit()
             .putBoolean(key(roleId, KEY_UNLOCKED), true)

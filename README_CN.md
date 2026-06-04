@@ -134,7 +134,7 @@ Anime Companion 想解决的正是这些问题。
 ### 2. 语音交互
 
 - 语音输入默认使用本地 `sherpa-onnx + SenseVoiceSmall int8`
-- 不再依赖 Android `SpeechRecognizer`、Google 语音服务或系统语音识别服务
+- 语音采集使用 Android `AudioRecord`，再走本地 VAD 和 SenseVoice 转写
 - SenseVoice 模型文件从 App 外部目录读取，不打包进 APK
 - `silero_vad.onnx` 会被 sherpa-onnx Silero VAD 实际用于端侧语音切段，再交给 SenseVoice 识别，不只是校验文件
 - 云端 ASR 保留为手动选择的通用 HTTP 后端，不作为默认回退路径
@@ -271,16 +271,18 @@ MOSS 模型文件不打包、不提交。当前本机缓存路径为 `third_part
 - 在本地模型与用户自定义 prompt 支持下，可以承载更暧昧、更调情、表达更强烈的陪伴型互动
 - 互动边界更接近由用户自己掌控，而不是完全依赖远端平台统一裁剪
 
-## 当前完成度
+## 当前状态
 
-当前项目已经完成主要阶段实现：
+当前项目已经包含：
 
-- 阶段 0-1：Room 基础设施与会话迁移
-- 阶段 2：上下文管理
-- 阶段 3：记忆系统
-- 阶段 4：偏好抽取与注入
-- 阶段 5：角色卡与 Skills 分离
-- 阶段 6：发现页角色目录、图片生成 Provider、角色媒体与语音克隆占位
+- 基于 Room 的会话、消息、记忆、偏好、角色卡和 Skills 存储
+- 上下文压缩、最近消息回放、记忆检索和 confirmed 偏好注入
+- 角色卡身份、Skill prompt、发现页角色导入和独立角色对话
+- 本地 SenseVoice ASR、Android 系统 TTS、HTTP 语音克隆和本地 MOSS 语音克隆回退
+- LiteRT-LM CPU/GPU/NPU 后端选择、加速失败回退和性能日志
+- llama.cpp GGUF 运行时，以及基于 projector 模型的图片输入链路
+- HTTP 图片生成、DreamLite 包状态检查和 `stable-diffusion.cpp` 本地 SD1.5 Hyper-SD 出图
+- 聊天、发现、记忆、模型配置、语音设置、角色卡和 Skills 的 Material 3 页面
 
 目前这版已经完成并验证：
 
@@ -329,7 +331,10 @@ Anime Companion 对应的机会点在于，它不是卖“一个能回答问题�
 - Navigation Compose
 - Room + KSP
 - LiteRT-LM Android
-- SpeechRecognizer
+- sherpa-onnx
+- ONNX Runtime Android
+- llama.cpp
+- stable-diffusion.cpp
 - TextToSpeech
 - Coil
 

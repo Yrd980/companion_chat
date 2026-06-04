@@ -9,16 +9,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.companion.chat.engine.VoiceOutputState
 import com.companion.chat.engine.voice.LocalSenseVoiceModelStatus
 import com.companion.chat.engine.voice.MossTtsNanoModelStatus
 import com.companion.chat.engine.voice.VoiceInputBackend
@@ -46,6 +51,7 @@ fun VoiceSettingsScreen(
     val cloudAsrConfig = uiState.cloudAsrConfig
     val voiceCloneConfig = uiState.voiceCloneConfig
     val mossModelStatus = uiState.mossModelStatus
+    val voiceOutputState by viewModel.voiceOutputState.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,
@@ -109,6 +115,34 @@ fun VoiceSettingsScreen(
             VoiceInfoRow("本地克隆", if (mossModelStatus is MossTtsNanoModelStatus.Ready) "可用" else "回退系统 TTS")
             VoiceInfoRow("输出模式", "系统 TTS / HTTP 克隆 / MOSS 本地克隆")
             VoiceInfoRow("角色语音", "在角色管理中配置参考音频 URI、模式和显示名称")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = viewModel::speakSweetGirlSample,
+                    enabled = voiceOutputState !is VoiceOutputState.Speaking,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("试播甜妹")
+                }
+                OutlinedButton(
+                    onClick = viewModel::stopSpeaking,
+                    enabled = voiceOutputState is VoiceOutputState.Speaking
+                ) {
+                    Icon(Icons.Default.Stop, contentDescription = null)
+                }
+            }
+            if (voiceOutputState is VoiceOutputState.Error) {
+                Text(
+                    text = (voiceOutputState as VoiceOutputState.Error).message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }

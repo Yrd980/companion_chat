@@ -13,6 +13,8 @@ import com.companion.chat.engine.voice.VoiceCloneResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.roundToInt
@@ -45,7 +47,15 @@ class MossTtsNanoVoiceCloneEngine(
                 modelFile = File(directory, config.tokenizerModelPath),
                 text = request.text
             )
-            val waveform = runOnnxPipeline(directory, config, plan, request.text, textTokenIds, referenceAudio)
+            val waveform = runOnnxPipeline(
+                directory = directory,
+                config = config,
+                plan = plan,
+                text = request.text,
+                textTokenIds = textTokenIds,
+                referenceAudio = referenceAudio,
+                displayName = request.displayName
+            )
             val outputFile = writeWaveFile(waveform, config.sampleRate)
 
             VoiceCloneResult(
@@ -69,10 +79,17 @@ class MossTtsNanoVoiceCloneEngine(
         plan: MossTtsNanoRunnerPlan,
         text: String,
         textTokenIds: IntArray,
-        referenceAudio: FloatArray
+        referenceAudio: FloatArray,
+        displayName: String
     ): FloatArray {
         require(referenceAudio.isNotEmpty()) { "参考音频为空或格式不支持" }
         require(text.isNotBlank()) { "朗读文本为空" }
+        val selectedPlan = selectBuiltinVoice(displayName, plan)?.let { selectedVoice ->
+            plan.copy(
+                builtinVoices = listOf(selectedVoice) +
+                    plan.builtinVoices.filterNot { it.voice == selectedVoice.voice }
+            )
+        } ?: plan
         val expectedFiles = listOf(
             config.ttsPrefillModelPath,
             config.ttsDecodeStepModelPath,
@@ -90,7 +107,7 @@ class MossTtsNanoVoiceCloneEngine(
             MossTtsNanoRunnerRequest(
                 modelDirectory = directory,
                 config = config,
-                plan = plan,
+                plan = selectedPlan,
                 text = text,
                 textTokenIds = textTokenIds,
                 referenceAudio = referenceAudio
@@ -98,10 +115,18 @@ class MossTtsNanoVoiceCloneEngine(
         )
     }
 
+    private fun selectBuiltinVoice(
+        displayName: String,
+        plan: MossTtsNanoRunnerPlan
+    ) = plan.builtinVoices.firstOrNull { voice ->
+        displayName.contains(voice.voice, ignoreCase = true) ||
+            displayName.contains(voice.displayName, ignoreCase = true)
+    } ?: plan.builtinVoices.firstOrNull { voice ->
+        voice.voice.equals(DEFAULT_SWEET_VOICE, ignoreCase = true)
+    }
+
     private fun readReferenceAudio(uriString: String): FloatArray {
-        val bytes = context.contentResolver.openInputStream(Uri.parse(uriString))
-            ?.use { it.readBytes() }
-            ?: error("无法读取参考音频")
+        val bytes = readReferenceAudioBytes(uriString)
         if (bytes.size <= WAV_HEADER_BYTES) return FloatArray(0)
 
         val dataOffset = findWavDataOffset(bytes).takeIf { it >= 0 } ?: WAV_HEADER_BYTES
@@ -111,6 +136,28 @@ class MossTtsNanoVoiceCloneEngine(
             samples[index] = buffer.short / Short.MAX_VALUE.toFloat()
         }
         return samples
+    }
+
+    private fun readReferenceAudioBytes(uriString: String): ByteArray {
+        val uri = Uri.parse(uriString)
+        if (uri.scheme == "http" || uri.scheme == "https") {
+            NetworkEndpointPolicy.requireHttpsOrLoopback(uriString, "MOSS 参考音频")
+            val connection = (URL(uriString).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 15_000
+                readTimeout = 30_000
+            }
+            try {
+                require(connection.responseCode in 200..299) {
+                    "MOSS 参考音频下载失败 (${connection.responseCode})"
+                }
+                return connection.inputStream.use { it.readBytes() }
+            } finally {
+                connection.disconnect()
+            }
+        }
+        return context.contentResolver.openInputStream(uri)
+            ?.use { it.readBytes() }
+            ?: error("无法读取参考音频")
     }
 
     private fun findWavDataOffset(bytes: ByteArray): Int {
@@ -134,6 +181,7 @@ class MossTtsNanoVoiceCloneEngine(
 
     private companion object {
         const val WAV_HEADER_BYTES = 44
+        const val DEFAULT_SWEET_VOICE = "Xiaoyu"
     }
 }
 

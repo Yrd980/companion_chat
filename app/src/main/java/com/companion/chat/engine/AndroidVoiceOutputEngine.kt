@@ -41,8 +41,7 @@ class AndroidVoiceOutputEngine(private val context: Context) : VoiceOutputEngine
                 Log.w(TAG, "中文 TTS 不可用，尝试英文")
                 tts?.setLanguage(Locale.ENGLISH)
             }
-            tts?.setSpeechRate(1.0f)
-            tts?.setPitch(1.0f)
+            configureSweetFemaleVoice()
             isInitialized = true
             Log.i(TAG, "TTS 初始化成功")
         } else {
@@ -85,6 +84,32 @@ class AndroidVoiceOutputEngine(private val context: Context) : VoiceOutputEngine
             putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
         }
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "utterance_${System.currentTimeMillis()}")
+    }
+
+    private fun configureSweetFemaleVoice() {
+        val engine = tts ?: return
+        val sweetVoice = engine.voices
+            ?.filter { voice ->
+                val locale = voice.locale
+                locale.language == Locale.CHINESE.language ||
+                    locale.language.equals("zh", ignoreCase = true)
+            }
+            ?.filterNot { it.isNetworkConnectionRequired }
+            ?.sortedWith(
+                compareBy(
+                    { voice -> if (voice.name.contains("female", ignoreCase = true)) 0 else 1 },
+                    { voice -> if (voice.name.contains("girl", ignoreCase = true)) 0 else 1 },
+                    { voice -> if (voice.name.contains("zh", ignoreCase = true)) 0 else 1 }
+                )
+            )
+            ?.firstOrNull()
+        if (sweetVoice != null) {
+            runCatching { engine.voice = sweetVoice }
+                .onSuccess { Log.i(TAG, "已选择系统 TTS 甜美女声候选: ${sweetVoice.name}") }
+                .onFailure { Log.w(TAG, "设置系统 TTS 声线失败: ${it.message}") }
+        }
+        engine.setSpeechRate(1.06f)
+        engine.setPitch(1.18f)
     }
 
     override fun stop() {

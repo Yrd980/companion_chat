@@ -66,11 +66,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil3.compose.AsyncImage
 import com.companion.chat.data.discover.ContentRating
 import com.companion.chat.data.discover.DiscoverRoleCardItem
 import com.companion.chat.data.discover.RoleSortMode
@@ -331,6 +333,7 @@ private fun DiscoverRoleCard(
         Column {
             CoverBlock(
                 name = item.role.name,
+                coverImageUri = item.role.coverImageUri,
                 contentRating = item.role.contentRating,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -394,6 +397,7 @@ private fun RoleHero(item: DiscoverRoleCardItem) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         CoverBlock(
             name = item.role.name,
+            coverImageUri = item.role.coverImageUri,
             contentRating = item.role.contentRating,
             modifier = Modifier
                 .fillMaxWidth()
@@ -476,6 +480,7 @@ private fun RoleDetailActions(
 @Composable
 private fun CoverBlock(
     name: String,
+    coverImageUri: String,
     contentRating: ContentRating,
     modifier: Modifier = Modifier
 ) {
@@ -488,19 +493,28 @@ private fun CoverBlock(
         modifier = modifier.background(Brush.linearGradient(colors)),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = null,
-                modifier = Modifier.size(42.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer
+        if (coverImageUri.isNotBlank()) {
+            AsyncImage(
+                model = coverImageUri,
+                contentDescription = "$name 封面",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
             )
-            Text(
-                text = name,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(42.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
         }
         if (contentRating == ContentRating.MATURE) {
             Surface(

@@ -12,8 +12,6 @@ import com.companion.chat.companion.turn.CompanionTurnEvent
 import com.companion.chat.companion.turn.CompanionTurnModule
 import com.companion.chat.companion.turn.CompanionTurnRejectReason
 import com.companion.chat.companion.turn.CompanionTurnRequest
-import com.companion.chat.companion.turn.DefaultCompanionTurnModule
-import com.companion.chat.engine.BackendType
 import com.companion.chat.engine.InferenceState
 import com.companion.chat.engine.VoiceInputEvent
 import com.companion.chat.engine.VoiceOutputState
@@ -81,43 +79,20 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    private val modelConfigRepository = container.modelConfigRepository
-    private val inferenceEngineFactory = container.inferenceEngineFactory
-    var inferenceEngine = inferenceEngineFactory.create(modelConfigRepository.getConfig().runtime)
-        private set
     val voiceInputEngine = container.voiceInputEngine
     val voiceOutputEngine = container.voiceOutputEngine
     private val imageGenerationConfigRepository = container.imageGenerationConfigRepository
     private val imageGenerationEngineSelector = container.imageGenerationEngineSelector
-    private val companionTurnModule: CompanionTurnModule = DefaultCompanionTurnModule(
+    private val companionTurnModule: CompanionTurnModule = container.createCompanionTurnModule(
         scope = viewModelScope,
-        contextConfigRepository = container.contextConfigRepository,
-        sessionRepository = container.chatSessionRepository,
-        memoryRepository = container.memoryRepository,
-        preferenceRepository = container.preferenceRepository,
-        roleCardRepository = container.roleCardRepository,
-        skillRepository = container.skillRepository,
-        voiceOutputEngine = voiceOutputEngine,
-        contextManager = container.contextManager,
-        promptAssembler = container.promptAssembler,
-        memoryPromptBuilder = container.memoryPromptBuilder,
-        roleCardPromptBuilder = container.roleCardPromptBuilder,
-        preferenceMemoryDeriver = container.preferenceMemoryDeriver,
-        unifiedExtractionPromptBuilder = container.unifiedExtractionPromptBuilder,
-        unifiedExtractionParser = container.unifiedExtractionParser,
-        inferenceEngineProvider = { inferenceEngine },
-        inferenceEngineFactory = { inferenceEngineFactory.create(modelConfigRepository.getConfig().runtime) },
-        currentEngineConfigProvider = { inferenceEngine.getCurrentConfig() },
         logger = ::logToFile
     )
 
     private var generateJob: Job? = null
     private var voiceCollectJob: Job? = null
-    private var inferenceStateJob: Job? = null
 
     init {
         logToFile("=== ChatViewModel 创建 ===")
-        collectInferenceState()
         collectVoiceEvents()
         collectVoiceOutputState()
         collectImageGenerationState()
@@ -127,7 +102,7 @@ class ChatViewModel(
         viewModelScope.launch {
             companionTurnModule.start()
             logToFile("ChatViewModel 初始化完成，开始自动初始化引擎")
-            initializeEngine(systemPrompt = companionTurnModule.currentBaseSystemPrompt)
+            initializeEngine()
         }
     }
 
@@ -162,21 +137,10 @@ class ChatViewModel(
                         currentSessionId = snapshot.currentSessionId,
                         messages = snapshot.messages,
                         assistantAvatarImageUri = snapshot.assistantAvatarImageUri,
+                        engineState = snapshot.engineState,
                         isGenerating = snapshot.isGenerating,
                         isConversationWarmingUp = snapshot.isConversationWarmingUp
                     )
-                }
-            }
-        }
-    }
-
-    private fun collectInferenceState() {
-        inferenceStateJob?.cancel()
-        inferenceStateJob = viewModelScope.launch {
-            inferenceEngine.state.collectLatest { state ->
-                _uiState.update { it.copy(engineState = state) }
-                if (state is InferenceState.Idle) {
-                    _uiState.update { it.copy(isGenerating = false) }
                 }
             }
         }
@@ -319,7 +283,7 @@ class ChatViewModel(
             val decision = VoiceDrivenChatPolicy.evaluateTranscript(
                 transcript = transcript,
                 isGenerating = _uiState.value.isGenerating,
-                isEngineReady = inferenceEngine.state.value is InferenceState.Ready
+                isEngineReady = _uiState.value.engineState is InferenceState.Ready
             )
         ) {
             VoiceTranscriptDecision.AutoSend -> {
@@ -496,74 +460,17 @@ class ChatViewModel(
         _uiState.update { it.copy(isGenerating = false, isVoiceAutoSending = false) }
     }
 
-    fun initializeEngine(modelPath: String = "", systemPrompt: String = "") {
+    fun initializeEngine(modelPath: String = "") {
         viewModelScope.launch {
-            try {
-                if (inferenceEngine.state.value is InferenceState.Generating) {
-                    generateJob?.cancel()
-                    companionTurnModule.cancelActiveTurn()
-                    _uiState.update { it.copy(isGenerating = false) }
-                    logToFile("模型配置变更: 已取消当前生成并准备重建引擎")
-                }
-
-                val app = getApplication<Application>()
-                val modelConfig = modelConfigRepository.getConfig()
-                val actualPath = modelPath.ifBlank { modelConfigRepository.resolveModelPath(modelConfig) }
-                val file = java.io.File(actualPath)
-
-                logToFile("getExternalFilesDir('models') = ${app.getExternalFilesDir("models")?.absolutePath}")
-                logToFile("filesDir = ${app.filesDir.absolutePath}")
-                logToFile("模型运行时 = ${modelConfig.runtime}")
-                logToFile("实际模型路径 = $actualPath")
-                logToFile("文件存在 = ${file.exists()}")
-                logToFile("文件大小 = ${file.length()} bytes")
-
-                app.getExternalFilesDir("models")?.listFiles()?.forEach { f ->
-                    logToFile("models目录: ${f.name} (${f.length()} bytes)")
-                }
-
-                val resolvedSystemPrompt = systemPrompt.ifBlank {
-                    companionTurnModule.currentBaseSystemPrompt
-                }
-                val config = modelConfigRepository.toEngineConfig(
-                    systemPrompt = resolvedSystemPrompt
-                ).copy(modelPath = actualPath)
-                if (config.runtime != inferenceEngine.getCurrentConfig()?.runtime) {
-                    logToFile("切换模型运行时: ${inferenceEngine.getCurrentConfig()?.runtime} -> ${config.runtime}")
-                    inferenceEngine.release()
-                    inferenceEngine = inferenceEngineFactory.create(config.runtime)
-                    collectInferenceState()
-                }
-                logToFile("开始调用 engine.initialize...")
-                inferenceEngine.initialize(config)
-                persistActualBackendIfNeeded(modelConfig.backend)
-                logToFile("engine.initialize 返回, state = ${inferenceEngine.state.value}")
-            } catch (e: Exception) {
-                logToFile("!!! initializeEngine 异常 !!! ${e.javaClass.simpleName}: ${e.message}")
-                _uiState.update {
-                    it.copy(engineState = InferenceState.Error("初始化异常: ${e.message}"))
-                }
-            }
+            companionTurnModule.initializeModelRuntime(modelPath)
         }
-    }
-
-    private fun persistActualBackendIfNeeded(requestedBackend: BackendType) {
-        val actualBackend = inferenceEngine.getCurrentConfig()?.backend ?: return
-        if (actualBackend == requestedBackend) return
-        if (requestedBackend == BackendType.CPU) return
-
-        val latestConfig = modelConfigRepository.getConfig()
-        modelConfigRepository.updateConfig(latestConfig.copy(backend = actualBackend))
-        logToFile("模型后端已同步为实际可用后端: $requestedBackend -> $actualBackend")
     }
 
     override fun onCleared() {
         super.onCleared()
         generateJob?.cancel()
         voiceCollectJob?.cancel()
-        inferenceStateJob?.cancel()
         companionTurnModule.release()
-        inferenceEngine.release()
         voiceInputEngine.release()
         voiceOutputEngine.release()
     }

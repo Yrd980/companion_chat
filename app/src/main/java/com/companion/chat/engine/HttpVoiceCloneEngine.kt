@@ -1,6 +1,7 @@
 package com.companion.chat.engine
 
 import android.content.Context
+import android.net.Uri
 import com.companion.chat.engine.voice.VoiceCloneConfig
 import com.companion.chat.engine.voice.VoiceCloneConfigRepository
 import com.companion.chat.engine.voice.VoiceCloneEngine
@@ -61,7 +62,7 @@ class HttpVoiceCloneEngine private constructor(
             val audioFile = writeAudioResponse(response)
             VoiceCloneResult(
                 provider = VoiceCloneProvider.HTTP_CLONE,
-                audioUri = audioFile.toURI().toString(),
+                audioUri = Uri.fromFile(audioFile).toString(),
                 fallbackToSystemTts = false,
                 message = "HTTP 语音克隆合成完成"
             )

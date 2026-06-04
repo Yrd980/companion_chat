@@ -127,7 +127,7 @@ fun ChatScreen(
                         val engineLabel = when (val s = uiState.engineState) {
                             is InferenceState.Idle -> "未连接"
                             is InferenceState.Initializing -> "模型加载中"
-                            is InferenceState.Ready -> "已就绪"
+                            is InferenceState.Ready -> if (uiState.isConversationWarmingUp) "对话预热中" else "已就绪"
                             is InferenceState.Generating -> "生成中"
                             is InferenceState.Error -> "错误"
                         }
@@ -207,6 +207,7 @@ fun ChatScreen(
                 isVoiceStarting = uiState.isVoiceStarting,
                 isVoiceListening = uiState.isVoiceListening,
                 isVoiceAutoSending = uiState.isVoiceAutoSending,
+                voiceInputPreview = uiState.voiceInputPreview,
                 isGenerating = uiState.isGenerating,
                 isImageGenerating = uiState.imageGenerationState is ImageGenerationState.Generating,
                 isVoiceSpeaking = uiState.isVoiceSpeaking,
