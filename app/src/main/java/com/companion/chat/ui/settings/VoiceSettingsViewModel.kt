@@ -2,6 +2,8 @@ package com.companion.chat.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companion.chat.companion.readiness.CompanionReadinessRepository
+import com.companion.chat.companion.readiness.CompanionReadinessSnapshot
 import com.companion.chat.engine.VoiceOutputEngine
 import com.companion.chat.engine.VoiceOutputState
 import com.companion.chat.engine.voice.CloudAsrConfig
@@ -26,7 +28,8 @@ data class VoiceSettingsUiState(
     val localModelStatus: LocalSenseVoiceModelStatus,
     val cloudAsrConfig: CloudAsrConfig,
     val voiceCloneConfig: VoiceCloneConfig,
-    val mossModelStatus: MossTtsNanoModelStatus
+    val mossModelStatus: MossTtsNanoModelStatus,
+    val readinessSnapshot: CompanionReadinessSnapshot
 )
 
 class VoiceSettingsViewModel(
@@ -34,7 +37,8 @@ class VoiceSettingsViewModel(
     private val cloudAsrConfigRepository: CloudAsrConfigRepository,
     private val voiceCloneConfigRepository: VoiceCloneConfigRepository,
     private val voiceOutputEngine: VoiceOutputEngine,
-    private val voiceCloneTestRepository: VoiceCloneTestRepository
+    private val voiceCloneTestRepository: VoiceCloneTestRepository,
+    private val readinessRepository: CompanionReadinessRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(buildUiState())
@@ -71,7 +75,8 @@ class VoiceSettingsViewModel(
             localModelStatus = voiceInputConfigRepository.getLocalSenseVoiceModelStatus(voiceInputConfig),
             cloudAsrConfig = cloudAsrConfig,
             voiceCloneConfig = voiceCloneConfig,
-            mossModelStatus = voiceCloneConfigRepository.getMossModelStatus(voiceCloneConfig)
+            mossModelStatus = voiceCloneConfigRepository.getMossModelStatus(voiceCloneConfig),
+            readinessSnapshot = readinessRepository.getSnapshot()
         )
     }
 }

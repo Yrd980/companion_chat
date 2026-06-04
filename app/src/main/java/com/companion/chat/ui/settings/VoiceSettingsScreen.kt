@@ -51,6 +51,7 @@ fun VoiceSettingsScreen(
     val cloudAsrConfig = uiState.cloudAsrConfig
     val voiceCloneConfig = uiState.voiceCloneConfig
     val mossModelStatus = uiState.mossModelStatus
+    val readinessSnapshot = uiState.readinessSnapshot
     val voiceOutputState by viewModel.voiceOutputState.collectAsStateWithLifecycle()
 
     Scaffold(
@@ -97,11 +98,13 @@ fun VoiceSettingsScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "语音输入默认使用本地 SenseVoice。角色克隆优先读取 moss-tts-nano ONNX 模型，缺模型或缺参考音频时自动回退系统 TTS。",
+                text = "语音输入默认使用本地 SenseVoice。角色克隆优先使用已配置的 HTTP 后端，再尝试 moss-tts-nano ONNX 模型，不可用时自动回退系统 TTS。",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
+            VoiceInfoRow("语音识别", readinessSnapshot.asr.summary)
+            VoiceInfoRow("语音输出", readinessSnapshot.tts.summary)
             VoiceInfoRow("识别模式", voiceInputConfig.recognitionModeLabel)
             VoiceInfoRow("识别后端", voiceInputConfig.backend.displayName())
             VoiceInfoRow("模型目录", voiceInputConfig.localSenseVoiceModelDirectory.ifBlank { "未配置" })
@@ -113,7 +116,7 @@ fun VoiceSettingsScreen(
             VoiceInfoRow("HTTP 克隆", if (voiceCloneConfig.isHttpCloneConfigured) "已配置" else "未配置")
             VoiceInfoRow("HTTP 声线", voiceCloneConfig.httpCloneVoice)
             VoiceInfoRow("本地克隆", if (mossModelStatus is MossTtsNanoModelStatus.Ready) "可用" else "回退系统 TTS")
-            VoiceInfoRow("输出模式", "系统 TTS / HTTP 克隆 / MOSS 本地克隆")
+            VoiceInfoRow("输出模式", "系统 TTS / 角色克隆")
             VoiceInfoRow("角色语音", "在角色管理中配置参考音频 URI、模式和显示名称")
             Row(
                 modifier = Modifier.fillMaxWidth(),

@@ -15,7 +15,12 @@ class ImageGenerationEngineSelector(
         request: ImageGenerationRequest,
         config: ImageGenerationConfig
     ): Result<String> {
-        val provider = chooseProvider(config)
+        val readiness = resolveReadiness(config)
+        if (!readiness.isUsable) {
+            _state.value = ImageGenerationState.Error(readiness.summary)
+            return Result.failure(IllegalStateException(readiness.summary))
+        }
+        val provider = readiness.provider
         _state.value = ImageGenerationState.Generating
         val result = when (provider) {
             ImageGenerationProvider.HTTP -> httpEngine.generate(request, config.copy(provider = provider))
@@ -31,12 +36,10 @@ class ImageGenerationEngineSelector(
     }
 
     fun chooseProvider(config: ImageGenerationConfig): ImageGenerationProvider {
-        if (
-            config.provider == ImageGenerationProvider.LOCAL_DREAMLITE ||
-            config.provider == ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP
-        ) {
-            return config.provider
-        }
-        return if (config.baseUrl.isNotBlank()) ImageGenerationProvider.HTTP else config.provider
+        return resolveReadiness(config).provider
+    }
+
+    fun resolveReadiness(config: ImageGenerationConfig): ImageProviderReadiness {
+        return ImageProviderReadinessResolver.resolve(config)
     }
 }

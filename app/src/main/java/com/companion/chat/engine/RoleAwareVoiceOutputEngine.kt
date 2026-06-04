@@ -1,22 +1,17 @@
 package com.companion.chat.engine
 
 import android.util.Log
-import com.companion.chat.engine.VoiceOutputConfig
-import com.companion.chat.engine.VoiceOutputEngine
-import com.companion.chat.engine.VoiceOutputMode
-import com.companion.chat.engine.VoiceOutputState
-import com.companion.chat.identity.RoleCardRepository
-import com.companion.chat.engine.voice.VoiceCloneEngine
-import com.companion.chat.engine.voice.VoiceCloneRequest
+import com.companion.chat.engine.voice.role.RoleVoiceCloneRouteResult
+import com.companion.chat.engine.voice.role.RoleVoiceCloneRouter
+import com.companion.chat.engine.voice.role.RoleVoiceProfileResolver
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 
 class RoleAwareVoiceOutputEngine(
     private val fallbackEngine: VoiceOutputEngine,
-    private val roleCardRepository: RoleCardRepository?,
-    private val cloneEngine: VoiceCloneEngine? = null,
-    private val localAudioPlaybackEngine: GeneratedAudioPlayer? = null,
-    private val activeRoleConfigProvider: (suspend () -> VoiceOutputConfig?)? = null
+    private val profileResolver: RoleVoiceProfileResolver,
+    private val cloneRouter: RoleVoiceCloneRouter? = null,
+    private val localAudioPlaybackEngine: GeneratedAudioPlayer? = null
 ) : VoiceOutputEngine {
     private companion object {
         const val TAG = "RoleAwareVoiceOutput"
@@ -47,45 +42,23 @@ class RoleAwareVoiceOutputEngine(
     }
 
     override suspend fun speak(text: String, config: VoiceOutputConfig) {
-        val explicitConfig = config.takeIf {
-            it.mode != VoiceOutputMode.SYSTEM_TTS ||
-                it.referenceAudioUri.isNotBlank() ||
-                it.displayName.isNotBlank()
-        }
-        val roleConfig = explicitConfig
-            ?: activeRoleConfigProvider?.invoke()
-            ?: roleCardRepository?.getActiveRoleCard()?.let {
-                VoiceOutputConfig(
-                    mode = runCatching { VoiceOutputMode.valueOf(it.voiceMode) }
-                        .getOrDefault(VoiceOutputMode.SYSTEM_TTS),
-                    referenceAudioUri = it.voiceProfileUri,
-                    displayName = it.voiceDisplayName
-                )
-            }
-            ?: config
+        val profile = profileResolver.resolve(config)
+        val roleConfig = profile.toOutputConfig()
 
-        if (roleConfig.mode != VoiceOutputMode.CLONE || cloneEngine == null || localAudioPlaybackEngine == null) {
+        if (roleConfig.mode != VoiceOutputMode.CLONE || cloneRouter == null || localAudioPlaybackEngine == null) {
             fallbackEngine.speak(text, roleConfig.copy(mode = VoiceOutputMode.SYSTEM_TTS))
             return
         }
 
-        val cloneResult = cloneEngine.synthesize(
-            VoiceCloneRequest(
-                text = text,
-                referenceAudioUri = roleConfig.referenceAudioUri,
-                displayName = roleConfig.displayName
-            )
-        ).getOrElse {
-            safeLog("语音克隆异常，回退系统 TTS: ${it.message}", warning = true)
-            null
-        }
-
-        if (cloneResult?.fallbackToSystemTts == false && !cloneResult.audioUri.isNullOrBlank()) {
-            safeLog("语音克隆成功，播放生成音频: ${cloneResult.message}")
-            localAudioPlaybackEngine.play(cloneResult.audioUri)
-        } else {
-            safeLog("语音克隆不可用，回退系统 TTS: ${cloneResult?.message.orEmpty()}")
-            fallbackEngine.speak(text, roleConfig.copy(mode = VoiceOutputMode.SYSTEM_TTS))
+        when (val cloneResult = cloneRouter.synthesize(text, profile)) {
+            is RoleVoiceCloneRouteResult.Generated -> {
+                safeLog("语音克隆成功，播放生成音频: ${cloneResult.result.message}")
+                localAudioPlaybackEngine.play(cloneResult.result.audioUri.orEmpty())
+            }
+            is RoleVoiceCloneRouteResult.FallbackToSystemTts -> {
+                safeLog("语音克隆不可用，回退系统 TTS: ${cloneResult.message}", warning = true)
+                fallbackEngine.speak(text, roleConfig.copy(mode = VoiceOutputMode.SYSTEM_TTS))
+            }
         }
     }
 

@@ -40,7 +40,8 @@ class HttpImageGenerationEngine : ImageGenerationEngine {
         config: ImageGenerationConfig,
         purpose: ImageGenerationPurpose
     ): Result<String> = withContext(Dispatchers.IO) {
-        if (config.baseUrl.isBlank()) {
+        val providerConfig = config.httpProviderConfig
+        if (!providerConfig.isEndpointConfigured) {
             val error = "图片生成 Base URL 未配置"
             _state.value = ImageGenerationState.Error(error)
             return@withContext Result.failure(IllegalStateException(error))
@@ -53,18 +54,18 @@ class HttpImageGenerationEngine : ImageGenerationEngine {
 
         _state.value = ImageGenerationState.Generating
         runCatching {
-            NetworkEndpointPolicy.requireHttpsOrLoopback(config.baseUrl, "图片生成")
+            NetworkEndpointPolicy.requireHttpsOrLoopback(providerConfig.endpoint, "图片生成")
             val response = httpClient.postJson(
-                url = config.baseUrl,
-                apiKey = config.apiKey,
-                body = renderTemplate(config.requestTemplate, config.model, prompt),
-                timeoutMillis = config.timeoutMillis
+                url = providerConfig.endpoint,
+                apiKey = providerConfig.apiKey,
+                body = renderTemplate(providerConfig.requestTemplate, providerConfig.model, prompt),
+                timeoutMillis = providerConfig.timeoutMillis
             )
-            val imageValue = readFieldPath(JSONObject(response), config.responseImageFieldPath)
-                ?: error("响应中未找到图片字段: ${config.responseImageFieldPath}")
+            val imageValue = readFieldPath(JSONObject(response), providerConfig.responseImageFieldPath)
+                ?: error("响应中未找到图片字段: ${providerConfig.responseImageFieldPath}")
             val uri = when {
                 imageValue.startsWith("http://") || imageValue.startsWith("https://") ->
-                    saveBytes(httpClient.getBytes(imageValue, config.timeoutMillis), purpose)
+                    saveBytes(httpClient.getBytes(imageValue, providerConfig.timeoutMillis), purpose)
                 imageValue.startsWith("data:image") ->
                     saveBase64Image(imageValue.substringAfter(","), purpose)
                 else -> saveBase64Image(imageValue, purpose)

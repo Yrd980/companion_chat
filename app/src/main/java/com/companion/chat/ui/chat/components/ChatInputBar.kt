@@ -42,7 +42,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.companion.chat.ui.chat.VoiceFirstInteractionUiState
+import com.companion.chat.companion.voice.VoiceFirstInteractionState
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -56,7 +56,7 @@ fun ChatInputBar(
     onVoiceInput: () -> Unit,
     selectedImages: List<Uri>,
     onRemoveImage: (Uri) -> Unit,
-    voice: VoiceFirstInteractionUiState,
+    voice: VoiceFirstInteractionState,
     isGenerating: Boolean = false,
     isImageGenerating: Boolean = false,
     canVoiceOutput: Boolean = false,
@@ -196,7 +196,7 @@ fun ChatInputBar(
 
 @Composable
 private fun VoiceInputPreview(
-    voice: VoiceFirstInteractionUiState
+    voice: VoiceFirstInteractionState
 ) {
     Surface(
         shape = RoundedCornerShape(8.dp),
@@ -286,7 +286,7 @@ private fun ChatToolIconButton(
 
 @Composable
 private fun VoicePrimaryButton(
-    voice: VoiceFirstInteractionUiState,
+    voice: VoiceFirstInteractionState,
     isGenerating: Boolean,
     onVoiceInput: () -> Unit
 ) {

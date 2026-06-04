@@ -33,10 +33,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.companion.chat.companion.readiness.CapabilityReadiness
+import com.companion.chat.companion.readiness.CompanionCapability
+import com.companion.chat.companion.readiness.CompanionReadinessLevel
 import com.companion.chat.engine.BackendType
 import com.companion.chat.engine.LocalLmFileStatus
 import com.companion.chat.engine.ModelRuntime
 import com.companion.chat.engine.image.ImageGenerationConfig
+import com.companion.chat.engine.image.ImageGenerationCapabilities
 import com.companion.chat.engine.image.ImageGenerationProvider
 import com.companion.chat.engine.image.DreamLiteModelStatus
 import com.companion.chat.engine.image.StableDiffusionModelStatus
@@ -57,6 +61,9 @@ fun ModelConfigScreen(
     val stableDiffusionModelStatus = uiState.stableDiffusionModelStatus
     val options = listOf(3, 5, 10, 15, 20)
     val localLmPackageStatus = uiState.localLmPackageStatus
+    val imageProviderReadiness = uiState.imageProviderReadiness
+    val imageCapabilities = imageProviderReadiness.capabilities
+    val readinessSnapshot = uiState.readinessSnapshot
 
     Scaffold(
         modifier = modifier,
@@ -109,6 +116,24 @@ fun ModelConfigScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 20.dp)
+            ) {
+                Text(
+                    text = "全域运行状态",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                readinessSnapshot.capabilities.forEach { readiness ->
+                    ReadinessInfoRow(readiness)
+                }
             }
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -300,84 +325,148 @@ fun ModelConfigScreen(
                         viewModel.setImageProvider(ImageGenerationProvider.LOCAL_DREAMLITE)
                     }
                 )
-                ImageConfigField("本地模型路径", imageConfig.localModelPath) {
-                    viewModel.updateLocalModelPath(it)
-                }
                 Text(
-                    text = when (imageConfig.provider) {
-                        ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP ->
-                            "Stable Diffusion 状态：${stableDiffusionModelStatus.displayName()}"
-                        else -> "DreamLite 状态：${dreamLiteModelStatus.displayName()}"
-                    },
+                    text = "当前状态：${imageProviderReadiness.summary}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (
-                        dreamLiteModelStatus is DreamLiteModelStatus.Ready ||
-                        stableDiffusionModelStatus is StableDiffusionModelStatus.Ready
-                    ) {
+                    color = if (imageProviderReadiness.isUsable) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
                         MaterialTheme.colorScheme.error
                     },
                     modifier = Modifier.padding(top = 4.dp)
                 )
-                ImageConfigField("本地宽度", imageConfig.localWidth.toString()) {
-                    viewModel.updateLocalWidth(it)
-                }
-                ImageConfigField("本地高度", imageConfig.localHeight.toString()) {
-                    viewModel.updateLocalHeight(it)
-                }
-                ImageConfigField("本地 Steps", imageConfig.localSteps.toString()) {
-                    viewModel.updateLocalSteps(it)
-                }
-                ImageConfigField("本地 CFG Scale", imageConfig.localCfgScale.toString()) {
-                    viewModel.updateLocalCfgScale(it)
-                }
-                ImageConfigField("本地 Seed（留空随机）", imageConfig.localSeed?.toString().orEmpty()) {
-                    viewModel.updateLocalSeed(it)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = imageConfig.localUseVulkan,
-                        onCheckedChange = { viewModel.setLocalUseVulkan(it) }
-                    )
-                    Text(
-                        text = "启用 Vulkan",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                ImageConfigField("Base URL", imageConfig.baseUrl) {
-                    viewModel.updateImageBaseUrl(it)
-                }
-                ImageConfigField("API Key", imageConfig.apiKey) {
-                    viewModel.updateImageApiKey(it)
-                }
-                ImageConfigField("Model", imageConfig.model) {
-                    viewModel.updateImageModel(it)
-                }
-                ImageConfigField("Request Template", imageConfig.requestTemplate, minLines = 3) {
-                    viewModel.updateRequestTemplate(it)
-                }
-                ImageConfigField("Response Image Field Path", imageConfig.responseImageFieldPath) {
-                    viewModel.updateResponseImageFieldPath(it)
-                }
-                ImageConfigField("Timeout Millis", imageConfig.timeoutMillis.toString()) {
-                    viewModel.updateTimeoutMillis(it)
-                }
                 Text(
-                    text = "模板支持 {{model}} 与 {{prompt}}。响应字段示例：data.0.url 或 data.0.b64_json。",
+                    text = imageCapabilities.displayName(),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 4.dp)
                 )
+                if (imageCapabilities.usesLocalModelPackage) {
+                    ImageConfigField("本地模型路径", imageConfig.localModelPath) {
+                        viewModel.updateLocalModelPath(it)
+                    }
+                    Text(
+                        text = when (imageConfig.provider) {
+                            ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP ->
+                                "Stable Diffusion 状态：${stableDiffusionModelStatus.displayName()}"
+                            else -> "DreamLite 状态：${dreamLiteModelStatus.displayName()}"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (imageProviderReadiness.isUsable) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                if (imageCapabilities.usesImageSize) {
+                    ImageConfigField("本地宽度", imageConfig.localWidth.toString()) {
+                        viewModel.updateLocalWidth(it)
+                    }
+                    ImageConfigField("本地高度", imageConfig.localHeight.toString()) {
+                        viewModel.updateLocalHeight(it)
+                    }
+                    ImageConfigField("本地 Steps", imageConfig.localSteps.toString()) {
+                        viewModel.updateLocalSteps(it)
+                    }
+                    ImageConfigField("本地 CFG Scale", imageConfig.localCfgScale.toString()) {
+                        viewModel.updateLocalCfgScale(it)
+                    }
+                }
+                if (imageCapabilities.usesSeed) {
+                    ImageConfigField("本地 Seed（留空随机）", imageConfig.localSeed?.toString().orEmpty()) {
+                        viewModel.updateLocalSeed(it)
+                    }
+                }
+                if (imageCapabilities.usesVulkan) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = imageConfig.localUseVulkan,
+                            onCheckedChange = { viewModel.setLocalUseVulkan(it) }
+                        )
+                        Text(
+                            text = "启用 Vulkan",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                if (imageCapabilities.usesHttpEndpoint) {
+                    ImageConfigField("Base URL", imageConfig.baseUrl) {
+                        viewModel.updateImageBaseUrl(it)
+                    }
+                }
+                if (imageCapabilities.usesApiKey) {
+                    ImageConfigField("API Key", imageConfig.apiKey) {
+                        viewModel.updateImageApiKey(it)
+                    }
+                }
+                if (imageCapabilities.usesModelName) {
+                    ImageConfigField("Model", imageConfig.model) {
+                        viewModel.updateImageModel(it)
+                    }
+                }
+                if (imageCapabilities.usesHttpEndpoint) {
+                    ImageConfigField("Request Template", imageConfig.requestTemplate, minLines = 3) {
+                        viewModel.updateRequestTemplate(it)
+                    }
+                    ImageConfigField("Response Image Field Path", imageConfig.responseImageFieldPath) {
+                        viewModel.updateResponseImageFieldPath(it)
+                    }
+                    ImageConfigField("Timeout Millis", imageConfig.timeoutMillis.toString()) {
+                        viewModel.updateTimeoutMillis(it)
+                    }
+                    Text(
+                        text = "模板支持 {{model}} 与 {{prompt}}。响应字段示例：data.0.url 或 data.0.b64_json。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
             }
         }
     }
 }
 
+@Composable
+private fun ReadinessInfoRow(readiness: CapabilityReadiness) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = readiness.capability.displayName(),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(0.8f)
+        )
+        Text(
+            text = "${readiness.provider}：${readiness.summary}",
+            style = MaterialTheme.typography.bodySmall,
+            color = when (readiness.level) {
+                CompanionReadinessLevel.READY -> MaterialTheme.colorScheme.onSurfaceVariant
+                CompanionReadinessLevel.DEGRADED -> MaterialTheme.colorScheme.primary
+                CompanionReadinessLevel.NOT_READY -> MaterialTheme.colorScheme.error
+            },
+            modifier = Modifier.weight(2.2f)
+        )
+    }
+}
+
+private fun CompanionCapability.displayName(): String {
+    return when (this) {
+        CompanionCapability.LLM -> "LLM"
+        CompanionCapability.ASR -> "ASR"
+        CompanionCapability.TTS -> "TTS"
+        CompanionCapability.IMAGE -> "图片"
+    }
+}
+
 private fun DreamLiteModelStatus.displayName(): String {
     return when (this) {
-        DreamLiteModelStatus.Ready -> "配置已读取，等待官方端侧推理包"
+        is DreamLiteModelStatus.Ready -> "配置已读取：${config.modelName}，等待官方端侧推理包"
         DreamLiteModelStatus.DirectoryNotConfigured -> "模型目录未配置"
         is DreamLiteModelStatus.InvalidConfig -> "配置无效：$message"
         is DreamLiteModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"
@@ -391,6 +480,21 @@ private fun StableDiffusionModelStatus.displayName(): String {
         is StableDiffusionModelStatus.InvalidConfig -> "配置无效：$message"
         is StableDiffusionModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"
     }
+}
+
+private fun ImageGenerationCapabilities.displayName(): String {
+    val values = listOfNotNull(
+        "文生图".takeIf { supportsTextToImage },
+        "HTTP endpoint".takeIf { usesHttpEndpoint },
+        "API key".takeIf { usesApiKey },
+        "模型名".takeIf { usesModelName },
+        "本地模型包".takeIf { usesLocalModelPackage },
+        "负向提示词".takeIf { usesNegativePrompt },
+        "Seed".takeIf { usesSeed },
+        "尺寸参数".takeIf { usesImageSize },
+        "Vulkan".takeIf { usesVulkan }
+    )
+    return "能力：${values.ifEmpty { listOf("暂未启用真实出图") }.joinToString(" / ")}"
 }
 
 private fun LocalLmFileStatus.displayName(): String {

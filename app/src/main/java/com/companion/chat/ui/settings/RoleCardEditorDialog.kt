@@ -256,7 +256,7 @@ private fun VoiceSection(
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("SYSTEM_TTS" to "系统 TTS", "CLONE" to "MOSS 本地克隆").forEach { (mode, label) ->
+        listOf("SYSTEM_TTS" to "系统 TTS", "CLONE" to "角色克隆").forEach { (mode, label) ->
             FilterChip(
                 selected = voiceMode == mode,
                 onClick = { onVoiceModeChange(mode) },

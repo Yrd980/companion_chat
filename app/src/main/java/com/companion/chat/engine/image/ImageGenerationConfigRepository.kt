@@ -91,6 +91,10 @@ class ImageGenerationConfigRepository(
         return StableDiffusionModelPackage.inspect(config.localModelPath)
     }
 
+    fun getProviderReadiness(config: ImageGenerationConfig = getConfig()): ImageProviderReadiness {
+        return ImageProviderReadinessResolver.resolve(config)
+    }
+
     private companion object {
         const val PREFS_NAME = "image_generation_config"
         const val KEY_BASE_URL = "base_url"

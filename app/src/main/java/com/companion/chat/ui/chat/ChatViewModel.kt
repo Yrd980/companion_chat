@@ -12,6 +12,9 @@ import com.companion.chat.companion.turn.CompanionTurnEvent
 import com.companion.chat.companion.turn.CompanionTurnModule
 import com.companion.chat.companion.turn.CompanionTurnRejectReason
 import com.companion.chat.companion.turn.CompanionTurnRequest
+import com.companion.chat.companion.voice.VoiceFirstInteractionState
+import com.companion.chat.companion.voice.VoiceFirstTurnPolicy
+import com.companion.chat.companion.voice.VoiceTranscriptDecision
 import com.companion.chat.engine.InferenceState
 import com.companion.chat.engine.VoiceInputEvent
 import com.companion.chat.engine.VoiceOutputState
@@ -40,7 +43,7 @@ data class ChatUiState(
     val inputText: String = "",
     val selectedImages: List<Uri> = emptyList(),
     val isGenerating: Boolean = false,
-    val voice: VoiceFirstInteractionUiState = VoiceFirstInteractionUiState(),
+    val voice: VoiceFirstInteractionState = VoiceFirstInteractionState(),
     val isConversationWarmingUp: Boolean = false,
     val imageGenerationState: ImageGenerationState = ImageGenerationState.Idle,
     val imageGenerationError: String = "",
@@ -63,32 +66,6 @@ data class ChatUiState(
         }
 }
 
-data class VoiceFirstInteractionUiState(
-    val isStarting: Boolean = false,
-    val isListening: Boolean = false,
-    val isWarmedUp: Boolean = false,
-    val isSpeaking: Boolean = false,
-    val isAutoSending: Boolean = false,
-    val inputError: String = "",
-    val lastTranscript: String = "",
-    val inputPreview: String = "",
-    val showPermissionDialog: Boolean = false
-) {
-    val isInputActive: Boolean
-        get() = isStarting || isListening
-
-    val shouldShowInputPreview: Boolean
-        get() = isInputActive || isAutoSending || inputPreview.isNotBlank()
-
-    val inputPlaceholder: String
-        get() = when {
-            isStarting -> "正在启动语音识别..."
-            isListening -> "正在听..."
-            isAutoSending -> "正在发送语音..."
-            else -> "输入消息..."
-        }
-}
-
 class ChatViewModel(
     application: Application,
     private val container: AppContainer = application.appContainer
@@ -99,6 +76,7 @@ class ChatViewModel(
 
     val voiceInputEngine = container.voiceInputEngine
     val voiceOutputEngine = container.voiceOutputEngine
+    private val readinessRepository = container.companionReadinessRepository
     private val imageGenerationConfigRepository = container.imageGenerationConfigRepository
     private val imageGenerationEngineSelector = container.imageGenerationEngineSelector
     private val companionTurnModule: CompanionTurnModule = container.createCompanionTurnModule(
@@ -313,10 +291,11 @@ class ChatViewModel(
 
     private fun handleVoiceTranscript(transcript: String) {
         when (
-            val decision = VoiceDrivenChatPolicy.evaluateTranscript(
+            val decision = VoiceFirstTurnPolicy.evaluateTranscript(
                 transcript = transcript,
                 isGenerating = _uiState.value.isGenerating,
-                isEngineReady = _uiState.value.engineState is InferenceState.Ready
+                isEngineReady = _uiState.value.engineState is InferenceState.Ready,
+                isVoiceFirstReady = readinessRepository.getSnapshot().isReadyForVoiceFirstTurn
             )
         ) {
             VoiceTranscriptDecision.AutoSend -> {

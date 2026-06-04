@@ -39,7 +39,13 @@ object DreamLiteModelPackage {
         }
         val missingFiles = declaredFiles.filterNot { File(directory, it).isFile }
         return if (missingFiles.isEmpty()) {
-            DreamLiteModelStatus.Ready
+            DreamLiteModelStatus.Ready(
+                DreamLiteRuntimeConfig(
+                    modelName = config.optString("model_name"),
+                    runtime = config.optString("runtime"),
+                    requiredFiles = declaredFiles
+                )
+            )
         } else {
             DreamLiteModelStatus.MissingFiles(missingFiles)
         }
@@ -59,8 +65,14 @@ object DreamLiteModelPackage {
     private val REQUIRED_CONFIG_FIELDS = listOf("model_name", "runtime")
 }
 
+data class DreamLiteRuntimeConfig(
+    val modelName: String,
+    val runtime: String,
+    val requiredFiles: List<String>
+)
+
 sealed class DreamLiteModelStatus {
-    data object Ready : DreamLiteModelStatus()
+    data class Ready(val config: DreamLiteRuntimeConfig) : DreamLiteModelStatus()
     data object DirectoryNotConfigured : DreamLiteModelStatus()
     data class MissingFiles(val fileNames: List<String>) : DreamLiteModelStatus()
     data class InvalidConfig(val message: String) : DreamLiteModelStatus()

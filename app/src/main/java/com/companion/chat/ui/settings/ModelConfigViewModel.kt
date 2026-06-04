@@ -1,6 +1,8 @@
 package com.companion.chat.ui.settings
 
 import androidx.lifecycle.ViewModel
+import com.companion.chat.companion.readiness.CompanionReadinessRepository
+import com.companion.chat.companion.readiness.CompanionReadinessSnapshot
 import com.companion.chat.context.ContextConfigRepository
 import com.companion.chat.engine.BackendType
 import com.companion.chat.engine.LocalLmPackageStatus
@@ -11,6 +13,7 @@ import com.companion.chat.engine.image.DreamLiteModelStatus
 import com.companion.chat.engine.image.ImageGenerationConfig
 import com.companion.chat.engine.image.ImageGenerationConfigRepository
 import com.companion.chat.engine.image.ImageGenerationProvider
+import com.companion.chat.engine.image.ImageProviderReadiness
 import com.companion.chat.engine.image.StableDiffusionModelStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,13 +26,16 @@ data class ModelConfigUiState(
     val imageConfig: ImageGenerationConfig,
     val dreamLiteModelStatus: DreamLiteModelStatus,
     val stableDiffusionModelStatus: StableDiffusionModelStatus,
-    val localLmPackageStatus: LocalLmPackageStatus
+    val localLmPackageStatus: LocalLmPackageStatus,
+    val imageProviderReadiness: ImageProviderReadiness,
+    val readinessSnapshot: CompanionReadinessSnapshot
 )
 
 class ModelConfigViewModel(
     private val modelConfigRepository: ModelConfigRepository,
     private val contextConfigRepository: ContextConfigRepository,
-    private val imageConfigRepository: ImageGenerationConfigRepository
+    private val imageConfigRepository: ImageGenerationConfigRepository,
+    private val readinessRepository: CompanionReadinessRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(buildUiState())
@@ -159,7 +165,9 @@ class ModelConfigViewModel(
             imageConfig = imageConfig,
             dreamLiteModelStatus = imageConfigRepository.getDreamLiteModelStatus(imageConfig),
             stableDiffusionModelStatus = imageConfigRepository.getStableDiffusionModelStatus(imageConfig),
-            localLmPackageStatus = modelConfigRepository.getLocalLmPackageStatus(modelConfig)
+            localLmPackageStatus = modelConfigRepository.getLocalLmPackageStatus(modelConfig),
+            imageProviderReadiness = imageConfigRepository.getProviderReadiness(imageConfig),
+            readinessSnapshot = readinessRepository.getSnapshot()
         )
     }
 }

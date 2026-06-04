@@ -37,8 +37,9 @@ class LocalImageGenerationEngine(
     }
 
     private fun generateDreamLite(config: ImageGenerationConfig): Result<String> {
-        when (val status = DreamLiteModelPackage.inspect(config.localModelPath)) {
-            DreamLiteModelStatus.Ready -> Unit
+        val providerConfig = config.localProviderConfig(ImageGenerationProvider.LOCAL_DREAMLITE)
+        when (val status = DreamLiteModelPackage.inspect(providerConfig.modelPath)) {
+            is DreamLiteModelStatus.Ready -> Unit
             DreamLiteModelStatus.DirectoryNotConfigured -> {
                 val error = "DreamLite 模型目录未配置，已完成端侧接入框架"
                 _state.value = ImageGenerationState.Error(error)
@@ -76,7 +77,8 @@ class LocalImageGenerationEngine(
             return Result.failure(IllegalArgumentException(error))
         }
 
-        val runtimeConfig = when (val status = StableDiffusionModelPackage.inspect(config.localModelPath)) {
+        val providerConfig = config.localProviderConfig(ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP)
+        val runtimeConfig = when (val status = StableDiffusionModelPackage.inspect(providerConfig.modelPath)) {
             is StableDiffusionModelStatus.Ready -> status.config
             StableDiffusionModelStatus.DirectoryNotConfigured -> {
                 val error = "Stable Diffusion 模型目录未配置"
@@ -104,12 +106,12 @@ class LocalImageGenerationEngine(
                 loraPaths = runtimeConfig.loraPaths.toTypedArray(),
                 prompt = request.prompt,
                 negativePrompt = request.negativePrompt,
-                width = config.localWidth.takeIf { it > 0 } ?: runtimeConfig.defaultWidth,
-                height = config.localHeight.takeIf { it > 0 } ?: runtimeConfig.defaultHeight,
-                steps = stableDiffusionSteps(request, config, runtimeConfig),
-                cfgScale = config.localCfgScale.takeIf { it >= 0f } ?: runtimeConfig.defaultCfgScale,
-                seed = stableDiffusionSeed(request, config, runtimeConfig),
-                useVulkan = config.localUseVulkan && runtimeConfig.useVulkan
+                width = providerConfig.width.takeIf { it > 0 } ?: runtimeConfig.defaultWidth,
+                height = providerConfig.height.takeIf { it > 0 } ?: runtimeConfig.defaultHeight,
+                steps = stableDiffusionSteps(request, providerConfig, runtimeConfig),
+                cfgScale = providerConfig.cfgScale.takeIf { it >= 0f } ?: runtimeConfig.defaultCfgScale,
+                seed = stableDiffusionSeed(request, providerConfig, runtimeConfig),
+                useVulkan = providerConfig.useVulkan && runtimeConfig.useVulkan
             )
             val uri = store.saveBytes(pngBytes, request.purpose)
             _state.value = ImageGenerationState.Success(uri)
@@ -121,21 +123,21 @@ class LocalImageGenerationEngine(
 
     internal fun stableDiffusionSteps(
         request: ImageGenerationRequest,
-        config: ImageGenerationConfig,
+        config: LocalImageProviderConfig,
         runtimeConfig: StableDiffusionRuntimeConfig
     ): Int {
         return when {
             request.steps > 0 -> request.steps
-            config.localSteps > 0 -> config.localSteps
+            config.steps > 0 -> config.steps
             else -> runtimeConfig.defaultSteps
         }.coerceIn(1, 50)
     }
 
     internal fun stableDiffusionSeed(
         request: ImageGenerationRequest,
-        config: ImageGenerationConfig,
+        config: LocalImageProviderConfig,
         runtimeConfig: StableDiffusionRuntimeConfig
     ): Long {
-        return request.seed ?: config.localSeed ?: runtimeConfig.defaultSeed ?: -1L
+        return request.seed ?: config.seed ?: runtimeConfig.defaultSeed ?: -1L
     }
 }

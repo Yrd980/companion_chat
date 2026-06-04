@@ -1,6 +1,7 @@
 package com.companion.chat
 
 import android.app.Application
+import com.companion.chat.companion.readiness.CompanionReadinessRepository
 import com.companion.chat.companion.turn.CompanionTurnModule
 import com.companion.chat.companion.turn.DefaultCompanionTurnModule
 import com.companion.chat.context.ContextConfigRepository
@@ -34,10 +35,9 @@ import com.companion.chat.engine.LocalAudioPlaybackEngine
 import com.companion.chat.engine.AndroidMossTtsNanoRunner
 import com.companion.chat.engine.MossTtsNanoVoiceCloneEngine
 import com.companion.chat.engine.RoleAwareVoiceOutputEngine
-import com.companion.chat.engine.voice.VoiceCloneEngine
-import com.companion.chat.engine.voice.VoiceCloneRequest
-import com.companion.chat.engine.voice.VoiceCloneResult
 import com.companion.chat.engine.voice.VoiceCloneTestRepository
+import com.companion.chat.engine.voice.role.RoleVoiceCloneRouter
+import com.companion.chat.engine.voice.role.RoleVoiceProfileResolver
 import kotlinx.coroutines.CoroutineScope
 
 class AppContainer(
@@ -54,6 +54,15 @@ class AppContainer(
     val cloudAsrConfigRepository: CloudAsrConfigRepository by lazy { CloudAsrConfigRepository(application) }
     val voiceCloneConfigRepository: VoiceCloneConfigRepository by lazy { VoiceCloneConfigRepository(application) }
     val voiceCloneTestRepository: VoiceCloneTestRepository by lazy { VoiceCloneTestRepository(application) }
+    val companionReadinessRepository: CompanionReadinessRepository by lazy {
+        CompanionReadinessRepository(
+            modelConfigRepository = modelConfigRepository,
+            voiceInputConfigRepository = voiceInputConfigRepository,
+            cloudAsrConfigRepository = cloudAsrConfigRepository,
+            voiceCloneConfigRepository = voiceCloneConfigRepository,
+            imageGenerationConfigRepository = imageGenerationConfigRepository
+        )
+    }
 
     val chatSessionRepository: ChatSessionRepository by lazy { ChatSessionRepository(application, database) }
     val memoryRepository: MemoryRepository by lazy { MemoryRepository(database.memoryDao()) }
@@ -84,23 +93,21 @@ class AppContainer(
             configProvider = { voiceCloneConfigRepository.getConfig() }
         )
     }
-    val voiceCloneEngine: VoiceCloneEngine by lazy {
-        object : VoiceCloneEngine {
-            override suspend fun synthesize(request: VoiceCloneRequest): Result<VoiceCloneResult> {
-                val config = voiceCloneConfigRepository.getConfig()
-                return if (config.isHttpCloneConfigured) {
-                    httpVoiceCloneEngine.synthesize(request)
-                } else {
-                    mossTtsNanoVoiceCloneEngine.synthesize(request)
-                }
-            }
-        }
+    val roleVoiceCloneRouter: RoleVoiceCloneRouter by lazy {
+        RoleVoiceCloneRouter(
+            voiceCloneConfigRepository = voiceCloneConfigRepository,
+            httpCloneEngine = httpVoiceCloneEngine,
+            mossTtsNanoEngine = mossTtsNanoVoiceCloneEngine
+        )
+    }
+    val roleVoiceProfileResolver: RoleVoiceProfileResolver by lazy {
+        RoleVoiceProfileResolver(roleCardRepository = roleCardRepository)
     }
     val voiceOutputEngine: RoleAwareVoiceOutputEngine by lazy {
         RoleAwareVoiceOutputEngine(
             fallbackEngine = androidVoiceOutputEngine,
-            roleCardRepository = roleCardRepository,
-            cloneEngine = voiceCloneEngine,
+            profileResolver = roleVoiceProfileResolver,
+            cloneRouter = roleVoiceCloneRouter,
             localAudioPlaybackEngine = localAudioPlaybackEngine
         )
     }
