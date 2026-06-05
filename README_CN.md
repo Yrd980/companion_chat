@@ -262,7 +262,7 @@ MOSS 模型文件不打包、不提交。当前本机缓存路径为 `third_part
 - 角色编辑器拆分为基础、人设、图片、语音四个页签，支持维护头像图片、图库、图片风格提示词、语音模式和语音参考 URI
 - 发现页生成的角色图片可追加到已导入角色的图库中
 - 本地 SD1.5 Hyper-SD 通过 `third_party/stable-diffusion.cpp` Git submodule 构建 `companion_sd` JNI 库；模型文件默认读取 `/sdcard/Android/data/com.companion.chat/files/models/image/sd15-hypersd`，并通过 `sd_config.json` 声明 `model_path`、可选 LoRA、默认尺寸和步数。
-- DreamLite 源码通过 Git submodule 管理在 `third_party/DreamLite`；模型文件默认读取 `/sdcard/Android/data/com.companion.chat/files/models/image/dreamlite`。官方移动端权重/包可用前，本地 DreamLite 会返回明确“模型尚未准备”错误，不承诺真实出图。
+- DreamLite 源码通过 Git submodule 管理在 `third_party/DreamLite`；模型文件默认读取 `/sdcard/Android/data/com.companion.chat/files/models/image/dreamlite`。Android 当前会检查 DreamLite 模型包，真实端侧推理接入前会返回明确的“推理运行时未接入”错误。
 - OpenMOSS Reader/运行时参考代码通过 Git submodule 管理在 `third_party/MOSS-TTS-Nano-Reader`；Android 侧模型文件仍只作为本机缓存放在 `third_party/models/tts/moss-tts-nano/`，不提交模型权重。
 
 ### 9. 更开放的私密互动

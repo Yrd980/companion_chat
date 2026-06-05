@@ -319,7 +319,7 @@ fun ModelConfigScreen(
                 )
                 ImageProviderOptionItem(
                     title = "本地 DreamLite",
-                    description = "端侧接入框架已准备，等待官方权重/端侧包",
+                    description = "模型包可检查，Android 端推理运行时待接入",
                     selected = imageConfig.provider == ImageGenerationProvider.LOCAL_DREAMLITE,
                     onClick = {
                         viewModel.setImageProvider(ImageGenerationProvider.LOCAL_DREAMLITE)
@@ -466,7 +466,7 @@ private fun CompanionCapability.displayName(): String {
 
 private fun DreamLiteModelStatus.displayName(): String {
     return when (this) {
-        is DreamLiteModelStatus.Ready -> "配置已读取：${config.modelName}，等待官方端侧推理包"
+        is DreamLiteModelStatus.Ready -> "模型包已就绪：${config.modelName}，Android 端推理运行时待接入"
         DreamLiteModelStatus.DirectoryNotConfigured -> "模型目录未配置"
         is DreamLiteModelStatus.InvalidConfig -> "配置无效：$message"
         is DreamLiteModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"

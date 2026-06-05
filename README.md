@@ -264,7 +264,7 @@ adb shell 'mkdir -p /sdcard/Android/data/com.companion.chat/files/models/image/s
 adb push third_party/models/image/sd15-hypersd/. /sdcard/Android/data/com.companion.chat/files/models/image/sd15-hypersd/
 ```
 
-- DreamLite source is tracked as a Git submodule at `third_party/DreamLite`; model files are expected under `/sdcard/Android/data/com.companion.chat/files/models/image/dreamlite` and are not committed. Until an official mobile weight/package is available, local DreamLite requests return a clear "model not ready" error instead of crashing.
+- DreamLite source is tracked as a Git submodule at `third_party/DreamLite`; model files are expected under `/sdcard/Android/data/com.companion.chat/files/models/image/dreamlite` and are not committed. The Android path currently checks the DreamLite model package and returns a clear runtime-not-connected error until real on-device inference is wired in.
 - OpenMOSS reader/runtime reference code is tracked as a Git submodule at `third_party/MOSS-TTS-Nano-Reader`; Android integration keeps model files under `third_party/models/tts/moss-tts-nano/` as local cache only.
 
 ### 9. More open private interaction

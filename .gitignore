@@ -1,11 +1,21 @@
 # Models
 *.gguf
 *.litertlm
+*.safetensors
+*.onnx
+*.pt
+*.pth
+*.ckpt
 third_party/models/
 CompanionChat/app/src/main/assets/models/
 
 # Third-party local caches and build outputs
 third_party/.*
+third_party/**/.venv/
+third_party/**/venv/
+third_party/**/env/
+third_party/**/.cache/
+third_party/**/__pycache__/
 
 # Local Android AAR cache
 app/libs/*.aar
@@ -49,6 +59,9 @@ tmp_db/
 *.db
 *.db-shm
 *.db-wal
+
+# Local generated media
+tmp_generated/
 
 # Local worktrees
 .worktrees/

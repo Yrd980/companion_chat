@@ -51,12 +51,12 @@ class LocalImageGenerationEngine(
                 return Result.failure(IllegalStateException(error))
             }
             is DreamLiteModelStatus.MissingFiles -> {
-                val error = "DreamLite 模型尚未准备，已完成端侧接入框架。缺失：${status.fileNames.joinToString()}"
+                val error = "DreamLite 模型包文件缺失：${status.fileNames.joinToString()}"
                 _state.value = ImageGenerationState.Error(error)
                 return Result.failure(IllegalStateException(error))
             }
         }
-        val error = "DreamLite 模型尚未准备，已完成端侧接入框架。等待官方权重/端侧包后启用真实出图"
+        val error = "DreamLite 模型包已就绪，但 Android 端真实推理运行时尚未接入"
         _state.value = ImageGenerationState.Error(error)
         return Result.failure(UnsupportedOperationException(error))
     }
