@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ANIME COMPANION // Local-first AI Companion</title>
+<meta name="description" content="A local-first AI companion that remembers you, grows with you, and never sends your data to the cloud. Runs entirely on your device.">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;600;800;900&display=swap');
+
+  :root {
+    --bg: #050508;
+    --bg2: #0a0a10;
+    --bg3: #111118;
+    --cyan: #00ffd5;
+    --magenta: #ff2d6f;
+    --violet: #8b5cf6;
+    --white: #e8e6e3;
+    --grey: #555566;
+    --mono: 'Space Mono', 'Courier New', monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  ::selection { background: var(--cyan); color: var(--bg); }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--white);
+    line-height: 1.6;
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  /* ===== NOISE OVERLAY ===== */
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 9999;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    background-size: 200px;
+    opacity: 0.5;
+  }
+
+  /* ===== SCANLINES ===== */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 9998;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 255, 213, 0.015) 2px,
+      rgba(0, 255, 213, 0.015) 4px
+    );
+  }
+
+  /* ===== NAV ===== */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding: 0 2rem; height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(5, 5, 8, 0.9);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(0, 255, 213, 0.08);
+  }
+  .nav-brand {
+    font-family: var(--mono); font-size: 0.8rem;
+    color: var(--cyan); letter-spacing: 3px; text-transform: uppercase;
+  }
+  .nav-links { display: flex; gap: 2rem; list-style: none; }
+  .nav-links a {
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--grey); text-decoration: none;
+    letter-spacing: 2px; text-transform: uppercase;
+    transition: color 0.3s;
+  }
+  .nav-links a:hover { color: var(--cyan); }
+  .nav-status {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-family: var(--mono); font-size: 0.7rem; color: var(--grey);
+  }
+  .nav-status .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan);
+    animation: blink 2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* ===== HERO ===== */
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    justify-content: center;
+    padding: 6rem 6vw 4rem;
+    position: relative;
+  }
+  .hero-grid-bg {
+    position: absolute; inset: 0; overflow: hidden;
+    background:
+      linear-gradient(rgba(0,255,213,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,213,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse at 30% 60%, black 20%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse at 30% 60%, black 20%, transparent 70%);
+  }
+  .hero-tag {
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--magenta); letter-spacing: 4px;
+    text-transform: uppercase; margin-bottom: 2rem;
+  }
+  .hero-tag span { color: var(--grey); }
+  .hero h1 {
+    font-size: clamp(3rem, 8vw, 7rem);
+    font-weight: 900; line-height: 0.95;
+    letter-spacing: -0.03em;
+    margin-bottom: 2rem;
+  }
+  .hero h1 .line2 {
+    color: transparent;
+    -webkit-text-stroke: 1.5px var(--cyan);
+    display: block;
+  }
+  .hero h1 .line3 {
+    color: var(--magenta);
+    font-size: 0.4em; display: block;
+    letter-spacing: 0.05em; margin-top: 0.5rem;
+    font-weight: 400;
+    font-family: var(--mono);
+  }
+  .hero-sub {
+    max-width: 480px; font-size: 1rem;
+    color: var(--grey); line-height: 1.8;
+    margin-bottom: 3rem;
+  }
+  .hero-sub strong { color: var(--white); font-weight: 600; }
+  .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .btn-go {
+    font-family: var(--mono); font-size: 0.82rem;
+    padding: 0.9rem 2.2rem;
+    background: var(--cyan); color: var(--bg);
+    border: none; cursor: pointer;
+    letter-spacing: 2px; text-transform: uppercase;
+    font-weight: 700;
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    transition: all 0.2s; text-decoration: none;
+  }
+  .btn-go:hover { background: var(--white); transform: translate(-2px, -2px); }
+  .btn-ghost {
+    font-family: var(--mono); font-size: 0.82rem;
+    padding: 0.9rem 2.2rem;
+    background: transparent; color: var(--grey);
+    border: 1px solid rgba(255,255,255,0.1); cursor: pointer;
+    letter-spacing: 2px; text-transform: uppercase;
+    transition: all 0.3s; text-decoration: none;
+  }
+  .btn-ghost:hover { border-color: var(--cyan); color: var(--cyan); }
+
+  .hero-coords {
+    position: absolute; right: 6vw; top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--mono); font-size: 0.68rem;
+    color: rgba(0,255,213,0.25); line-height: 2.2;
+    text-align: right; white-space: pre-line;
+    display: none;
+  }
+  @media (min-width: 900px) { .hero-coords { display: block; } }
+
+  /* ===== MARQUEE ===== */
+  .marquee-wrap {
+    overflow: hidden; white-space: nowrap;
+    border-top: 1px solid rgba(0,255,213,0.08);
+    border-bottom: 1px solid rgba(0,255,213,0.08);
+    padding: 0.8rem 0;
+    background: var(--bg2);
+  }
+  .marquee {
+    display: inline-block;
+    animation: scroll 30s linear infinite;
+    font-family: var(--mono); font-size: 0.72rem;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--grey);
+  }
+  @keyframes scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .marquee .sep { color: var(--cyan); margin: 0 2rem; }
+
+  /* ===== SECTION SHARED ===== */
+  section { padding: 8rem 6vw; position: relative; }
+  .sec-label {
+    font-family: var(--mono); font-size: 0.68rem;
+    color: var(--magenta); letter-spacing: 4px;
+    text-transform: uppercase; margin-bottom: 1rem;
+  }
+  .sec-title {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 800; letter-spacing: -0.02em;
+    margin-bottom: 1rem;
+  }
+  .sec-sub {
+    color: var(--grey); max-width: 500px;
+    font-size: 0.95rem; margin-bottom: 4rem;
+  }
+
+  /* ===== FEATURES — BRUTALIST GRID ===== */
+  .features { background: var(--bg2); }
+  .feat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1px;
+    background: rgba(0,255,213,0.06);
+    border: 1px solid rgba(0,255,213,0.06);
+  }
+  .feat-cell {
+    background: var(--bg2);
+    padding: 2.5rem 2rem;
+    position: relative;
+    transition: background 0.4s;
+  }
+  .feat-cell:hover { background: var(--bg3); }
+  .feat-cell::before {
+    content: attr(data-idx);
+    font-family: var(--mono); font-size: 0.65rem;
+    color: var(--cyan); letter-spacing: 2px;
+    position: absolute; top: 1rem; right: 1.2rem;
+    opacity: 0.4;
+  }
+  .feat-cell h3 {
+    font-size: 1.2rem; font-weight: 700;
+    margin-bottom: 0.6rem; letter-spacing: -0.01em;
+  }
+  .feat-cell p { color: var(--grey); font-size: 0.88rem; line-height: 1.7; }
+  .feat-cell .feat-key {
+    display: inline-block; margin-top: 1rem;
+    font-family: var(--mono); font-size: 0.7rem;
+    color: var(--magenta); letter-spacing: 1px;
+    border: 1px solid rgba(255,45,111,0.3);
+    padding: 0.2rem 0.6rem;
+  }
+
+  /* ===== CHAT DEMO — TERMINAL STYLE ===== */
+  .demo-section { background: var(--bg); }
+  .demo-layout { display: grid; grid-template-columns: 1fr; gap: 2rem; max-width: 800px; }
+
+  .role-tabs {
+    display: flex; gap: 0; border-bottom: 1px solid rgba(0,255,213,0.1);
+    margin-bottom: 1.5rem;
+  }
+  .role-tab {
+    font-family: var(--mono); font-size: 0.75rem;
+    padding: 0.7rem 1.4rem; cursor: pointer;
+    color: var(--grey); letter-spacing: 2px;
+    text-transform: uppercase; border: none;
+    background: transparent; transition: all 0.3s;
+    border-bottom: 2px solid transparent;
+  }
+  .role-tab:hover { color: var(--white); }
+  .role-tab.active {
+    color: var(--cyan);
+    border-bottom-color: var(--cyan);
+  }
+
+  .terminal {
+    background: var(--bg2);
+    border: 1px solid rgba(0,255,213,0.1);
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .term-bar {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.7rem 1rem;
+    background: rgba(0,255,213,0.03);
+    border-bottom: 1px solid rgba(0,255,213,0.08);
+  }
+  .term-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .td-red { background: #ff5f56; }
+  .td-yellow { background: #ffbd2e; }
+  .td-green { background: #27c93f; }
+  .term-title {
+    font-family: var(--mono); font-size: 0.7rem;
+    color: var(--grey); letter-spacing: 1px;
+    margin-left: 0.5rem;
+  }
+  .term-body {
+    height: 400px; overflow-y: auto; padding: 1.5rem;
+    display: flex; flex-direction: column; gap: 0.6rem;
+    font-family: var(--mono); font-size: 0.85rem;
+    scroll-behavior: smooth;
+  }
+  .term-body::-webkit-scrollbar { width: 3px; }
+  .term-body::-webkit-scrollbar-thumb { background: rgba(0,255,213,0.2); }
+
+  .term-line { animation: lineIn 0.35s ease; }
+  @keyframes lineIn {
+    from { opacity: 0; transform: translateX(-6px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .term-line .prompt {
+    color: var(--cyan); margin-right: 0.5rem;
+  }
+  .term-line .prompt.user-prompt { color: var(--magenta); }
+  .term-line .text { color: var(--white); }
+  .term-line .text.sys { color: var(--grey); font-style: italic; }
+
+  .term-line.typing .text {
+    display: inline-flex; gap: 3px;
+  }
+  .term-line.typing .text span {
+    display: inline-block; width: 5px; height: 5px;
+    background: var(--cyan); border-radius: 50%;
+    animation: dotPulse 1.2s ease-in-out infinite;
+  }
+  .term-line.typing .text span:nth-child(2) { animation-delay: 0.15s; }
+  .term-line.typing .text span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes dotPulse {
+    0%,80%,100% { opacity: 0.2; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1.2); }
+  }
+
+  .term-input-row {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid rgba(0,255,213,0.08);
+  }
+  .term-input-row .prompt { color: var(--magenta); font-family: var(--mono); font-size: 0.85rem; }
+  .term-input {
+    flex: 1; background: transparent; border: none;
+    font-family: var(--mono); font-size: 0.85rem;
+    color: var(--white); outline: none; caret-color: var(--cyan);
+  }
+  .term-input::placeholder { color: rgba(85,85,102,0.6); }
+  .term-send {
+    font-family: var(--mono); font-size: 0.7rem;
+    background: var(--cyan); color: var(--bg);
+    border: none; padding: 0.4rem 0.8rem; cursor: pointer;
+    letter-spacing: 2px; text-transform: uppercase;
+    transition: background 0.2s;
+  }
+  .term-send:hover { background: var(--white); }
+
+  .quick-chips {
+    display: flex; gap: 0.5rem; flex-wrap: wrap;
+    padding: 0 1.5rem 1rem;
+  }
+  .qchip {
+    font-family: var(--mono); font-size: 0.7rem;
+    padding: 0.3rem 0.7rem; cursor: pointer;
+    border: 1px solid rgba(0,255,213,0.15);
+    color: var(--grey); background: transparent;
+    letter-spacing: 1px; transition: all 0.3s;
+  }
+  .qchip:hover {
+    border-color: var(--cyan); color: var(--cyan);
+  }
+
+  /* ===== ROLES — HORIZONTAL SCROLL ===== */
+  .roles-section { background: var(--bg2); overflow: hidden; }
+  .roles-track {
+    display: flex; gap: 1px;
+    overflow-x: auto; scroll-snap-type: x mandatory;
+    padding-bottom: 1rem;
+    -ms-overflow-style: none; scrollbar-width: none;
+  }
+  .roles-track::-webkit-scrollbar { display: none; }
+  .role-panel {
+    min-width: 280px; max-width: 320px;
+    scroll-snap-align: start;
+    background: var(--bg);
+    padding: 2.5rem 2rem;
+    border: 1px solid rgba(0,255,213,0.04);
+    flex-shrink: 0;
+    transition: border-color 0.3s;
+  }
+  .role-panel:hover { border-color: rgba(0,255,213,0.2); }
+  .role-panel .rp-id {
+    font-family: var(--mono); font-size: 0.65rem;
+    color: var(--cyan); letter-spacing: 3px;
+    margin-bottom: 1rem; text-transform: uppercase;
+  }
+  .role-panel h4 { font-size: 1.4rem; font-weight: 800; margin-bottom: 0.3rem; }
+  .role-panel .rp-tags {
+    display: flex; gap: 0.4rem; flex-wrap: wrap; margin: 0.6rem 0 1rem;
+  }
+  .rp-tag {
+    font-family: var(--mono); font-size: 0.62rem;
+    padding: 0.15rem 0.45rem; letter-spacing: 1px;
+    border: 1px solid rgba(255,45,111,0.25);
+    color: var(--magenta); text-transform: uppercase;
+  }
+  .role-panel .rp-desc {
+    font-size: 0.85rem; color: var(--grey); line-height: 1.6;
+    margin-bottom: 1.2rem;
+  }
+  .role-panel .rp-open {
+    font-family: var(--mono); font-size: 0.78rem;
+    color: var(--white); font-style: italic;
+    border-left: 2px solid var(--cyan);
+    padding-left: 0.8rem;
+  }
+  .role-panel .rp-heat {
+    margin-top: 1rem; font-family: var(--mono);
+    font-size: 0.7rem; color: var(--grey);
+  }
+  .role-panel .rp-heat strong { color: var(--magenta); }
+
+  /* ===== TECH STACK ===== */
+  .tech-section { background: var(--bg); }
+  .tech-matrix {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1px;
+    background: rgba(0,255,213,0.04);
+    border: 1px solid rgba(0,255,213,0.04);
+  }
+  .tech-cell {
+    background: var(--bg); padding: 2rem 1.5rem;
+    transition: background 0.3s;
+  }
+  .tech-cell:hover { background: var(--bg2); }
+  .tech-cell .tc-name {
+    font-family: var(--mono); font-size: 0.85rem;
+    font-weight: 700; margin-bottom: 0.3rem;
+  }
+  .tech-cell .tc-role {
+    font-size: 0.75rem; color: var(--grey);
+    font-family: var(--mono); letter-spacing: 1px;
+  }
+
+  /* ===== CTA ===== */
+  .cta {
+    min-height: 60vh; display: flex; flex-direction: column;
+    justify-content: center; align-items: flex-start;
+    background: var(--bg2);
+    position: relative; overflow: hidden;
+  }
+  .cta::before {
+    content: '';
+    position: absolute; bottom: 0; right: 0;
+    width: 50%; height: 80%;
+    background: radial-gradient(ellipse at bottom right, rgba(0,255,213,0.06) 0%, transparent 70%);
+  }
+  .cta h2 {
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    font-weight: 900; letter-spacing: -0.03em;
+    line-height: 1; margin-bottom: 1.5rem;
+  }
+  .cta h2 em {
+    font-style: normal;
+    -webkit-text-stroke: 1px var(--cyan);
+    color: transparent;
+  }
+  .cta p {
+    color: var(--grey); max-width: 440px;
+    font-size: 0.95rem; margin-bottom: 2.5rem;
+    line-height: 1.8;
+  }
+
+  /* ===== FOOTER ===== */
+  footer {
+    padding: 2rem 6vw;
+    border-top: 1px solid rgba(0,255,213,0.06);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 0.68rem;
+    color: var(--grey); letter-spacing: 1px;
+    flex-wrap: wrap; gap: 1rem;
+  }
+
+  /* ===== GLITCH ===== */
+  .glitch {
+    position: relative;
+  }
+  .glitch::before, .glitch::after {
+    content: attr(data-text);
+    position: absolute; left: 0; top: 0;
+    width: 100%; height: 100%;
+    overflow: hidden;
+  }
+  .glitch::before {
+    animation: glitch1 3s infinite linear;
+    clip-path: inset(40% 0 56% 0);
+    color: var(--cyan);
+  }
+  .glitch::after {
+    animation: glitch2 3s infinite linear;
+    clip-path: inset(70% 0 10% 0);
+    color: var(--magenta);
+  }
+  @keyframes glitch1 {
+    0%,100% { transform: translate(0); }
+    20% { transform: translate(-3px, 2px); }
+    40% { transform: translate(3px, -1px); }
+    60% { transform: translate(-2px, -2px); }
+    80% { transform: translate(2px, 1px); }
+  }
+  @keyframes glitch2 {
+    0%,100% { transform: translate(0); }
+    25% { transform: translate(2px, -2px); }
+    50% { transform: translate(-3px, 1px); }
+    75% { transform: translate(1px, 2px); }
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 768px) {
+    .nav-links { display: none; }
+    section { padding: 5rem 5vw; }
+    .term-body { height: 320px; }
+    .hero { padding: 5rem 5vw 3rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">ANIME COMPANION</div>
+  <ul class="nav-links">
+    <li><a href="#features">Systems</a></li>
+    <li><a href="#demo">Interface</a></li>
+    <li><a href="#roles">Personas</a></li>
+    <li><a href="#tech">Stack</a></li>
+  </ul>
+  <div class="nav-status">
+    <span class="dot"></span>
+    <span>LOCAL.RUNTIME</span>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid-bg"></div>
+  <div class="hero-tag">// PROJECT.ANIME_COMPANION <span>&mdash; 2024.NOW</span></div>
+  <h1>
+    <span class="glitch" data-text="YOUR AI.">YOUR AI.</span>
+    <span class="line2">YOUR RULES.</span>
+    <span class="line3">No cloud. No account. No one listening.</span>
+  </h1>
+  <p class="hero-sub">
+    A <strong>local-first AI companion</strong> that runs entirely on your device. It remembers you. It grows with you. It never sends a single byte to the cloud. This isn't a chatbot &mdash; it's something you <strong>own</strong>.
+  </p>
+  <div class="hero-actions">
+    <a href="#demo" class="btn-go">Try the Interface</a>
+    <a href="#features" class="btn-ghost">Read the Specs</a>
+  </div>
+  <div class="hero-coords">LAT  31.2304
+LNG 121.4737
+ALT  4m
+ENV  LOCAL_ONLY
+SEC  ZERO_TRUST
+MEM  PERSISTENT
+VER  0.9.2-beta</div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee-wrap">
+  <div class="marquee">
+    ON-DEVICE INFERENCE <span class="sep">//</span> LONG-TERM MEMORY <span class="sep">//</span> VOICE-FIRST <span class="sep">//</span> ROLE PERSONAS <span class="sep">//</span> PREFERENCE LEARNING <span class="sep">//</span> LOCAL IMAGE GEN <span class="sep">//</span> ZERO CLOUD DEPENDENCY <span class="sep">//</span> FULL DATA OWNERSHIP <span class="sep">//</span> ON-DEVICE INFERENCE <span class="sep">//</span> LONG-TERM MEMORY <span class="sep">//</span> VOICE-FIRST <span class="sep">//</span> ROLE PERSONAS <span class="sep">//</span> PREFERENCE LEARNING <span class="sep">//</span> LOCAL IMAGE GEN <span class="sep">//</span> ZERO CLOUD DEPENDENCY <span class="sep">//</span> FULL DATA OWNERSHIP <span class="sep">//</span>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features" class="features">
+  <div class="sec-label">// CORE SYSTEMS</div>
+  <div class="sec-title">Built different. Built private.</div>
+  <p class="sec-sub">Six subsystems working together to create something that isn't a service &mdash; it's a companion you carry with you.</p>
+  <div class="feat-grid">
+    <div class="feat-cell" data-idx="001">
+      <h3>On-Device Inference</h3>
+      <p>LiteRT-LM and llama.cpp run the model directly on your hardware. CPU, GPU, NPU &mdash; with automatic fallback if acceleration fails. Your conversations never leave your phone.</p>
+      <span class="feat-key">zero-latency</span>
+    </div>
+    <div class="feat-cell" data-idx="002">
+      <h3>Durable Memory</h3>
+      <p>Automatic extraction of memories from conversation. Short-term and long-term layers. Context retrieval injects relevant memories before every generation. The companion remembers what matters.</p>
+      <span class="feat-key">persistent</span>
+    </div>
+    <div class="feat-cell" data-idx="003">
+      <h3>Voice-First Interaction</h3>
+      <p>Local SenseVoice ASR via sherpa-onnx. Silero VAD for endpoint detection. System TTS or MOSS TTS Nano for voice cloning. Speak, and the companion answers out loud.</p>
+      <span class="feat-key">hands-free</span>
+    </div>
+    <div class="feat-cell" data-idx="004">
+      <h3>Role Card Personas</h3>
+      <p>Each companion has a persona, speaking style, background story, and voice profile. Not templates &mdash; fully realized characters with consistent identity and emotional texture.</p>
+      <span class="feat-key">soulful</span>
+    </div>
+    <div class="feat-cell" data-idx="005">
+      <h3>Preference Learning</h3>
+      <p>Background extraction of stable preferences from conversation history. Confidence scores increase over time. Confirmed preferences are injected into generation prompts.</p>
+      <span class="feat-key">adaptive</span>
+    </div>
+    <div class="feat-cell" data-idx="006">
+      <h3>Local Image Generation</h3>
+      <p>Stable Diffusion 1.5 Hyper-SD via sd.cpp and DreamLite model packs. Generate character images directly on your device. HTTP providers available as fallback.</p>
+      <span class="feat-key">generative</span>
+    </div>
+  </div>
+</section>
+
+<!-- CHAT DEMO -->
+<section id="demo" class="demo-section">
+  <div class="sec-label">// LIVE INTERFACE</div>
+  <div class="sec-title">Talk to a companion</div>
+  <p class="sec-sub">Simulated demo. In the real app, every word runs on your device.</p>
+  <div class="demo-layout">
+    <div class="role-tabs">
+      <button class="role-tab active" data-role="xia">Xia</button>
+      <button class="role-tab" data-role="chen">Che</button>
+      <button class="role-tab" data-role="mira">Mira</button>
+      <button class="role-tab" data-role="niko">Niko</button>
+    </div>
+    <div class="terminal">
+      <div class="term-bar">
+        <span class="term-dot td-red"></span>
+        <span class="term-dot td-yellow"></span>
+        <span class="term-dot td-green"></span>
+        <span class="term-title" id="termTitle">companion://xia &mdash; session active</span>
+      </div>
+      <div class="term-body" id="termBody"></div>
+      <div class="quick-chips" id="quickChips"></div>
+      <div class="term-input-row">
+        <span class="prompt">&gt;</span>
+        <input class="term-input" id="termInput" placeholder="type something..." />
+        <button class="term-send" id="termSend">Send</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ROLES -->
+<section id="roles" class="roles-section">
+  <div class="sec-label">// PERSONA CATALOG</div>
+  <div class="sec-title">Choose your companion</div>
+  <p class="sec-sub">Each persona is a distinct identity &mdash; personality, voice, style, and story. Find the one that clicks.</p>
+  <div class="roles-track">
+    <div class="role-panel">
+      <div class="rp-id">ID://XIA-URBAN</div>
+      <h4>Xia</h4>
+      <div class="rp-tags">
+        <span class="rp-tag">female</span><span class="rp-tag">warmth</span><span class="rp-tag">daily</span>
+      </div>
+      <div class="rp-desc">Gentle but never clingy. She turns the weight of an ordinary day into something lighter. Urban soul, convenience-store philosophy.</div>
+      <div class="rp-open">"You're back. Wanna talk business first, or should I help you decompress?"</div>
+      <div class="rp-heat">heat: <strong>9830</strong></div>
+    </div>
+    <div class="role-panel">
+      <div class="rp-id">ID://CHEN-NOCTURNE</div>
+      <h4>Che</h4>
+      <div class="rp-tags">
+        <span class="rp-tag">male</span><span class="rp-tag">calm</span><span class="rp-tag">deep-talk</span>
+      </div>
+      <div class="rp-desc">Restrained, reliable, late-night-radio energy. Built for long conversations and emotional debugging. Former radio host who never rushes silence.</div>
+      <div class="rp-open">"I'm here. Take your time &mdash; start with whatever's stuck."</div>
+      <div class="rp-heat">heat: <strong>8120</strong></div>
+    </div>
+    <div class="role-panel">
+      <div class="rp-id">ID://MIRA-ADVENTURE</div>
+      <h4>Mira</h4>
+      <div class="rp-tags">
+        <span class="rp-tag">female</span><span class="rp-tag">adventure</span><span class="rp-tag">english</span>
+      </div>
+      <div class="rp-desc">Quick-witted travel companion. Vivid scene-setting, playful questions, natural English for practice. A field cartographer who maps hidden routes.</div>
+      <div class="rp-open">"Ready when you are. Pick a direction, and I'll make the road worth it."</div>
+      <div class="rp-heat">heat: <strong>6970</strong></div>
+    </div>
+    <div class="role-panel">
+      <div class="rp-id">ID://RIN-MATURE</div>
+      <h4>Rin</h4>
+      <div class="rp-tags">
+        <span class="rp-tag">female</span><span class="rp-tag">mature</span><span class="rp-tag">private</span>
+      </div>
+      <div class="rp-desc">Mature, direct, respects boundaries. An independent photographer who observes details and says things clearly. Content edges stay local.</div>
+      <div class="rp-open">"Door's closed. It's just us now &mdash; which side do you want to talk about?"</div>
+      <div class="rp-heat">heat: <strong>7540</strong></div>
+    </div>
+    <div class="role-panel">
+      <div class="rp-id">ID://NIKO-ANIME</div>
+      <h4>Niko</h4>
+      <div class="rp-tags">
+        <span class="rp-tag">anime</span><span class="rp-tag">energetic</span><span class="rp-tag">quest</span>
+      </div>
+      <div class="rp-desc">Bright but never loud. Breaks big goals into small steps, runs imagination games, carries a sticker-covered map from a harbor city.</div>
+      <div class="rp-open">"Hey, there's a blank space on today's map. What do we fill it with?"</div>
+      <div class="rp-heat">heat: <strong>6410</strong></div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH -->
+<section id="tech" class="tech-section">
+  <div class="sec-label">// INFRASTRUCTURE</div>
+  <div class="sec-title">The stack</div>
+  <p class="sec-sub">Everything runs locally. No cloud services in the critical path.</p>
+  <div class="tech-matrix">
+    <div class="tech-cell"><div class="tc-name">LiteRT-LM</div><div class="tc-role">on-device LLM</div></div>
+    <div class="tech-cell"><div class="tc-name">llama.cpp</div><div class="tc-role">GGUF runtime</div></div>
+    <div class="tech-cell"><div class="tc-name">sherpa-onnx</div><div class="tc-role">local ASR</div></div>
+    <div class="tech-cell"><div class="tc-name">MOSS TTS</div><div class="tc-role">voice clone</div></div>
+    <div class="tech-cell"><div class="tc-name">sd.cpp</div><div class="tc-role">image gen</div></div>
+    <div class="tech-cell"><div class="tc-name">Compose</div><div class="tc-role">Material 3 UI</div></div>
+    <div class="tech-cell"><div class="tc-name">Room+KSP</div><div class="tc-role">persistence</div></div>
+    <div class="tech-cell"><div class="tc-name">Kotlin</div><div class="tc-role">100% coverage</div></div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <div class="sec-label">// GET STARTED</div>
+  <h2>Own your<br><em>companion.</em></h2>
+  <p>No account required. No data uploaded. No subscription. Download the APK, push a model, and you're live. Your device. Your rules.</p>
+  <div class="hero-actions" style="position:relative;z-index:1;">
+    <a href="#" class="btn-go" onclick="alert('Download APK from GitHub Releases');return false;">Download APK</a>
+    <a href="https://github.com/Yrd980/companion_chat" class="btn-ghost" target="_blank">View Source</a>
+  </div>
+</section>
+
+<footer>
+  <span>ANIME COMPANION &copy; 2024-2026</span>
+  <span>BUILT WITH KOTLIN + LOCAL AI</span>
+  <span>ZERO CLOUD DEPENDENCY</span>
+</footer>
+
+<script>
+// ===== ROLE DATA =====
+const R = {
+  xia: {
+    name: 'Xia', title: 'companion://xia',
+    opening: 'You\'re back. Wanna talk business first, or should I help you decompress?',
+    quick: ['Had a rough day', 'Just keep me company', 'Tell me a story', 'Not feeling great'],
+    responses: {
+      'Had a rough day': 'I can tell. Don\'t rush to explain everything yet &mdash; just breathe for a second. I\'m right here.\n\nWhen you\'re ready, tell me the one thing that weighed the most. Sometimes naming it is half the fix.',
+      'Just keep me company': 'I\'m here. What vibe are we going for? Light and random? Deep and slow? Or just... drifting?\n\nNo wrong answers. I\'ll match your pace.',
+      'Tell me a story': 'Short one. There was a cat who sat on a windowsill every evening watching the sunset. One day it noticed the colors were different each time. So it started painting one small square of color each day, building a tiny calendar.\n\nTurns out the best colors came on the days it felt most at peace.\n\n...You should be at peace right now.',
+      'Not feeling great': 'Yeah, I can sense that. You don\'t have to explain if you\'re not ready.\n\nIs it the quiet kind of heavy &mdash; just a weight sitting there? Or is something specific pressing down?',
+      default: [
+        'Mhm, I\'m listening. Go on.',
+        'Got it. What are you feeling right now?',
+        'You mentioned something similar last time. Does it feel sharper now, or just more visible?',
+        'No rush. Some things need time before they can be put into words.',
+        'I hear you. Sometimes just pouring the thoughts out is enough.'
+      ]
+    }
+  },
+  chen: {
+    name: 'Che', title: 'companion://chen',
+    opening: 'I\'m here. Take your time &mdash; start with whatever\'s stuck.',
+    quick: ['Under a lot of pressure', 'Help me think through a decision', 'Can\'t sleep', 'Want to debrief something'],
+    responses: {
+      'Under a lot of pressure': 'Pressure usually isn\'t about volume &mdash; it\'s about things hanging unresolved. When nothing feels landed, everything feels urgent.\n\nLet\'s break it apart. What\'s taking up the most space in your head right now?',
+      'Help me think through a decision': 'Alright. First tell me the options you\'re torn between.\n\nThen we look at each one &mdash; not to pick, but to understand what you actually care about behind each choice.',
+      'Can\'t sleep': 'Insomnia usually means your brain is still running a process.\n\nLet\'s not feed it more work. Try this: if you could teleport anywhere in the world for ten minutes right now, where would you go?',
+      'Want to debrief something': 'Ready. Walk me through it. I\'ll flag patterns or blind spots if I see any.\n\nStart from wherever feels natural.',
+      default: [
+        'Noted. Keep going.',
+        'I heard a keyword there. What does "control" mean to you, specifically?',
+        'No hurry. Speaking your thoughts out loud is already a way of organizing them.',
+        'Interesting. Did you notice that mirrors what you said before?',
+        'Logged. Continue.'
+      ]
+    }
+  },
+  mira: {
+    name: 'Mira', title: 'companion://mira',
+    opening: 'Ready when you are. Pick a direction, and I\'ll make the road worth it.',
+    quick: ['Explore a city with me', 'Tell me a travel story', 'Practice English together', 'What\'s our next adventure?'],
+    responses: {
+      'Explore a city with me': 'Picture this: a narrow cobblestone street winding uphill between old stone houses dripping with bougainvillea. Air smells like fresh bread and sea salt.\n\nYou\'re in a coastal town in southern Italy. I\'ve got my notebook, you\'ve got your curiosity. Where first &mdash; the harbor, the bakery, or that mysterious alley going up?',
+      'Tell me a travel story': 'I once mapped a village in northern Vietnam that wasn\'t on any chart. Locals called it "the place where clouds rest."\n\nThree days there. Every morning the fog was so thick you couldn\'t see your hands. But by noon the whole valley opened up like a watercolor.\n\nI still have the sketch I made there. Want me to describe it?',
+      'Practice English together': 'Love it. Here\'s the format: I ask you something in English, you answer however you want, and I\'ll help if needed. Zero judgment.\n\nFirst question: What\'s one place you\'ve always wanted to visit, and what draws you there?',
+      'What\'s our next adventure?': 'I\'ve been thinking: night train through the Balkans. Belgrade to Bar.\n\nTwelve hours of mountains, tunnels, tiny station cafes, and the silence you only get on a moving train at night.\n\nI\'ll pack snacks if you pack stories. Deal?',
+      default: [
+        'Interesting. Tell me more about that.',
+        'That reminds me of a trail in Scotland...',
+        'I like how you think. Let\'s follow that thread.',
+        'Noted. And honestly &mdash; how does that make you feel?',
+        'Great answer. Your English is getting smoother, by the way.'
+      ]
+    }
+  },
+  niko: {
+    name: 'Niko', title: 'companion://niko',
+    opening: 'Hey, there\'s a blank space on today\'s map. What do we fill it with?',
+    quick: ['Did something cool today', 'Help me break down a goal', 'Just chat randomly', 'I\'m bored'],
+    responses: {
+      'Did something cool today': 'Tell me tell me! I love hearing these.\n\nIs it the kind of cool where "others don\'t get how hard it was but you know"? Or the kind that\'s "objectively awesome"? I\'m here for both.',
+      'Help me break down a goal': 'Roger that! Throw me the big goal and I\'ll slice it into pieces.\n\nMy rule: every piece has to be small enough that you think "yeah, I can probably do that." Ready when you are!',
+      'Just chat randomly': 'Fun fact: octopuses have three hearts. Two pump blood to the gills, one to the rest of the body. And when they swim, the main heart stops beating &mdash; which is why they prefer crawling. Swimming literally breaks their heart.\n\nYour turn. Say something!',
+      'I\'m bored': 'Boredom is good &mdash; your brain is looking for stimulation.\n\nThree options:\n1. I tell you a mini adventure story set in a harbor city\n2. We play "what if..."\n3. You give me a random word and I turn it into a story opening\n\nPick one!',
+      default: [
+        'Yeah yeah, and then?',
+        'Ha, I didn\'t think of that angle.',
+        'Wait, let me note that down... ok, go on.',
+        'Interesting. Does that connect to what you were saying before?',
+        'Nice. The map just got another waypoint.'
+      ]
+    }
+  }
+};
+
+// ===== CHAT ENGINE =====
+let cur = 'xia';
+let defIdx = {};
+
+function initChat(key) {
+  cur = key;
+  defIdx[key] = 0;
+  const r = R[key];
+  document.getElementById('termTitle').textContent = r.title + ' \u2014 session active';
+  const body = document.getElementById('termBody');
+  body.innerHTML = '';
+  addLine('sys', '[session initialized \u2014 ' + r.name + ' persona loaded]');
+  addLine('bot', r.opening);
+
+  const qc = document.getElementById('quickChips');
+  qc.innerHTML = '';
+  qc.style.display = 'flex';
+  r.quick.forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'qchip'; b.textContent = t;
+    b.onclick = () => send(t);
+    qc.appendChild(b);
+  });
+}
+
+function addLine(type, text) {
+  const body = document.getElementById('termBody');
+  const div = document.createElement('div');
+  div.className = 'term-line';
+  if (type === 'sys') {
+    div.innerHTML = '<span class="text sys">' + escHtml(text) + '</span>';
+  } else if (type === 'user') {
+    div.innerHTML = '<span class="prompt user-prompt">&gt;</span><span class="text">' + escHtml(text) + '</span>';
+  } else {
+    div.innerHTML = '<span class="prompt">\u25B8</span><span class="text">' + escHtml(text) + '</span>';
+  }
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
+
+function addTyping() {
+  const body = document.getElementById('termBody');
+  const div = document.createElement('div');
+  div.className = 'term-line typing';
+  div.id = 'typingLine';
+  div.innerHTML = '<span class="prompt">\u25B8</span><span class="text"><span></span><span></span><span></span></span>';
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
+
+function removeTyping() {
+  const el = document.getElementById('typingLine');
+  if (el) el.remove();
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function getReply(input) {
+  const r = R[cur];
+  if (r.responses[input]) return r.responses[input];
+  const keys = Object.keys(r.responses).filter(k => k !== 'default');
+  for (const k of keys) {
+    if (input.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(input.toLowerCase())) return r.responses[k];
+  }
+  const d = r.responses.default;
+  const reply = d[(defIdx[cur] || 0) % d.length];
+  defIdx[cur] = (defIdx[cur] || 0) + 1;
+  return reply;
+}
+
+function send(text) {
+  if (!text.trim()) return;
+  addLine('user', text);
+  document.getElementById('quickChips').style.display = 'none';
+  addTyping();
+  const reply = getReply(text);
+  const delay = Math.min(600 + reply.length * 6, 2200);
+  setTimeout(() => { removeTyping(); addLine('bot', reply); }, delay);
+}
+
+// ===== EVENTS =====
+document.querySelectorAll('.role-tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.role-tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    initChat(t.dataset.role);
+  });
+});
+
+document.getElementById('termSend').addEventListener('click', () => {
+  const inp = document.getElementById('termInput');
+  send(inp.value); inp.value = '';
+});
+document.getElementById('termInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { send(e.target.value); e.target.value = ''; }
+});
+
+initChat('xia');
+
+// ===== SCROLL REVEAL =====
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.style.opacity = '1', e.target.style.transform = 'translateY(0)'; });
+}, { threshold: 0.08 });
+
+document.querySelectorAll('.feat-cell, .tech-cell, .role-panel').forEach(el => {
+  el.style.opacity = '0'; el.style.transform = 'translateY(20px)';
+  el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+  io.observe(el);
+});
+</script>
+</body>
+</html>
