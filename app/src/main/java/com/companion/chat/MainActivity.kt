@@ -141,7 +141,7 @@ fun MainApp() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.HOME.route,
+            startDestination = Screen.CHAT.route,
             modifier = Modifier
                 .padding(innerPadding)
                 .imePadding()

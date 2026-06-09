@@ -261,7 +261,16 @@ class DefaultCompanionTurnModule(
         roleCardRepository.activateRoleCard(roleCardId)
         val roleCard = roleCardRepository.getRoleCard(roleCardId)
         refreshBasePrompt()
-        _snapshot.update { it.copy(assistantAvatarImageUri = roleCard?.avatarImageUri.orEmpty()) }
+        _snapshot.update {
+            it.copy(
+                assistantName = roleCard?.name.orEmpty(),
+                assistantMood = roleCard?.speakingStyle
+                    ?.trim()
+                    ?.takeIf { style -> style.isNotBlank() }
+                    ?: roleCard?.description.orEmpty(),
+                assistantAvatarImageUri = roleCard?.avatarImageUri.orEmpty()
+            )
+        }
 
         val openingMessage = roleCard?.openingMessage
             ?.trim()
@@ -404,8 +413,17 @@ class DefaultCompanionTurnModule(
     }
 
     private suspend fun refreshAssistantAvatar() {
-        val avatarUri = roleCardRepository.getActiveRoleCard()?.avatarImageUri.orEmpty()
-        _snapshot.update { it.copy(assistantAvatarImageUri = avatarUri) }
+        val roleCard = roleCardRepository.getActiveRoleCard()
+        _snapshot.update {
+            it.copy(
+                assistantName = roleCard?.name.orEmpty(),
+                assistantMood = roleCard?.speakingStyle
+                    ?.trim()
+                    ?.takeIf { style -> style.isNotBlank() }
+                    ?: roleCard?.description.orEmpty(),
+                assistantAvatarImageUri = roleCard?.avatarImageUri.orEmpty()
+            )
+        }
     }
 
     private suspend fun loadSessionsFromStorage() {

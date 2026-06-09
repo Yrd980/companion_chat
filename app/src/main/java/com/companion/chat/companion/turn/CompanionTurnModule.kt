@@ -44,6 +44,8 @@ data class CompanionTurnSnapshot(
     val sessions: List<ConversationSession> = emptyList(),
     val currentSessionId: String = "",
     val messages: List<ChatMessage> = emptyList(),
+    val assistantName: String = "",
+    val assistantMood: String = "",
     val assistantAvatarImageUri: String = "",
     val engineState: InferenceState = InferenceState.Idle,
     val isGenerating: Boolean = false,

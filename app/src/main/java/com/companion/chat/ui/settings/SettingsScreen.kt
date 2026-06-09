@@ -43,6 +43,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.companion.chat.CompanionChatApplication
+import com.companion.chat.appContainer
+import com.companion.chat.companion.readiness.CapabilityReadiness
+import com.companion.chat.companion.readiness.CompanionCapability
+import com.companion.chat.companion.readiness.CompanionReadinessLevel
 import com.companion.chat.context.ContextConfigRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,6 +65,10 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val contextConfigRepository = remember(context) { ContextConfigRepository(context) }
+    val readinessRepository = remember(context) {
+        (context.applicationContext as CompanionChatApplication).appContainer.companionReadinessRepository
+    }
+    val readinessSnapshot = readinessRepository.getSnapshot()
     var retainedRounds by remember { mutableIntStateOf(contextConfigRepository.getSettings().retainedRounds) }
     var autoPreferenceLearningEnabled by remember {
         mutableStateOf(contextConfigRepository.getAutoPreferenceLearningEnabled())
@@ -90,6 +99,15 @@ fun SettingsScreen(
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            SettingsSection(title = "运行状态") {
+                readinessSnapshot.capabilities.forEachIndexed { index, readiness ->
+                    ReadinessSettingsItem(readiness = readiness)
+                    if (index != readinessSnapshot.capabilities.lastIndex) {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+                }
+            }
+
             SettingsSection(title = "角色") {
                 SettingsItem(
                     icon = Icons.Default.Person,
@@ -100,8 +118,8 @@ fun SettingsScreen(
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 SettingsItem(
                     icon = Icons.Default.Psychology,
-                    title = "Skills 管理",
-                    subtitle = "管理工作能力模板和自定义 skills",
+                    title = "陪伴模式",
+                    subtitle = "切换翻译、创作、情绪整理等对话模式",
                     onClick = onNavigateToSkills
                 )
             }
@@ -134,7 +152,7 @@ fun SettingsScreen(
                 SettingsItem(
                     icon = Icons.Default.Memory,
                     title = "模型配置",
-                    subtitle = "选择模型与端侧推理配置",
+                    subtitle = "本地模型、上下文与高级推理参数",
                     onClick = onNavigateToModel
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -148,7 +166,7 @@ fun SettingsScreen(
                 SettingsItem(
                     icon = Icons.Default.Photo,
                     title = "图片生成",
-                    subtitle = "配置联网图片生成 HTTP 接口",
+                    subtitle = "配置本地或 HTTP 图片生成",
                     onClick = onNavigateToModel
                 )
             }
@@ -187,6 +205,49 @@ fun SettingsScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ReadinessSettingsItem(readiness: CapabilityReadiness) {
+    val color = when (readiness.level) {
+        CompanionReadinessLevel.READY -> MaterialTheme.colorScheme.primary
+        CompanionReadinessLevel.DEGRADED -> MaterialTheme.colorScheme.tertiary
+        CompanionReadinessLevel.NOT_READY -> MaterialTheme.colorScheme.error
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(10.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = color
+        ) {}
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = readiness.capability.displayName(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "${readiness.provider} · ${readiness.summary}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun CompanionCapability.displayName(): String {
+    return when (this) {
+        CompanionCapability.LLM -> "本地大模型"
+        CompanionCapability.ASR -> "语音识别"
+        CompanionCapability.TTS -> "语音输出"
+        CompanionCapability.IMAGE -> "图片生成"
     }
 }
 

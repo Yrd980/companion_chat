@@ -19,13 +19,13 @@ enum class Screen(
 ) {
     HOME(
         route = "home",
-        label = "发现",
+        label = "角色库",
         selectedIcon = Icons.Filled.Explore,
         unselectedIcon = Icons.Outlined.Explore
     ),
     CHAT(
         route = "chat",
-        label = "对话",
+        label = "陪伴",
         selectedIcon = Icons.AutoMirrored.Filled.Chat,
         unselectedIcon = Icons.AutoMirrored.Outlined.Chat
     ),

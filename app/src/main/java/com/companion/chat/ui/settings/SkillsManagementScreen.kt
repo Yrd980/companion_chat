@@ -59,7 +59,7 @@ fun SkillsManagementScreen(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Skills 管理", style = MaterialTheme.typography.titleLarge) },
+                title = { Text("陪伴模式", style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -70,7 +70,7 @@ fun SkillsManagementScreen(
                 },
                 actions = {
                     IconButton(onClick = { showCreateDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "添加 Skill")
+                        Icon(Icons.Default.Add, contentDescription = "添加陪伴模式")
                     }
                 }
             )
@@ -85,7 +85,7 @@ fun SkillsManagementScreen(
         ) {
             item {
                 Text(
-                    text = "管理工作能力模板和自定义 skills",
+                    text = "为当前角色叠加一个轻量模式，让它更适合翻译、创作、学习或情绪整理。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -104,10 +104,10 @@ fun SkillsManagementScreen(
                 }
             }
 
-            item { SkillsSectionTitle("内置 Skill") }
+            item { SkillsSectionTitle("内置模式") }
             if (uiState.builtInSkills.isEmpty()) {
                 item {
-                    SkillsEmptyState("当前没有内置 Skill", "后续可在数据库初始化中补充。")
+                    SkillsEmptyState("当前没有内置模式", "后续可在数据库初始化中补充。")
                 }
             } else {
                 items(uiState.builtInSkills, key = { it.id }) { skill ->
@@ -126,10 +126,10 @@ fun SkillsManagementScreen(
                 }
             }
 
-            item { SkillsSectionTitle("我的 Skills") }
+            item { SkillsSectionTitle("我的模式") }
             if (uiState.customSkills.isEmpty()) {
                 item {
-                    SkillsEmptyState("还没有自定义 Skills", "点击右上角“+”创建你的自定义 skill。")
+                    SkillsEmptyState("还没有自定义模式", "点击右上角“+”创建你的自定义陪伴模式。")
                 }
             } else {
                 items(uiState.customSkills, key = { it.id }) { skill ->

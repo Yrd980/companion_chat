@@ -92,7 +92,7 @@ fun HomeScreen(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("发现") },
+                title = { Text("角色库") },
                 actions = {
                     Box {
                         IconButton(onClick = { sortMenuOpen = true }) {
