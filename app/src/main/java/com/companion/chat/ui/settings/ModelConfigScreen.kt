@@ -44,6 +44,13 @@ import com.companion.chat.engine.image.ImageGenerationCapabilities
 import com.companion.chat.engine.image.ImageGenerationProvider
 import com.companion.chat.engine.image.DreamLiteModelStatus
 import com.companion.chat.engine.image.StableDiffusionModelStatus
+import com.companion.chat.ui.language.AppLanguage
+import com.companion.chat.ui.language.LocalAppLanguage
+import com.companion.chat.ui.language.uiLabel
+import com.companion.chat.ui.language.localizedRuntimeText
+import com.companion.chat.ui.language.uiProvider
+import com.companion.chat.ui.language.uiSummary
+import com.companion.chat.ui.language.uiText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +71,7 @@ fun ModelConfigScreen(
     val imageProviderReadiness = uiState.imageProviderReadiness
     val imageCapabilities = imageProviderReadiness.capabilities
     val readinessSnapshot = uiState.readinessSnapshot
+    val language = LocalAppLanguage.current
 
     Scaffold(
         modifier = modifier,
@@ -71,7 +79,7 @@ fun ModelConfigScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "模型配置",
+                        text = uiText("Model Configuration", "模型配置"),
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
@@ -79,7 +87,7 @@ fun ModelConfigScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = uiText("Back", "返回")
                         )
                     }
                 }
@@ -106,13 +114,16 @@ fun ModelConfigScreen(
                 )
                 Spacer(modifier = Modifier.height(20.dp))
                 Text(
-                    text = "上下文窗口大小",
+                    text = uiText("Context Window Size", "上下文窗口大小"),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "当前保留最近 $retainedRounds 轮完整对话。\n修改后会在下一次发送消息时生效。",
+                    text = uiText(
+                        "Currently keeps the last $retainedRounds complete conversation rounds.\nChanges apply after the next message is sent.",
+                        "当前保留最近 $retainedRounds 轮完整对话。\n修改后会在下一次发送消息时生效。"
+                    ),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -126,13 +137,13 @@ fun ModelConfigScreen(
                     .padding(horizontal = 20.dp, vertical = 20.dp)
             ) {
                 Text(
-                    text = "全域运行状态",
+                    text = uiText("Global Runtime Status", "全域运行状态"),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 readinessSnapshot.capabilities.forEach { readiness ->
-                    ReadinessInfoRow(readiness)
+                    ReadinessInfoRow(readiness, language)
                 }
             }
 
@@ -150,7 +161,7 @@ fun ModelConfigScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "推理后端",
+                        text = uiText("Inference Backend", "推理后端"),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 10.dp)
@@ -159,7 +170,10 @@ fun ModelConfigScreen(
                 Spacer(modifier = Modifier.height(12.dp))
                 ModelRuntimeOptionItem(
                     title = "llama.cpp GGUF",
-                    description = "默认文本后端，读取外部 GGUF uncensor 模型。",
+                    description = uiText(
+                        "Default text backend. Reads an external GGUF uncensor model.",
+                        "默认文本后端，读取外部 GGUF uncensor 模型。"
+                    ),
                     selected = modelConfig.runtime == ModelRuntime.LLAMA_CPP_GGUF,
                     onClick = {
                         viewModel.setRuntime(ModelRuntime.LLAMA_CPP_GGUF)
@@ -168,7 +182,10 @@ fun ModelConfigScreen(
                 )
                 ModelRuntimeOptionItem(
                     title = "LiteRT-LM",
-                    description = "可选多模态后端，继续支持图片输入链路。",
+                    description = uiText(
+                        "Optional multimodal backend that keeps the image-input path available.",
+                        "可选多模态后端，继续支持图片输入链路。"
+                    ),
                     selected = modelConfig.runtime == ModelRuntime.LITERT_LM,
                     onClick = {
                         viewModel.setRuntime(ModelRuntime.LITERT_LM)
@@ -178,13 +195,16 @@ fun ModelConfigScreen(
                 if (modelConfig.runtime == ModelRuntime.LITERT_LM) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "LiteRT-LM 加速后端",
+                        text = uiText("LiteRT-LM Acceleration Backend", "LiteRT-LM 加速后端"),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     BackendOptionItem(
                         title = "CPU",
-                        description = "当前已验证可用，使用 XNNPack 执行。",
+                        description = uiText(
+                            "Currently verified. Runs through XNNPack.",
+                            "当前已验证可用，使用 XNNPack 执行。"
+                        ),
                         selected = modelConfig.backend == BackendType.CPU,
                         onClick = {
                             viewModel.setBackend(BackendType.CPU)
@@ -193,7 +213,10 @@ fun ModelConfigScreen(
                     )
                     BackendOptionItem(
                         title = "GPU",
-                        description = "尝试 Mali/OpenCL/OpenGL 加速；失败会自动回退 CPU。",
+                        description = uiText(
+                            "Attempts Mali/OpenCL/OpenGL acceleration and falls back to CPU on failure.",
+                            "尝试 Mali/OpenCL/OpenGL 加速；失败会自动回退 CPU。"
+                        ),
                         selected = modelConfig.backend == BackendType.GPU,
                         onClick = {
                             viewModel.setBackend(BackendType.GPU)
@@ -202,7 +225,10 @@ fun ModelConfigScreen(
                     )
                     BackendOptionItem(
                         title = "NPU",
-                        description = "尝试厂商 NPU runtime；模型不兼容时会先回退 GPU。",
+                        description = uiText(
+                            "Attempts the vendor NPU runtime and falls back to GPU when the model is incompatible.",
+                            "尝试厂商 NPU runtime；模型不兼容时会先回退 GPU。"
+                        ),
                         selected = modelConfig.backend == BackendType.NPU,
                         onClick = {
                             viewModel.setBackend(BackendType.NPU)
@@ -210,17 +236,21 @@ fun ModelConfigScreen(
                         }
                     )
                 }
-                ModelConfigField("模型路径", modelConfig.modelPath) {
+                ModelConfigField(uiText("Model Path", "模型路径"), modelConfig.modelPath) {
                     viewModel.updateModelPath(it)
                 }
                 Text(
-                    text = "留空使用默认路径：${localLmPackageStatus.modelPath}",
+                    text = uiText(
+                        "Leave blank to use the default path: ${localLmPackageStatus.modelPath}",
+                        "留空使用默认路径：${localLmPackageStatus.modelPath}"
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
                 )
                 Text(
-                    text = "文本模型：${localLmPackageStatus.modelFileStatus.displayName()}\n" +
+                    text = uiText("Text model: ", "文本模型：") +
+                        "${localLmPackageStatus.modelFileStatus.displayName(language)}\n" +
                         localLmPackageStatus.modelPath,
                     style = MaterialTheme.typography.bodySmall,
                     color = if (localLmPackageStatus.isModelReady) {
@@ -232,7 +262,9 @@ fun ModelConfigScreen(
                 )
                 if (localLmPackageStatus.isMmprojRelevant) {
                     Text(
-                        text = "图片 projector：${localLmPackageStatus.mmprojFileStatus.displayName()}（仅图片输入需要）\n" +
+                        text = uiText("Image projector: ", "图片 projector：") +
+                            localLmPackageStatus.mmprojFileStatus.displayName(language) +
+                            uiText(" (only required for image input)\n", "（仅图片输入需要）\n") +
                             localLmPackageStatus.mmprojPath,
                         style = MaterialTheme.typography.bodySmall,
                         color = if (localLmPackageStatus.mmprojFileStatus is LocalLmFileStatus.Ready) {
@@ -264,7 +296,7 @@ fun ModelConfigScreen(
                     onClick = onModelConfigChanged,
                     modifier = Modifier.padding(top = 8.dp)
                 ) {
-                    Text("应用模型配置")
+                    Text(uiText("Apply Model Configuration", "应用模型配置"))
                 }
             }
 
@@ -282,7 +314,10 @@ fun ModelConfigScreen(
             }
 
             Text(
-                text = "建议范围 3~20。轮数越大，保留原始上下文越多；轮数越小，越早触发压缩。",
+                text = uiText(
+                    "Recommended range: 3-20. Higher values keep more raw context; lower values trigger compression earlier.",
+                    "建议范围 3~20。轮数越大，保留原始上下文越多；轮数越小，越早触发压缩。"
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)
@@ -296,37 +331,46 @@ fun ModelConfigScreen(
                     .padding(horizontal = 20.dp, vertical = 20.dp)
             ) {
                 Text(
-                    text = "图片生成 Provider 配置",
+                    text = uiText("Image Generation Provider Configuration", "图片生成 Provider 配置"),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 ImageProviderOptionItem(
-                    title = "HTTP 联网生成",
-                    description = "使用通用 HTTP 图片接口，配置可真实生成图片",
+                    title = uiText("HTTP Online Generation", "HTTP 联网生成"),
+                    description = uiText(
+                        "Uses a generic HTTP image API. Can generate real images when configured.",
+                        "使用通用 HTTP 图片接口，配置可真实生成图片"
+                    ),
                     selected = imageConfig.provider == ImageGenerationProvider.HTTP,
                     onClick = {
                         viewModel.setImageProvider(ImageGenerationProvider.HTTP)
                     }
                 )
                 ImageProviderOptionItem(
-                    title = "本地 SD1.5 Hyper-SD",
-                    description = "stable-diffusion.cpp + Vulkan，本地私有出图",
+                    title = uiText("Local SD1.5 Hyper-SD", "本地 SD1.5 Hyper-SD"),
+                    description = uiText(
+                        "stable-diffusion.cpp + Vulkan for private local image generation.",
+                        "stable-diffusion.cpp + Vulkan，本地私有出图"
+                    ),
                     selected = imageConfig.provider == ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP,
                     onClick = {
                         viewModel.setImageProvider(ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP)
                     }
                 )
                 ImageProviderOptionItem(
-                    title = "本地 DreamLite",
-                    description = "模型包可检查，Android 端推理运行时待接入",
+                    title = uiText("Local DreamLite", "本地 DreamLite"),
+                    description = uiText(
+                        "Model package can be checked; Android inference runtime is not wired yet.",
+                        "模型包可检查，Android 端推理运行时待接入"
+                    ),
                     selected = imageConfig.provider == ImageGenerationProvider.LOCAL_DREAMLITE,
                     onClick = {
                         viewModel.setImageProvider(ImageGenerationProvider.LOCAL_DREAMLITE)
                     }
                 )
                 Text(
-                    text = "当前状态：${imageProviderReadiness.summary}",
+                    text = uiText("Current status: ", "当前状态：") + localizedRuntimeText(language, imageProviderReadiness.summary),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (imageProviderReadiness.isUsable) {
                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -336,20 +380,22 @@ fun ModelConfigScreen(
                     modifier = Modifier.padding(top = 4.dp)
                 )
                 Text(
-                    text = imageCapabilities.displayName(),
+                    text = imageCapabilities.displayName(language),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
                 )
                 if (imageCapabilities.usesLocalModelPackage) {
-                    ImageConfigField("本地模型路径", imageConfig.localModelPath) {
+                    ImageConfigField(uiText("Local Model Path", "本地模型路径"), imageConfig.localModelPath) {
                         viewModel.updateLocalModelPath(it)
                     }
                     Text(
                         text = when (imageConfig.provider) {
                             ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP ->
-                                "Stable Diffusion 状态：${stableDiffusionModelStatus.displayName()}"
-                            else -> "DreamLite 状态：${dreamLiteModelStatus.displayName()}"
+                                uiText("Stable Diffusion status: ", "Stable Diffusion 状态：") +
+                                    stableDiffusionModelStatus.displayName(language)
+                            else -> uiText("DreamLite status: ", "DreamLite 状态：") +
+                                dreamLiteModelStatus.displayName(language)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = if (imageProviderReadiness.isUsable) {
@@ -361,21 +407,21 @@ fun ModelConfigScreen(
                     )
                 }
                 if (imageCapabilities.usesImageSize) {
-                    ImageConfigField("本地宽度", imageConfig.localWidth.toString()) {
+                    ImageConfigField(uiText("Local Width", "本地宽度"), imageConfig.localWidth.toString()) {
                         viewModel.updateLocalWidth(it)
                     }
-                    ImageConfigField("本地高度", imageConfig.localHeight.toString()) {
+                    ImageConfigField(uiText("Local Height", "本地高度"), imageConfig.localHeight.toString()) {
                         viewModel.updateLocalHeight(it)
                     }
-                    ImageConfigField("本地 Steps", imageConfig.localSteps.toString()) {
+                    ImageConfigField(uiText("Local Steps", "本地 Steps"), imageConfig.localSteps.toString()) {
                         viewModel.updateLocalSteps(it)
                     }
-                    ImageConfigField("本地 CFG Scale", imageConfig.localCfgScale.toString()) {
+                    ImageConfigField(uiText("Local CFG Scale", "本地 CFG Scale"), imageConfig.localCfgScale.toString()) {
                         viewModel.updateLocalCfgScale(it)
                     }
                 }
                 if (imageCapabilities.usesSeed) {
-                    ImageConfigField("本地 Seed（留空随机）", imageConfig.localSeed?.toString().orEmpty()) {
+                    ImageConfigField(uiText("Local Seed (blank for random)", "本地 Seed（留空随机）"), imageConfig.localSeed?.toString().orEmpty()) {
                         viewModel.updateLocalSeed(it)
                     }
                 }
@@ -386,7 +432,7 @@ fun ModelConfigScreen(
                             onCheckedChange = { viewModel.setLocalUseVulkan(it) }
                         )
                         Text(
-                            text = "启用 Vulkan",
+                            text = uiText("Enable Vulkan", "启用 Vulkan"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -418,7 +464,10 @@ fun ModelConfigScreen(
                         viewModel.updateTimeoutMillis(it)
                     }
                     Text(
-                        text = "模板支持 {{model}} 与 {{prompt}}。响应字段示例：data.0.url 或 data.0.b64_json。",
+                        text = uiText(
+                            "Templates support {{model}} and {{prompt}}. Response field examples: data.0.url or data.0.b64_json.",
+                            "模板支持 {{model}} 与 {{prompt}}。响应字段示例：data.0.url 或 data.0.b64_json。"
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp)
@@ -430,7 +479,7 @@ fun ModelConfigScreen(
 }
 
 @Composable
-private fun ReadinessInfoRow(readiness: CapabilityReadiness) {
+private fun ReadinessInfoRow(readiness: CapabilityReadiness, language: AppLanguage) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -438,12 +487,12 @@ private fun ReadinessInfoRow(readiness: CapabilityReadiness) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = readiness.capability.displayName(),
+            text = readiness.capability.uiLabel(language),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(0.8f)
         )
         Text(
-            text = "${readiness.provider}：${readiness.summary}",
+            text = "${readiness.uiProvider(language)}: ${readiness.uiSummary(language)}",
             style = MaterialTheme.typography.bodySmall,
             color = when (readiness.level) {
                 CompanionReadinessLevel.READY -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -455,55 +504,51 @@ private fun ReadinessInfoRow(readiness: CapabilityReadiness) {
     }
 }
 
-private fun CompanionCapability.displayName(): String {
+private fun DreamLiteModelStatus.displayName(language: AppLanguage): String {
     return when (this) {
-        CompanionCapability.LLM -> "LLM"
-        CompanionCapability.ASR -> "ASR"
-        CompanionCapability.TTS -> "TTS"
-        CompanionCapability.IMAGE -> "图片"
+        is DreamLiteModelStatus.Ready -> uiText(
+            language,
+            "Model package is ready: ${config.modelName}. Android inference runtime is not wired yet.",
+            "模型包已就绪：${config.modelName}，Android 端推理运行时待接入"
+        )
+        DreamLiteModelStatus.DirectoryNotConfigured -> uiText(language, "Model directory is not configured", "模型目录未配置")
+        is DreamLiteModelStatus.InvalidConfig -> uiText(language, "Invalid config: $message", "配置无效：$message")
+        is DreamLiteModelStatus.MissingFiles -> uiText(language, "Missing files: ${fileNames.joinToString()}", "文件缺失：${fileNames.joinToString()}")
     }
 }
 
-private fun DreamLiteModelStatus.displayName(): String {
+private fun StableDiffusionModelStatus.displayName(language: AppLanguage): String {
     return when (this) {
-        is DreamLiteModelStatus.Ready -> "模型包已就绪：${config.modelName}，Android 端推理运行时待接入"
-        DreamLiteModelStatus.DirectoryNotConfigured -> "模型目录未配置"
-        is DreamLiteModelStatus.InvalidConfig -> "配置无效：$message"
-        is DreamLiteModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"
+        is StableDiffusionModelStatus.Ready -> uiText(language, "Model package is ready: ${config.modelName}", "模型包已就绪：${config.modelName}")
+        StableDiffusionModelStatus.DirectoryNotConfigured -> uiText(language, "Model directory is not configured", "模型目录未配置")
+        is StableDiffusionModelStatus.InvalidConfig -> uiText(language, "Invalid config: $message", "配置无效：$message")
+        is StableDiffusionModelStatus.MissingFiles -> uiText(language, "Missing files: ${fileNames.joinToString()}", "文件缺失：${fileNames.joinToString()}")
     }
 }
 
-private fun StableDiffusionModelStatus.displayName(): String {
-    return when (this) {
-        is StableDiffusionModelStatus.Ready -> "模型包已就绪：${config.modelName}"
-        StableDiffusionModelStatus.DirectoryNotConfigured -> "模型目录未配置"
-        is StableDiffusionModelStatus.InvalidConfig -> "配置无效：$message"
-        is StableDiffusionModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"
-    }
-}
-
-private fun ImageGenerationCapabilities.displayName(): String {
+private fun ImageGenerationCapabilities.displayName(language: AppLanguage): String {
     val values = listOfNotNull(
-        "文生图".takeIf { supportsTextToImage },
+        uiText(language, "Text to image", "文生图").takeIf { supportsTextToImage },
         "HTTP endpoint".takeIf { usesHttpEndpoint },
         "API key".takeIf { usesApiKey },
-        "模型名".takeIf { usesModelName },
-        "本地模型包".takeIf { usesLocalModelPackage },
-        "负向提示词".takeIf { usesNegativePrompt },
+        uiText(language, "Model name", "模型名").takeIf { usesModelName },
+        uiText(language, "Local model package", "本地模型包").takeIf { usesLocalModelPackage },
+        uiText(language, "Negative prompt", "负向提示词").takeIf { usesNegativePrompt },
         "Seed".takeIf { usesSeed },
-        "尺寸参数".takeIf { usesImageSize },
+        uiText(language, "Size parameters", "尺寸参数").takeIf { usesImageSize },
         "Vulkan".takeIf { usesVulkan }
     )
-    return "能力：${values.ifEmpty { listOf("暂未启用真实出图") }.joinToString(" / ")}"
+    return uiText(language, "Capabilities: ", "能力：") +
+        values.ifEmpty { listOf(uiText(language, "Real image generation is not enabled yet", "暂未启用真实出图")) }.joinToString(" / ")
 }
 
-private fun LocalLmFileStatus.displayName(): String {
+private fun LocalLmFileStatus.displayName(language: AppLanguage): String {
     return when (this) {
-        is LocalLmFileStatus.Ready -> "已就绪 (${byteCount} bytes)"
-        LocalLmFileStatus.Missing -> "缺失"
-        LocalLmFileStatus.Unreadable -> "不可读取"
-        LocalLmFileStatus.Empty -> "文件为空"
-        LocalLmFileStatus.NotRequired -> "不需要"
+        is LocalLmFileStatus.Ready -> uiText(language, "Ready (${byteCount} bytes)", "已就绪 (${byteCount} bytes)")
+        LocalLmFileStatus.Missing -> uiText(language, "Missing", "缺失")
+        LocalLmFileStatus.Unreadable -> uiText(language, "Unreadable", "不可读取")
+        LocalLmFileStatus.Empty -> uiText(language, "File is empty", "文件为空")
+        LocalLmFileStatus.NotRequired -> uiText(language, "Not required", "不需要")
     }
 }
 
@@ -667,12 +712,15 @@ private fun ContextWindowOptionItem(
         Spacer(modifier = Modifier.height(0.dp))
         Column(modifier = Modifier.padding(start = 12.dp)) {
             Text(
-                text = "保留最近 $rounds 轮",
+                text = uiText("Keep the last $rounds rounds", "保留最近 $rounds 轮"),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "压缩阈值约为 ${rounds * 2 + 10} 条消息",
+                text = uiText(
+                    "Compression threshold is about ${rounds * 2 + 10} messages",
+                    "压缩阈值约为 ${rounds * 2 + 10} 条消息"
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

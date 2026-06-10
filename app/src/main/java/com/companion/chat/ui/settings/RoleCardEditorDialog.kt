@@ -25,12 +25,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companion.chat.data.local.entity.RoleCard
+import com.companion.chat.ui.language.AppLanguage
+import com.companion.chat.ui.language.LocalAppLanguage
+import com.companion.chat.ui.language.uiText
 
-private enum class RoleEditorSection(val label: String) {
-    BASIC("基础"),
-    PERSONA("人设"),
-    IMAGE("图片"),
-    VOICE("语音")
+private enum class RoleEditorSection {
+    BASIC,
+    PERSONA,
+    IMAGE,
+    VOICE
 }
 
 @Composable
@@ -75,13 +78,14 @@ fun RoleCardEditorDialog(
     var voiceProfileUri by remember(roleCard) { mutableStateOf(roleCard?.voiceProfileUri.orEmpty()) }
     var voiceMode by remember(roleCard) { mutableStateOf(roleCard?.voiceMode ?: "SYSTEM_TTS") }
     var voiceDisplayName by remember(roleCard) { mutableStateOf(roleCard?.voiceDisplayName.orEmpty()) }
+    val language = LocalAppLanguage.current
     val sections = RoleEditorSection.entries
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = if (roleCard == null) "新建角色卡" else "编辑角色卡",
+                text = if (roleCard == null) uiText("New Role Card", "新建角色卡") else uiText("Edit Role Card", "编辑角色卡"),
                 style = MaterialTheme.typography.titleLarge
             )
         },
@@ -97,7 +101,7 @@ fun RoleCardEditorDialog(
                         Tab(
                             selected = selectedSectionIndex == index,
                             onClick = { selectedSectionIndex = index },
-                            text = { Text(section.label) }
+                            text = { Text(section.label(language)) }
                         )
                     }
                 }
@@ -176,12 +180,12 @@ fun RoleCardEditorDialog(
                     )
                 }
             ) {
-                Text("保存")
+                Text(uiText("Save", "保存"))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(uiText("Cancel", "取消"))
             }
         }
     )
@@ -198,10 +202,10 @@ private fun BasicSection(
     openingMessage: String,
     onOpeningMessageChange: (String) -> Unit
 ) {
-    RoleCardField("名称", name, onNameChange)
-    RoleCardField("简介", description, onDescriptionChange, minLines = 2)
-    RoleCardField("头像/图标标识", avatar, onAvatarChange)
-    RoleCardField("开场白", openingMessage, onOpeningMessageChange, minLines = 2)
+    RoleCardField(uiText("Name", "名称"), name, onNameChange)
+    RoleCardField(uiText("Description", "简介"), description, onDescriptionChange, minLines = 2)
+    RoleCardField(uiText("Avatar/Icon ID", "头像/图标标识"), avatar, onAvatarChange)
+    RoleCardField(uiText("Opening Message", "开场白"), openingMessage, onOpeningMessageChange, minLines = 2)
 }
 
 @Composable
@@ -219,12 +223,12 @@ private fun PersonaSection(
     exampleDialogue: String,
     onExampleDialogueChange: (String) -> Unit
 ) {
-    RoleCardField("核心人设", persona, onPersonaChange, minLines = 4)
-    RoleCardField("说话风格", speakingStyle, onSpeakingStyleChange, minLines = 2)
-    RoleCardField("背景设定", background, onBackgroundChange, minLines = 2)
-    RoleCardField("行为规则", rules, onRulesChange, minLines = 2)
-    RoleCardField("禁止项", taboos, onTaboosChange, minLines = 2)
-    RoleCardField("示例对话", exampleDialogue, onExampleDialogueChange, minLines = 3)
+    RoleCardField(uiText("Core Persona", "核心人设"), persona, onPersonaChange, minLines = 4)
+    RoleCardField(uiText("Speaking Style", "说话风格"), speakingStyle, onSpeakingStyleChange, minLines = 2)
+    RoleCardField(uiText("Background", "背景设定"), background, onBackgroundChange, minLines = 2)
+    RoleCardField(uiText("Rules", "行为规则"), rules, onRulesChange, minLines = 2)
+    RoleCardField(uiText("Taboos", "禁止项"), taboos, onTaboosChange, minLines = 2)
+    RoleCardField(uiText("Example Dialogue", "示例对话"), exampleDialogue, onExampleDialogueChange, minLines = 3)
 }
 
 @Composable
@@ -236,9 +240,9 @@ private fun ImageSection(
     imageStylePrompt: String,
     onImageStylePromptChange: (String) -> Unit
 ) {
-    RoleCardField("头像图片 URI", avatarImageUri, onAvatarImageUriChange)
-    RoleCardField("图库图片 URI（一行一个）", galleryImageUris, onGalleryImageUrisChange, minLines = 4)
-    RoleCardField("图片风格提示词", imageStylePrompt, onImageStylePromptChange, minLines = 3)
+    RoleCardField(uiText("Avatar Image URI", "头像图片 URI"), avatarImageUri, onAvatarImageUriChange)
+    RoleCardField(uiText("Gallery Image URIs (one per line)", "图库图片 URI（一行一个）"), galleryImageUris, onGalleryImageUrisChange, minLines = 4)
+    RoleCardField(uiText("Image Style Prompt", "图片风格提示词"), imageStylePrompt, onImageStylePromptChange, minLines = 3)
 }
 
 @Composable
@@ -251,12 +255,15 @@ private fun VoiceSection(
     onVoiceDisplayNameChange: (String) -> Unit
 ) {
     Text(
-        text = "语音模式",
+        text = uiText("Voice Mode", "语音模式"),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("SYSTEM_TTS" to "系统 TTS", "CLONE" to "角色克隆").forEach { (mode, label) ->
+        listOf(
+            "SYSTEM_TTS" to uiText("System TTS", "系统 TTS"),
+            "CLONE" to uiText("Role Clone", "角色克隆")
+        ).forEach { (mode, label) ->
             FilterChip(
                 selected = voiceMode == mode,
                 onClick = { onVoiceModeChange(mode) },
@@ -264,13 +271,25 @@ private fun VoiceSection(
             )
         }
     }
-    RoleCardField("语音显示名称", voiceDisplayName, onVoiceDisplayNameChange)
-    RoleCardField("语音参考音频 URI", voiceProfileUri, onVoiceProfileUriChange)
+    RoleCardField(uiText("Voice Display Name", "语音显示名称"), voiceDisplayName, onVoiceDisplayNameChange)
+    RoleCardField(uiText("Voice Reference Audio URI", "语音参考音频 URI"), voiceProfileUri, onVoiceProfileUriChange)
     Text(
-        text = "克隆后端不可用时会自动回退系统 TTS。",
+        text = uiText(
+            "Falls back to system TTS when the clone backend is unavailable.",
+            "克隆后端不可用时会自动回退系统 TTS。"
+        ),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+}
+
+private fun RoleEditorSection.label(language: AppLanguage): String {
+    return when (this) {
+        RoleEditorSection.BASIC -> uiText(language, "Basic", "基础")
+        RoleEditorSection.PERSONA -> uiText(language, "Persona", "人设")
+        RoleEditorSection.IMAGE -> uiText(language, "Image", "图片")
+        RoleEditorSection.VOICE -> uiText(language, "Voice", "语音")
+    }
 }
 
 @Composable

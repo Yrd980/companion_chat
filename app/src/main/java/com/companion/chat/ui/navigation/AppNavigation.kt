@@ -1,46 +1,59 @@
 package com.companion.chat.ui.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.outlined.Chat
-import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.HeadsetMic
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.HeadsetMic
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Memory
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.companion.chat.ui.language.AppLanguage
+import com.companion.chat.ui.language.uiText
 
 enum class Screen(
     val route: String,
-    val label: String,
+    private val englishLabel: String,
+    private val chineseLabel: String,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector
 ) {
     HOME(
         route = "home",
-        label = "角色库",
-        selectedIcon = Icons.Filled.Explore,
-        unselectedIcon = Icons.Outlined.Explore
+        englishLabel = "Home",
+        chineseLabel = "首页",
+        selectedIcon = Icons.Filled.Home,
+        unselectedIcon = Icons.Outlined.Home
     ),
-    CHAT(
-        route = "chat",
-        label = "陪伴",
-        selectedIcon = Icons.AutoMirrored.Filled.Chat,
-        unselectedIcon = Icons.AutoMirrored.Outlined.Chat
+    HELMET(
+        route = "helmet",
+        englishLabel = "Helmet",
+        chineseLabel = "头盔",
+        selectedIcon = Icons.Filled.HeadsetMic,
+        unselectedIcon = Icons.Outlined.HeadsetMic
     ),
     MEMORY(
         route = "memory",
-        label = "记忆",
+        englishLabel = "Memory",
+        chineseLabel = "记忆",
         selectedIcon = Icons.Filled.Memory,
         unselectedIcon = Icons.Outlined.Memory
     ),
-    SETTINGS(
+    PROFILE(
         route = "settings",
-        label = "设置",
-        selectedIcon = Icons.Filled.Settings,
-        unselectedIcon = Icons.Outlined.Settings
-    )
+        englishLabel = "Profile",
+        chineseLabel = "个人",
+        selectedIcon = Icons.Filled.Person,
+        unselectedIcon = Icons.Outlined.Person
+    );
+
+    fun label(language: AppLanguage): String = uiText(language, englishLabel, chineseLabel)
+}
+
+object AppRoutes {
+    const val CHAT = "chat"
 }
 
 object DiscoverRoutes {

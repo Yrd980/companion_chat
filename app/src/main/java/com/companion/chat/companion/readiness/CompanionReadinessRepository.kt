@@ -74,7 +74,7 @@ class CompanionReadinessRepository(
                 capability = CompanionCapability.LLM,
                 level = CompanionReadinessLevel.READY,
                 provider = config.runtime.displayName(),
-                summary = "文本模型包已就绪",
+                summary = "Text model package is ready",
                 detail = status.modelPath
             )
         } else {
@@ -82,7 +82,7 @@ class CompanionReadinessRepository(
                 capability = CompanionCapability.LLM,
                 level = CompanionReadinessLevel.NOT_READY,
                 provider = config.runtime.displayName(),
-                summary = "文本模型${status.modelFileStatus.displayName()}",
+                summary = "Text model ${status.modelFileStatus.displayName()}",
                 detail = status.modelPath
             )
         }
@@ -97,15 +97,15 @@ class CompanionReadinessRepository(
                     CapabilityReadiness(
                         capability = CompanionCapability.ASR,
                         level = CompanionReadinessLevel.READY,
-                        provider = "本地 SenseVoice",
-                        summary = "语音识别模型已就绪",
+                        provider = "Local SenseVoice",
+                        summary = "Speech recognition model is ready",
                         detail = config.localSenseVoiceModelDirectory
                     )
                 } else {
                     CapabilityReadiness(
                         capability = CompanionCapability.ASR,
                         level = CompanionReadinessLevel.NOT_READY,
-                        provider = "本地 SenseVoice",
+                        provider = "Local SenseVoice",
                         summary = status.displayName(),
                         detail = config.localSenseVoiceModelDirectory
                     )
@@ -113,28 +113,28 @@ class CompanionReadinessRepository(
             }
             VoiceInputBackend.CLOUD_HTTP_ASR -> {
                 val cloudConfig = cloudAsrConfigRepository.getConfig()
-                val endpointError = cloudConfig.baseUrl.endpointError("云 ASR")
+                val endpointError = cloudConfig.baseUrl.endpointError("Cloud ASR")
                 if (!cloudConfig.isConfigured) {
                     CapabilityReadiness(
                         capability = CompanionCapability.ASR,
                         level = CompanionReadinessLevel.NOT_READY,
-                        provider = "云 HTTP ASR",
-                        summary = "云 ASR Base URL 未配置"
+                        provider = "Cloud HTTP ASR",
+                        summary = "Cloud ASR base URL is not configured"
                     )
                 } else if (endpointError == null) {
                     CapabilityReadiness(
                         capability = CompanionCapability.ASR,
                         level = CompanionReadinessLevel.READY,
-                        provider = "云 HTTP ASR",
-                        summary = "云端语音识别已配置",
+                        provider = "Cloud HTTP ASR",
+                        summary = "Cloud speech recognition is configured",
                         detail = cloudConfig.baseUrl
                     )
                 } else {
                     CapabilityReadiness(
                         capability = CompanionCapability.ASR,
                         level = CompanionReadinessLevel.NOT_READY,
-                        provider = "云 HTTP ASR",
-                        summary = endpointError.message ?: "云 ASR endpoint 不可用",
+                        provider = "Cloud HTTP ASR",
+                        summary = endpointError.message ?: "Cloud ASR endpoint is unavailable",
                         detail = cloudConfig.baseUrl
                     )
                 }
@@ -145,34 +145,34 @@ class CompanionReadinessRepository(
     private fun ttsReadiness(): CapabilityReadiness {
         val config = voiceCloneConfigRepository.getConfig()
         val mossStatus = voiceCloneConfigRepository.getMossModelStatus(config)
-        val httpCloneEndpointError = config.httpCloneBaseUrl.endpointError("HTTP 语音克隆")
+        val httpCloneEndpointError = config.httpCloneBaseUrl.endpointError("HTTP voice clone")
         return when {
             config.isHttpCloneConfigured && httpCloneEndpointError == null -> CapabilityReadiness(
                 capability = CompanionCapability.TTS,
                 level = CompanionReadinessLevel.READY,
-                provider = "HTTP 克隆 + 系统 TTS",
-                summary = "HTTP 语音克隆已配置",
+                provider = "HTTP clone + system TTS",
+                summary = "HTTP voice clone is configured",
                 detail = config.httpCloneBaseUrl
             )
             mossStatus == MossTtsNanoModelStatus.Ready -> CapabilityReadiness(
                 capability = CompanionCapability.TTS,
                 level = CompanionReadinessLevel.READY,
-                provider = "MOSS 本地克隆 + 系统 TTS",
-                summary = "MOSS 语音克隆模型已就绪",
+                provider = "Local MOSS clone + system TTS",
+                summary = "MOSS voice clone model is ready",
                 detail = config.mossModelDirectory
             )
             config.isHttpCloneConfigured -> CapabilityReadiness(
                 capability = CompanionCapability.TTS,
                 level = CompanionReadinessLevel.DEGRADED,
-                provider = "系统 TTS",
-                summary = "HTTP 克隆 endpoint 不可用，系统 TTS 可回退",
+                provider = "System TTS",
+                summary = "HTTP clone endpoint is unavailable. System TTS can fall back.",
                 detail = httpCloneEndpointError?.message.orEmpty()
             )
             else -> CapabilityReadiness(
                 capability = CompanionCapability.TTS,
                 level = CompanionReadinessLevel.DEGRADED,
-                provider = "系统 TTS",
-                summary = "克隆未就绪，系统 TTS 可回退",
+                provider = "System TTS",
+                summary = "Voice clone is not ready. System TTS can fall back.",
                 detail = mossStatus.displayName()
             )
         }
@@ -202,28 +202,28 @@ private fun ModelRuntime.displayName(): String {
 
 private fun LocalLmFileStatus.displayName(): String {
     return when (this) {
-        is LocalLmFileStatus.Ready -> "已就绪"
-        LocalLmFileStatus.Missing -> "缺失"
-        LocalLmFileStatus.Unreadable -> "不可读取"
-        LocalLmFileStatus.Empty -> "文件为空"
-        LocalLmFileStatus.NotRequired -> "不需要"
+        is LocalLmFileStatus.Ready -> "is ready"
+        LocalLmFileStatus.Missing -> "is missing"
+        LocalLmFileStatus.Unreadable -> "is unreadable"
+        LocalLmFileStatus.Empty -> "is empty"
+        LocalLmFileStatus.NotRequired -> "is not required"
     }
 }
 
 private fun LocalSenseVoiceModelStatus.displayName(): String {
     return when (this) {
-        LocalSenseVoiceModelStatus.Ready -> "语音识别模型已就绪"
-        LocalSenseVoiceModelStatus.DirectoryNotConfigured -> "本地 SenseVoice 模型未配置"
-        is LocalSenseVoiceModelStatus.MissingFiles -> "语音识别文件缺失：${fileNames.joinToString()}"
+        LocalSenseVoiceModelStatus.Ready -> "Speech recognition model is ready"
+        LocalSenseVoiceModelStatus.DirectoryNotConfigured -> "Local SenseVoice model is not configured"
+        is LocalSenseVoiceModelStatus.MissingFiles -> "Speech recognition files are missing: ${fileNames.joinToString()}"
     }
 }
 
 private fun MossTtsNanoModelStatus.displayName(): String {
     return when (this) {
-        MossTtsNanoModelStatus.Ready -> "MOSS 语音克隆模型已就绪"
-        MossTtsNanoModelStatus.DirectoryNotConfigured -> "moss-tts-nano 模型未配置"
-        is MossTtsNanoModelStatus.InvalidConfig -> "MOSS 配置无效：$message"
-        is MossTtsNanoModelStatus.MissingFiles -> "MOSS 文件缺失：${fileNames.joinToString()}"
+        MossTtsNanoModelStatus.Ready -> "MOSS voice clone model is ready"
+        MossTtsNanoModelStatus.DirectoryNotConfigured -> "moss-tts-nano model is not configured"
+        is MossTtsNanoModelStatus.InvalidConfig -> "MOSS config is invalid: $message"
+        is MossTtsNanoModelStatus.MissingFiles -> "MOSS files are missing: ${fileNames.joinToString()}"
     }
 }
 
@@ -236,10 +236,10 @@ private fun String.endpointError(label: String): Throwable? {
 
 private fun com.companion.chat.engine.image.ImageGenerationProvider.displayName(): String {
     return when (this) {
-        com.companion.chat.engine.image.ImageGenerationProvider.HTTP -> "HTTP 图片生成"
-        com.companion.chat.engine.image.ImageGenerationProvider.LOCAL_DREAMLITE -> "本地 DreamLite"
+        com.companion.chat.engine.image.ImageGenerationProvider.HTTP -> "HTTP image generation"
+        com.companion.chat.engine.image.ImageGenerationProvider.LOCAL_DREAMLITE -> "Local DreamLite"
         com.companion.chat.engine.image.ImageGenerationProvider.LOCAL_STABLE_DIFFUSION_CPP -> {
-            "本地 Stable Diffusion"
+            "Local Stable Diffusion"
         }
     }
 }

@@ -68,6 +68,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.companion.chat.data.model.ConversationSession
 import com.companion.chat.ui.chat.DateFilter
+import com.companion.chat.ui.language.AppLanguage
+import com.companion.chat.ui.language.LocalAppLanguage
+import com.companion.chat.ui.language.uiText
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -93,6 +96,7 @@ fun ConversationDrawerSheet(
     onCancelEditing: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val language = LocalAppLanguage.current
     val filteredSessions = remember(sessions, searchQuery, dateFilter) {
         val searchFiltered = if (searchQuery.isBlank()) sessions
         else sessions.filter {
@@ -165,7 +169,7 @@ fun ConversationDrawerSheet(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "对话列表",
+                                    text = uiText("Conversations", "对话列表"),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.weight(1f)
@@ -174,7 +178,7 @@ fun ConversationDrawerSheet(
                                 IconButton(onClick = { showDateFilter = !showDateFilter }) {
                                     Icon(
                                         imageVector = Icons.Default.CalendarToday,
-                                        contentDescription = "日期筛选",
+                                        contentDescription = uiText("Date filter", "日期筛选"),
                                         tint = if (dateFilter != DateFilter.ALL)
                                             MaterialTheme.colorScheme.primary
                                         else MaterialTheme.colorScheme.onSurfaceVariant
@@ -187,7 +191,7 @@ fun ConversationDrawerSheet(
                                 }) {
                                     Icon(
                                         imageVector = Icons.Default.Close,
-                                        contentDescription = "关闭"
+                                        contentDescription = uiText("Close", "关闭")
                                     )
                                 }
                             }
@@ -206,11 +210,11 @@ fun ConversationDrawerSheet(
                                 ) {
                                     DateFilter.entries.forEach { filter ->
                                         val label = when (filter) {
-                                            DateFilter.ALL -> "全部"
-                                            DateFilter.TODAY -> "今天"
-                                            DateFilter.YESTERDAY -> "昨天"
-                                            DateFilter.WEEK -> "本周"
-                                            DateFilter.MONTH -> "本月"
+                                            DateFilter.ALL -> uiText("All", "全部")
+                                            DateFilter.TODAY -> uiText("Today", "今天")
+                                            DateFilter.YESTERDAY -> uiText("Yesterday", "昨天")
+                                            DateFilter.WEEK -> uiText("This Week", "本周")
+                                            DateFilter.MONTH -> uiText("This Month", "本月")
                                         }
                                         FilterChip(
                                             selected = dateFilter == filter,
@@ -229,11 +233,11 @@ fun ConversationDrawerSheet(
                                 value = searchQuery,
                                 onValueChange = onSearchQueryChange,
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text("搜索对话...", style = MaterialTheme.typography.bodyMedium) },
+                                placeholder = { Text(uiText("Search conversations...", "搜索对话..."), style = MaterialTheme.typography.bodyMedium) },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Default.Search,
-                                        contentDescription = "搜索",
+                                        contentDescription = uiText("Search", "搜索"),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 },
@@ -264,7 +268,7 @@ fun ConversationDrawerSheet(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "新对话",
+                                        text = uiText("New Chat", "新对话"),
                                         style = MaterialTheme.typography.titleMedium,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         fontWeight = FontWeight.Medium
@@ -287,9 +291,9 @@ fun ConversationDrawerSheet(
                                 ) {
                                     Text(
                                         text = when {
-                                            searchQuery.isNotBlank() -> "未找到匹配的对话"
-                                            dateFilter != DateFilter.ALL -> "该时间段暂无对话"
-                                            else -> "暂无对话"
+                                            searchQuery.isNotBlank() -> uiText("No matching conversations found", "未找到匹配的对话")
+                                            dateFilter != DateFilter.ALL -> uiText("No conversations in this date range", "该时间段暂无对话")
+                                            else -> uiText("No conversations yet", "暂无对话")
                                         },
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -316,7 +320,8 @@ fun ConversationDrawerSheet(
                                             onDelete = { onDeleteSession(session.id) },
                                             onEditingTitleChange = onEditingTitleChange,
                                             onConfirmEditing = onConfirmEditing,
-                                            onCancelEditing = onCancelEditing
+                                            onCancelEditing = onCancelEditing,
+                                            language = language
                                         )
                                     }
                                 }
@@ -341,6 +346,7 @@ private fun SessionItem(
     onEditingTitleChange: (String) -> Unit,
     onConfirmEditing: () -> Unit,
     onCancelEditing: () -> Unit,
+    language: AppLanguage,
     modifier: Modifier = Modifier
 ) {
     val bgColor = if (isActive)
@@ -410,7 +416,7 @@ private fun SessionItem(
                 IconButton(onClick = onConfirmEditing, modifier = Modifier.size(36.dp)) {
                     Icon(
                         imageVector = Icons.Default.Check,
-                        contentDescription = "确认",
+                        contentDescription = uiText(language, "Confirm", "确认"),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)
                     )
@@ -419,7 +425,7 @@ private fun SessionItem(
                 IconButton(onClick = onCancelEditing, modifier = Modifier.size(36.dp)) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "取消",
+                        contentDescription = uiText(language, "Cancel", "取消"),
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(18.dp)
                     )
@@ -435,10 +441,10 @@ private fun SessionItem(
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
-                    val subtitle = remember(session) {
+                    val subtitle = remember(session, language) {
                         val msgCount = session.messages.count { it.role.name != "SYSTEM" }
-                        val timeStr = formatSessionTime(session.createdAt)
-                        "${msgCount} 条消息 · $timeStr"
+                        val timeStr = formatSessionTime(session.createdAt, language)
+                        uiText(language, "$msgCount messages · $timeStr", "${msgCount} 条消息 · $timeStr")
                     }
                     Text(
                         text = subtitle,
@@ -455,7 +461,7 @@ private fun SessionItem(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "编辑标题",
+                        contentDescription = uiText(language, "Edit title", "编辑标题"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
@@ -467,7 +473,7 @@ private fun SessionItem(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "删除会话",
+                        contentDescription = uiText(language, "Delete conversation", "删除会话"),
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(18.dp)
                     )
@@ -538,7 +544,7 @@ private fun filterByDate(sessions: List<ConversationSession>, filter: DateFilter
     }
 }
 
-private fun formatSessionTime(timestamp: Long): String {
+private fun formatSessionTime(timestamp: Long, language: AppLanguage): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
     val seconds = diff / 1000
@@ -547,10 +553,10 @@ private fun formatSessionTime(timestamp: Long): String {
     val days = hours / 24
 
     return when {
-        seconds < 60 -> "刚刚"
-        minutes < 60 -> "${minutes}分钟前"
-        hours < 24 -> "${hours}小时前"
-        days < 7 -> "${days}天前"
+        seconds < 60 -> uiText(language, "just now", "刚刚")
+        minutes < 60 -> uiText(language, "${minutes}m ago", "${minutes}分钟前")
+        hours < 24 -> uiText(language, "${hours}h ago", "${hours}小时前")
+        days < 7 -> uiText(language, "${days}d ago", "${days}天前")
         else -> {
             val sdf = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault())
             sdf.format(Date(timestamp))

@@ -117,7 +117,7 @@ class DiscoverViewModel(
                 selectRoleIfOpen(roleId)
                 onReady(id)
             }.onFailure { error ->
-                _uiState.update { it.copy(message = error.message ?: "导入角色失败") }
+                _uiState.update { it.copy(message = error.message ?: "Failed to import role") }
             }
         }
     }
@@ -145,13 +145,13 @@ class DiscoverViewModel(
                     _uiState.update {
                         it.copy(
                             isGeneratingImage = false,
-                            message = if (attached) "图片已加入角色图库" else "图片已生成: $uri"
+                            message = if (attached) "Image added to role gallery" else "Image generated: $uri"
                         )
                     }
                 }
                 .onFailure { error ->
                     _uiState.update {
-                        it.copy(isGeneratingImage = false, message = error.message ?: "图片生成失败")
+                        it.copy(isGeneratingImage = false, message = error.message ?: "Image generation failed")
                     }
                 }
         }

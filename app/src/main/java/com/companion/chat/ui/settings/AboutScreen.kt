@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.companion.chat.ui.language.uiText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,7 +36,7 @@ fun AboutScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "关于",
+                        text = uiText("About", "关于"),
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
@@ -43,7 +44,7 @@ fun AboutScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = uiText("Back", "返回")
                         )
                     }
                 }
@@ -71,13 +72,16 @@ fun AboutScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "版本 0.1.0",
+                text = uiText("Version 0.1.0", "版本 0.1.0"),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "你的私人 AI 伙伴\n基于 LiteRT-LM 本地推理引擎",
+                text = uiText(
+                    "Your private AI companion\nPowered by local LiteRT-LM inference",
+                    "你的私人 AI 伙伴\n基于 LiteRT-LM 本地推理引擎"
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center

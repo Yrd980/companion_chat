@@ -40,18 +40,18 @@ object ImageProviderReadinessResolver {
                 provider = config.provider,
                 config = config,
                 level = ImageProviderReadinessLevel.NOT_READY,
-                summary = "图片生成 Base URL 未配置"
+                summary = "Image generation Base URL is not configured"
             )
         }
         val endpointError = runCatching {
-            NetworkEndpointPolicy.requireHttpsOrLoopback(config.endpoint, "图片生成")
+            NetworkEndpointPolicy.requireHttpsOrLoopback(config.endpoint, "Image generation")
         }.exceptionOrNull()
         return if (endpointError == null) {
             ImageProviderReadiness(
                 provider = config.provider,
                 config = config,
                 level = ImageProviderReadinessLevel.READY,
-                summary = "HTTP 图片生成已配置",
+                summary = "HTTP image generation is configured",
                 detail = config.endpoint
             )
         } else {
@@ -59,7 +59,7 @@ object ImageProviderReadinessResolver {
                 provider = config.provider,
                 config = config,
                 level = ImageProviderReadinessLevel.NOT_READY,
-                summary = endpointError.message ?: "图片生成 endpoint 不可用",
+                summary = endpointError.message ?: "Image generation endpoint is unavailable",
                 detail = config.endpoint
             )
         }
@@ -71,28 +71,28 @@ object ImageProviderReadinessResolver {
                 provider = config.provider,
                 config = config,
                 level = ImageProviderReadinessLevel.NOT_READY,
-                summary = "DreamLite 端侧真实出图尚未启用",
+                summary = "DreamLite on-device generation is not enabled yet",
                 detail = status.config.modelName
             )
             DreamLiteModelStatus.DirectoryNotConfigured -> ImageProviderReadiness(
                 provider = config.provider,
                 config = config,
                 level = ImageProviderReadinessLevel.NOT_READY,
-                summary = "DreamLite 模型目录未配置",
+                summary = "DreamLite model directory is not configured",
                 detail = config.modelPath
             )
             is DreamLiteModelStatus.InvalidConfig -> ImageProviderReadiness(
                 provider = config.provider,
                 config = config,
                 level = ImageProviderReadinessLevel.NOT_READY,
-                summary = "DreamLite 配置无效：${status.message}",
+                summary = "Invalid DreamLite config: ${status.message}",
                 detail = config.modelPath
             )
             is DreamLiteModelStatus.MissingFiles -> ImageProviderReadiness(
                 provider = config.provider,
                 config = config,
                 level = ImageProviderReadinessLevel.NOT_READY,
-                summary = "DreamLite 文件缺失：${status.fileNames.joinToString()}",
+                summary = "Missing DreamLite files: ${status.fileNames.joinToString()}",
                 detail = config.modelPath
             )
         }
@@ -104,28 +104,28 @@ object ImageProviderReadinessResolver {
                 provider = config.provider,
                 config = config,
                 level = ImageProviderReadinessLevel.READY,
-                summary = "本地图片模型已就绪",
+                summary = "Local image model is ready",
                 detail = status.config.modelName
             )
             StableDiffusionModelStatus.DirectoryNotConfigured -> ImageProviderReadiness(
                 provider = config.provider,
                 config = config,
                 level = ImageProviderReadinessLevel.NOT_READY,
-                summary = "Stable Diffusion 模型目录未配置",
+                summary = "Stable Diffusion model directory is not configured",
                 detail = config.modelPath
             )
             is StableDiffusionModelStatus.InvalidConfig -> ImageProviderReadiness(
                 provider = config.provider,
                 config = config,
                 level = ImageProviderReadinessLevel.NOT_READY,
-                summary = "Stable Diffusion 配置无效：${status.message}",
+                summary = "Invalid Stable Diffusion config: ${status.message}",
                 detail = config.modelPath
             )
             is StableDiffusionModelStatus.MissingFiles -> ImageProviderReadiness(
                 provider = config.provider,
                 config = config,
                 level = ImageProviderReadinessLevel.NOT_READY,
-                summary = "Stable Diffusion 文件缺失：${status.fileNames.joinToString()}",
+                summary = "Missing Stable Diffusion files: ${status.fileNames.joinToString()}",
                 detail = config.modelPath
             )
         }

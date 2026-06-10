@@ -37,6 +37,9 @@ import com.companion.chat.engine.VoiceOutputState
 import com.companion.chat.engine.voice.LocalSenseVoiceModelStatus
 import com.companion.chat.engine.voice.MossTtsNanoModelStatus
 import com.companion.chat.engine.voice.VoiceInputBackend
+import com.companion.chat.ui.language.LocalAppLanguage
+import com.companion.chat.ui.language.localizedRuntimeText
+import com.companion.chat.ui.language.uiText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,6 +56,7 @@ fun VoiceSettingsScreen(
     val mossModelStatus = uiState.mossModelStatus
     val readinessSnapshot = uiState.readinessSnapshot
     val voiceOutputState by viewModel.voiceOutputState.collectAsStateWithLifecycle()
+    val language = LocalAppLanguage.current
 
     Scaffold(
         modifier = modifier,
@@ -60,7 +64,7 @@ fun VoiceSettingsScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "语音设置",
+                        text = uiText("Voice Settings", "语音设置"),
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
@@ -68,7 +72,7 @@ fun VoiceSettingsScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = uiText("Back", "返回")
                         )
                     }
                 }
@@ -92,32 +96,35 @@ fun VoiceSettingsScreen(
             )
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "语音设置",
+                text = uiText("Voice Settings", "语音设置"),
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "语音输入默认使用本地 SenseVoice。角色克隆优先使用已配置的 HTTP 后端，再尝试 moss-tts-nano ONNX 模型，不可用时自动回退系统 TTS。",
+                text = uiText(
+                    "Voice input uses local SenseVoice by default. Role voice clone tries the configured HTTP backend first, then moss-tts-nano ONNX, and falls back to system TTS.",
+                    "语音输入默认使用本地 SenseVoice。角色克隆优先使用已配置的 HTTP 后端，再尝试 moss-tts-nano ONNX 模型，不可用时自动回退系统 TTS。"
+                ),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-            VoiceInfoRow("语音识别", readinessSnapshot.asr.summary)
-            VoiceInfoRow("语音输出", readinessSnapshot.tts.summary)
-            VoiceInfoRow("识别模式", voiceInputConfig.recognitionModeLabel)
-            VoiceInfoRow("识别后端", voiceInputConfig.backend.displayName())
-            VoiceInfoRow("模型目录", voiceInputConfig.localSenseVoiceModelDirectory.ifBlank { "未配置" })
-            VoiceInfoRow("模型状态", localModelStatus.displayName())
-            VoiceInfoRow("云 ASR", if (cloudAsrConfig.isConfigured) "已配置" else "未配置")
-            VoiceInfoRow("云响应字段", cloudAsrConfig.responseTextFieldPath)
-            VoiceInfoRow("MOSS 目录", voiceCloneConfig.mossModelDirectory.ifBlank { "未配置" })
-            VoiceInfoRow("MOSS 状态", mossModelStatus.displayName())
-            VoiceInfoRow("HTTP 克隆", if (voiceCloneConfig.isHttpCloneConfigured) "已配置" else "未配置")
-            VoiceInfoRow("HTTP 声线", voiceCloneConfig.httpCloneVoice)
-            VoiceInfoRow("本地克隆", if (mossModelStatus is MossTtsNanoModelStatus.Ready) "可用" else "回退系统 TTS")
-            VoiceInfoRow("输出模式", "系统 TTS / 角色克隆")
-            VoiceInfoRow("角色语音", "在角色管理中配置参考音频 URI、模式和显示名称")
+            VoiceInfoRow(uiText("Speech Recognition", "语音识别"), localizedRuntimeText(language, readinessSnapshot.asr.summary))
+            VoiceInfoRow(uiText("Voice Output", "语音输出"), localizedRuntimeText(language, readinessSnapshot.tts.summary))
+            VoiceInfoRow(uiText("Recognition Mode", "识别模式"), uiText("Local multilingual recognition", "本地多语言识别"))
+            VoiceInfoRow(uiText("Recognition Backend", "识别后端"), voiceInputConfig.backend.displayName())
+            VoiceInfoRow(uiText("Model Directory", "模型目录"), voiceInputConfig.localSenseVoiceModelDirectory.ifBlank { uiText("Not configured", "未配置") })
+            VoiceInfoRow(uiText("Model Status", "模型状态"), localModelStatus.displayName())
+            VoiceInfoRow(uiText("Cloud ASR", "云 ASR"), if (cloudAsrConfig.isConfigured) uiText("Configured", "已配置") else uiText("Not configured", "未配置"))
+            VoiceInfoRow(uiText("Cloud Response Field", "云响应字段"), cloudAsrConfig.responseTextFieldPath.ifBlank { uiText("Not configured", "未配置") })
+            VoiceInfoRow(uiText("MOSS Directory", "MOSS 目录"), voiceCloneConfig.mossModelDirectory.ifBlank { uiText("Not configured", "未配置") })
+            VoiceInfoRow(uiText("MOSS Status", "MOSS 状态"), mossModelStatus.displayName())
+            VoiceInfoRow(uiText("HTTP Clone", "HTTP 克隆"), if (voiceCloneConfig.isHttpCloneConfigured) uiText("Configured", "已配置") else uiText("Not configured", "未配置"))
+            VoiceInfoRow(uiText("HTTP Voice", "HTTP 声线"), voiceCloneConfig.httpCloneVoice.ifBlank { uiText("Not configured", "未配置") })
+            VoiceInfoRow(uiText("Local Clone", "本地克隆"), if (mossModelStatus is MossTtsNanoModelStatus.Ready) uiText("Available", "可用") else uiText("System TTS fallback", "回退系统 TTS"))
+            VoiceInfoRow(uiText("Output Mode", "输出模式"), uiText("System TTS / role clone", "系统 TTS / 角色克隆"))
+            VoiceInfoRow(uiText("Role Voice", "角色语音"), uiText("Configure reference audio URI, mode, and display name in Role Management.", "在角色管理中配置参考音频 URI、模式和显示名称"))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -129,7 +136,7 @@ fun VoiceSettingsScreen(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("试播甜妹")
+                    Text(uiText("Play Voice Sample", "试播甜妹"))
                 }
                 OutlinedButton(
                     onClick = viewModel::stopSpeaking,
@@ -150,27 +157,30 @@ fun VoiceSettingsScreen(
     }
 }
 
+@Composable
 private fun VoiceInputBackend.displayName(): String {
     return when (this) {
-        VoiceInputBackend.LOCAL_SENSEVOICE -> "本地 SenseVoice ASR"
-        VoiceInputBackend.CLOUD_HTTP_ASR -> "云 HTTP ASR"
+        VoiceInputBackend.LOCAL_SENSEVOICE -> uiText("Local SenseVoice ASR", "本地 SenseVoice ASR")
+        VoiceInputBackend.CLOUD_HTTP_ASR -> uiText("Cloud HTTP ASR", "云 HTTP ASR")
     }
 }
 
+@Composable
 private fun LocalSenseVoiceModelStatus.displayName(): String {
     return when (this) {
-        LocalSenseVoiceModelStatus.Ready -> "完整"
-        LocalSenseVoiceModelStatus.DirectoryNotConfigured -> "本地 SenseVoice 模型未配置"
-        is LocalSenseVoiceModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"
+        LocalSenseVoiceModelStatus.Ready -> uiText("Complete", "完整")
+        LocalSenseVoiceModelStatus.DirectoryNotConfigured -> uiText("Local SenseVoice model is not configured", "本地 SenseVoice 模型未配置")
+        is LocalSenseVoiceModelStatus.MissingFiles -> uiText("Missing files: ${fileNames.joinToString()}", "文件缺失：${fileNames.joinToString()}")
     }
 }
 
+@Composable
 private fun MossTtsNanoModelStatus.displayName(): String {
     return when (this) {
-        MossTtsNanoModelStatus.Ready -> "完整"
-        MossTtsNanoModelStatus.DirectoryNotConfigured -> "moss-tts-nano 模型未配置"
-        is MossTtsNanoModelStatus.InvalidConfig -> "配置无效：$message"
-        is MossTtsNanoModelStatus.MissingFiles -> "文件缺失：${fileNames.joinToString()}"
+        MossTtsNanoModelStatus.Ready -> uiText("Complete", "完整")
+        MossTtsNanoModelStatus.DirectoryNotConfigured -> uiText("moss-tts-nano model is not configured", "moss-tts-nano 模型未配置")
+        is MossTtsNanoModelStatus.InvalidConfig -> uiText("Invalid config: $message", "配置无效：$message")
+        is MossTtsNanoModelStatus.MissingFiles -> uiText("Missing files: ${fileNames.joinToString()}", "文件缺失：${fileNames.joinToString()}")
     }
 }
 

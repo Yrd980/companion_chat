@@ -38,6 +38,7 @@ import com.companion.chat.engine.RoleAwareVoiceOutputEngine
 import com.companion.chat.engine.voice.VoiceCloneTestRepository
 import com.companion.chat.engine.voice.role.RoleVoiceCloneRouter
 import com.companion.chat.engine.voice.role.RoleVoiceProfileResolver
+import com.companion.chat.ui.language.AppLanguageRepository
 import kotlinx.coroutines.CoroutineScope
 
 class AppContainer(
@@ -63,6 +64,7 @@ class AppContainer(
             imageGenerationConfigRepository = imageGenerationConfigRepository
         )
     }
+    val appLanguageRepository: AppLanguageRepository by lazy { AppLanguageRepository(application) }
 
     val chatSessionRepository: ChatSessionRepository by lazy { ChatSessionRepository(application, database) }
     val memoryRepository: MemoryRepository by lazy { MemoryRepository(database.memoryDao()) }

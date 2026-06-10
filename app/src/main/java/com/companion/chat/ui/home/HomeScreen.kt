@@ -1,11 +1,13 @@
 package com.companion.chat.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -15,31 +17,41 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.filled.Emergency
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.HeadsetMic
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedAssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -66,90 +78,814 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
+import com.companion.chat.CompanionChatApplication
+import com.companion.chat.appContainer
+import com.companion.chat.companion.readiness.CompanionReadinessLevel
+import com.companion.chat.companion.readiness.CompanionReadinessSnapshot
 import com.companion.chat.data.discover.ContentRating
+import com.companion.chat.data.discover.DiscoverRoleCard
 import com.companion.chat.data.discover.DiscoverRoleCardItem
 import com.companion.chat.data.discover.RoleSortMode
+import com.companion.chat.ui.components.CompanionAvatar
+import com.companion.chat.ui.components.MetricTile
+import com.companion.chat.ui.components.ProductCard
+import com.companion.chat.ui.components.ProductInnerShape
+import com.companion.chat.ui.components.ProductProgress
+import com.companion.chat.ui.components.SectionTitle
+import com.companion.chat.ui.components.StatusChip
+import com.companion.chat.ui.language.AppLanguage
+import com.companion.chat.ui.language.LocalAppLanguage
+import com.companion.chat.ui.language.uiSummary
+import com.companion.chat.ui.language.uiText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: DiscoverViewModel = viewModel(),
+    onStartChat: () -> Unit = {},
+    onOpenHelmet: () -> Unit = {},
+    onOpenMemory: () -> Unit = {},
+    onOpenProfile: () -> Unit = {},
     onOpenRole: (String) -> Unit = {},
     onCreateRole: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var sortMenuOpen by remember { mutableStateOf(false) }
+    val language = LocalAppLanguage.current
+    val context = LocalContext.current
+    val readinessRepository = remember(context) {
+        (context.applicationContext as CompanionChatApplication).appContainer.companionReadinessRepository
+    }
+    val readinessSnapshot = readinessRepository.getSnapshot()
+    val activeItem = uiState.items.firstOrNull { it.collection.importedRoleCardId != null }
+        ?: uiState.items.firstOrNull { it.collection.isFavorite }
+        ?: uiState.items.firstOrNull()
+    var showRoleLibrary by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("角色库") },
-                actions = {
-                    Box {
-                        IconButton(onClick = { sortMenuOpen = true }) {
-                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "排序")
+                navigationIcon = {
+                    IconButton(onClick = onOpenProfile) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Open profile")
+                    }
+                },
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("CompanionChat", style = MaterialTheme.typography.titleLarge)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                uiText("Try voice wake word", "试试语音唤醒词"),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        DropdownMenu(
-                            expanded = sortMenuOpen,
-                            onDismissRequest = { sortMenuOpen = false }
-                        ) {
-                            SortMenuItem("热门", RoleSortMode.HOT, uiState.sortMode) {
-                                sortMenuOpen = false
-                                viewModel.setSortMode(it)
-                            }
-                            SortMenuItem("最新", RoleSortMode.NEWEST, uiState.sortMode) {
-                                sortMenuOpen = false
-                                viewModel.setSortMode(it)
-                            }
-                            SortMenuItem("名称", RoleSortMode.NAME, uiState.sortMode) {
-                                sortMenuOpen = false
-                                viewModel.setSortMode(it)
-                            }
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onOpenProfile) {
+                        Box {
+                            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                            )
                         }
                     }
                 }
             )
         }
     ) { innerPadding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            DiscoverControls(
-                query = uiState.query,
-                onQueryChange = viewModel::updateQuery,
-                tags = uiState.tags,
-                selectedTag = uiState.selectedTag,
-                onTagSelected = viewModel::selectTag,
-                includeMature = uiState.includeMature,
-                onIncludeMatureChange = viewModel::setIncludeMature,
-                onCreateRole = onCreateRole
-            )
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 164.dp),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(uiState.items, key = { it.role.id }) { item ->
-                    DiscoverRoleCard(
-                        item = item,
-                        onOpen = { onOpenRole(item.role.id) },
-                        onFavorite = { viewModel.toggleFavorite(item.role.id) }
+            item {
+                CompanionHeroCard(
+                    activeItem = activeItem,
+                    language = language,
+                    readinessSnapshot = readinessSnapshot,
+                    onStartChat = onStartChat,
+                    onCreateRole = onCreateRole
+                )
+            }
+            item {
+                HelmetStatusCard(
+                    readinessSnapshot = readinessSnapshot,
+                    onOpenHelmet = onOpenHelmet
+                )
+            }
+            item { ModeSelector() }
+            item {
+                ActionGrid(
+                    readinessSnapshot = readinessSnapshot,
+                    onStartChat = onStartChat,
+                    onOpenHelmet = onOpenHelmet,
+                    onOpenMemory = onOpenMemory,
+                    onOpenProfile = onOpenProfile
+                )
+            }
+            item { RecentMemories(onOpenMemory = onOpenMemory) }
+            item {
+                RecommendedCompanions(
+                    items = uiState.items,
+                    onOpenRole = onOpenRole,
+                    onCreateRole = onCreateRole,
+                    expanded = showRoleLibrary,
+                    onToggleExpanded = { showRoleLibrary = !showRoleLibrary }
+                )
+            }
+            if (showRoleLibrary) {
+                item {
+                    RoleLibraryExpanded(
+                        uiState = uiState,
+                        viewModel = viewModel,
+                        onOpenRole = onOpenRole,
+                        onCreateRole = onCreateRole
                     )
                 }
             }
+            item {
+                SuggestionsRow(
+                    onOpenHelmet = onOpenHelmet,
+                    onOpenMemory = onOpenMemory,
+                    onStartChat = onStartChat
+                )
+            }
+            item {
+                ActivityList(
+                    readinessSnapshot = readinessSnapshot,
+                    onOpenHelmet = onOpenHelmet,
+                    onOpenMemory = onOpenMemory
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompanionHeroCard(
+    activeItem: DiscoverRoleCardItem?,
+    language: AppLanguage,
+    readinessSnapshot: CompanionReadinessSnapshot,
+    onStartChat: () -> Unit,
+    onCreateRole: () -> Unit
+) {
+    val activeRoleText = activeItem?.role?.displayText(language)
+    ProductCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(contentAlignment = Alignment.BottomEnd) {
+                CompanionAvatar(activeItem?.role?.coverImageUri, size = 92.dp)
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .border(3.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = activeRoleText?.name ?: uiText("Aiko Hoshizora", "星空爱子"),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                StatusChip(
+                    text = if (activeItem == null) uiText("Needs setup", "需要设置") else uiText("Bright", "明亮"),
+                    level = if (activeItem == null) CompanionReadinessLevel.DEGRADED else CompanionReadinessLevel.READY
+                )
+                Text(
+                    text = activeItem?.role?.description
+                        ?.let { activeRoleText?.description ?: it }
+                        ?: uiText(
+                            "Cheerful and observant. Loves starry skies and road trips.",
+                            "开朗细心，喜欢星空和公路旅行。"
+                        ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            CompanionLevelRing(
+                percent = if (readinessSnapshot.isReadyForVoiceFirstTurn) 87 else 38,
+                label = if (activeItem == null) uiText("Setup", "设置") else uiText("Active Level", "活跃等级")
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = onStartChat,
+                enabled = activeItem != null || readinessSnapshot.llm.isUsable,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(uiText("Start Chat", "开始聊天"))
+            }
+            OutlinedButton(
+                onClick = onCreateRole,
+                modifier = Modifier.height(48.dp)
+            ) {
+                Text(if (activeItem == null) uiText("Create Role", "创建角色") else uiText("Role Card", "角色卡"))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompanionLevelRing(percent: Int, label: String) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier.width(88.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    progress = { percent / 100f },
+                    modifier = Modifier.size(66.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    strokeWidth = 7.dp
+                )
+                Text(
+                    text = "$percent%",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun HelmetStatusCard(
+    readinessSnapshot: CompanionReadinessSnapshot,
+    onOpenHelmet: () -> Unit
+) {
+    ProductCard(
+        modifier = Modifier.clickable(onClick = onOpenHelmet)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.size(44.dp),
+                    shape = ProductInnerShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.HeadsetMic,
+                        contentDescription = null,
+                        modifier = Modifier.padding(10.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 12.dp)
+                ) {
+                    Text(
+                        uiText("Helmet Status", "头盔状态"),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = if (readinessSnapshot.isReadyForVoiceFirstTurn) uiText("Online", "在线") else uiText("Setup required", "需要设置"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                MetricInline(uiText("Battery", "电量"), "78%", Modifier.weight(1f))
+                MetricInline(uiText("Signal", "信号"), if (readinessSnapshot.asr.isUsable) "4/5" else "0/5", Modifier.weight(1f))
+                MetricInline(uiText("FW Version", "固件版本"), "1.4.2", Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricInline(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
+    }
+}
+
+@Composable
+private fun ModeSelector() {
+    val language = LocalAppLanguage.current
+    val modes = listOf(
+        Triple(Icons.Default.Home, uiText(language, "Idle", "待机"), true),
+        Triple(Icons.Default.WbSunny, uiText(language, "Active", "活跃"), false),
+        Triple(Icons.Default.DirectionsBike, uiText(language, "Driving", "骑行"), false),
+        Triple(Icons.Default.Shield, uiText(language, "Sleep-safe", "睡眠安全"), false)
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        modes.chunked(2).forEach { rowModes ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                rowModes.forEach { (icon, label, selected) ->
+                    ModeChip(icon = icon, label = label, selected = selected, modifier = Modifier.weight(1f))
+                }
+                if (rowModes.size == 1) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModeChip(icon: ImageVector, label: String, selected: Boolean, modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+        shadowElevation = 1.dp,
+        modifier = modifier.height(54.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                label,
+                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActionGrid(
+    readinessSnapshot: CompanionReadinessSnapshot,
+    onStartChat: () -> Unit,
+    onOpenHelmet: () -> Unit,
+    onOpenMemory: () -> Unit,
+    onOpenProfile: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HomeAction(
+                title = uiText("Start Chat", "开始聊天"),
+                subtitle = uiText("Talk with Aiko", "和爱子聊天"),
+                icon = Icons.AutoMirrored.Filled.Chat,
+                filled = true,
+                enabled = readinessSnapshot.llm.isUsable,
+                modifier = Modifier.weight(1f),
+                onClick = onStartChat
+            )
+            HomeAction(
+                title = uiText("Listen Live", "实时收听"),
+                subtitle = uiText("Hear Aiko", "听爱子说话"),
+                icon = Icons.AutoMirrored.Filled.VolumeUp,
+                enabled = readinessSnapshot.asr.isUsable,
+                modifier = Modifier.weight(1f),
+                onClick = onStartChat
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HomeAction(
+                title = uiText("Play Ambient", "播放环境音"),
+                subtitle = uiText("Focus & Relax", "专注和放松"),
+                icon = Icons.Default.MusicNote,
+                modifier = Modifier.weight(1f),
+                onClick = onStartChat
+            )
+            HomeAction(
+                title = uiText("Start Ride Mode", "启动骑行模式"),
+                subtitle = uiText("Safe & Aware", "安全感知"),
+                icon = Icons.Default.DirectionsBike,
+                modifier = Modifier.weight(1f),
+                onClick = onOpenHelmet
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HomeAction(
+                title = uiText("New Memory", "新记忆"),
+                subtitle = uiText("Capture a moment", "记录瞬间"),
+                icon = Icons.Default.BookmarkBorder,
+                modifier = Modifier.weight(1f),
+                onClick = onOpenMemory
+            )
+            HomeAction(
+                title = uiText("Emergency SOS", "紧急 SOS"),
+                subtitle = uiText("Get help now", "立即求助"),
+                icon = Icons.Default.Emergency,
+                alert = true,
+                modifier = Modifier.weight(1f),
+                onClick = onOpenProfile
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeAction(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    filled: Boolean = false,
+    alert: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    val container = when {
+        alert -> MaterialTheme.colorScheme.error
+        filled -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.surface
+    }
+    val content = if (alert || filled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    Surface(
+        modifier = modifier
+            .height(86.dp)
+            .clickable(enabled = enabled, onClick = onClick),
+        shape = ProductInnerShape,
+        color = if (enabled) container else MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = if (enabled) content else MaterialTheme.colorScheme.onSurfaceVariant,
+        shadowElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(38.dp),
+                shape = CircleShape,
+                color = if (alert || filled) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.18f)
+                else MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.padding(8.dp),
+                    tint = if (alert || filled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+                )
+            }
+            Column(
+                modifier = Modifier.padding(start = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentMemories(onOpenMemory: () -> Unit) {
+    val language = LocalAppLanguage.current
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionTitle(uiText("Recent Memories", "最近记忆"), action = uiText("View all", "查看全部"))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val cards = listOf(
+                Triple(uiText(language, "Coastal Sunset Ride", "海岸落日骑行"), uiText(language, "Beautiful evening ride along the coast.", "沿海岸的一次美丽夜骑。"), Icons.Default.DirectionsBike),
+                Triple(uiText(language, "Starry Camping", "星空露营"), uiText(language, "We watched the Perseids together.", "我们一起看了英仙座流星雨。"), Icons.Default.WbSunny),
+                Triple(uiText(language, "Morning Coffee", "晨间咖啡"), uiText(language, "Flat white, no sugar. Extra shot.", "Flat white，不加糖，多一份浓缩。"), Icons.Default.MusicNote)
+            )
+            items(cards.size) { index ->
+                val (title, body, icon) = cards[index]
+                MemoryStoryCard(title, body, icon, onOpenMemory)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MemoryStoryCard(
+    title: String,
+    body: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .width(246.dp)
+            .clickable(onClick = onClick),
+        shape = ProductInnerShape,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp
+    ) {
+        Row(modifier = Modifier.padding(10.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(76.dp)
+                    .clip(ProductInnerShape)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primaryContainer,
+                                MaterialTheme.colorScheme.surfaceContainerHigh
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("May 16, 2025", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendedCompanions(
+    items: List<DiscoverRoleCardItem>,
+    onOpenRole: (String) -> Unit,
+    onCreateRole: () -> Unit,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SectionTitle(uiText("Recommended Companions", "推荐伙伴"), action = if (expanded) uiText("Hide", "收起") else uiText("See all", "查看全部"), modifier = Modifier.weight(1f))
+            Spacer(
+                Modifier
+                    .width(1.dp)
+                    .clickable(onClick = onToggleExpanded)
+            )
+        }
+        if (items.isEmpty()) {
+            OutlinedButton(
+                onClick = onCreateRole,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Text(uiText("Create local companion", "创建本地伙伴"))
+            }
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(items.take(6).size) { index ->
+                    val item = items[index]
+                    CompactCompanionCard(item = item, onOpen = { onOpenRole(item.role.id) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactCompanionCard(
+    item: DiscoverRoleCardItem,
+    onOpen: () -> Unit
+) {
+    val language = LocalAppLanguage.current
+    val roleText = item.role.displayText(language)
+    Surface(
+        modifier = Modifier
+            .width(166.dp)
+            .height(84.dp)
+            .clickable(onClick = onOpen),
+        shape = ProductInnerShape,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CompanionAvatar(item.role.coverImageUri, size = 54.dp)
+            Column(
+                modifier = Modifier.padding(start = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Text(roleText.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
+                StatusChip(
+                    text = roleText.tags.firstOrNull() ?: uiText("Kind", "温和"),
+                    level = CompanionReadinessLevel.READY
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SuggestionsRow(
+    onOpenHelmet: () -> Unit,
+    onOpenMemory: () -> Unit,
+    onStartChat: () -> Unit
+) {
+    val language = LocalAppLanguage.current
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionTitle(uiText("Suggestions for You", "给你的建议"))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val suggestions = listOf(
+                Triple(Icons.Default.Shield, uiText(language, "Try Ride Mode for safer journeys.", "试试骑行模式，让旅途更安全。"), onOpenHelmet),
+                Triple(Icons.Default.MusicNote, uiText(language, "Play lo-fi ambient for better focus.", "播放 lo-fi 环境音，帮助专注。"), onStartChat),
+                Triple(Icons.Default.BookmarkBorder, uiText(language, "Save memories to relive special moments.", "保存记忆，重温特别瞬间。"), onOpenMemory)
+            )
+            items(suggestions.size) { index ->
+                val (icon, text, action) = suggestions[index]
+                Surface(
+                    modifier = Modifier
+                        .width(218.dp)
+                        .height(74.dp)
+                        .clickable(onClick = action),
+                    shape = ProductInnerShape,
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 2.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(40.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary
+                        ) {
+                            Icon(icon, contentDescription = null, modifier = Modifier.padding(9.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                        }
+                        Text(
+                            text = text,
+                            modifier = Modifier.padding(start = 12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 2
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActivityList(
+    readinessSnapshot: CompanionReadinessSnapshot,
+    onOpenHelmet: () -> Unit,
+    onOpenMemory: () -> Unit
+) {
+    val language = LocalAppLanguage.current
+    ProductCard {
+        SectionTitle(uiText("Recent Activity", "最近动态"), action = uiText("View all", "查看全部"))
+        ActivityRow(Icons.AutoMirrored.Filled.Chat, uiText("Chat", "聊天"), readinessSnapshot.llm.uiSummary(language), "9:32 AM", onOpenHelmet)
+        ActivityRow(Icons.Default.MusicNote, uiText("Ambient", "环境音"), uiText("Lo-fi Chill Mix played", "已播放 Lo-fi Chill Mix"), "9:21 AM", onOpenHelmet)
+        ActivityRow(Icons.Default.Image, uiText("Memory", "记忆"), uiText("Starry Camping saved", "已保存星空露营"), "May 16, 8:45 PM", onOpenMemory)
+        ActivityRow(Icons.Default.Shield, uiText("Safety Check", "安全检查"), uiText("All systems normal", "所有系统正常"), "May 16, 8:30 PM", onOpenHelmet)
+    }
+}
+
+@Composable
+private fun ActivityRow(
+    icon: ImageVector,
+    title: String,
+    body: String,
+    time: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+        Text(
+            title,
+            modifier = Modifier
+                .width(84.dp)
+                .padding(start = 12.dp),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            body,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(time, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun RoleLibraryExpanded(
+    uiState: DiscoverUiState,
+    viewModel: DiscoverViewModel,
+    onOpenRole: (String) -> Unit,
+    onCreateRole: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        DiscoverControls(
+            query = uiState.query,
+            onQueryChange = viewModel::updateQuery,
+            tags = uiState.tags,
+            selectedTag = uiState.selectedTag,
+            onTagSelected = viewModel::selectTag,
+            includeMature = uiState.includeMature,
+            onIncludeMatureChange = viewModel::setIncludeMature,
+            onCreateRole = onCreateRole
+        )
+        RoleSortChips(selected = uiState.sortMode, onSelect = viewModel::setSortMode)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            uiState.items.forEach { item ->
+                DiscoverRoleCard(
+                    item = item,
+                    onOpen = { onOpenRole(item.role.id) },
+                    onFavorite = { viewModel.toggleFavorite(item.role.id) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoleSortChips(
+    selected: RoleSortMode,
+    onSelect: (RoleSortMode) -> Unit
+) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(
+            RoleSortMode.HOT to uiText("Hot", "热门"),
+            RoleSortMode.NEWEST to uiText("Newest", "最新"),
+            RoleSortMode.NAME to uiText("Name", "名称")
+        ).forEach { (mode, label) ->
+            FilterChip(selected = selected == mode, onClick = { onSelect(mode) }, label = { Text(label) })
         }
     }
 }
@@ -165,7 +901,9 @@ fun DiscoverRoleDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val language = LocalAppLanguage.current
     val item = uiState.selectedItem
+    val roleText = item?.role?.displayText(language)
 
     LaunchedEffect(roleId) {
         viewModel.selectRole(roleId)
@@ -181,10 +919,10 @@ fun DiscoverRoleDetailScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(item?.role?.name ?: "角色详情") },
+                title = { Text(roleText?.name ?: uiText("Role Details", "角色详情")) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.Close, contentDescription = "返回")
+                        Icon(Icons.Default.Close, contentDescription = uiText("Back", "返回"))
                     }
                 }
             )
@@ -197,36 +935,40 @@ fun DiscoverRoleDetailScreen(
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                Text("未找到角色")
+                Text(uiText("Role not found", "未找到角色"))
             }
         } else {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
+                    .padding(innerPadding),
+                contentPadding = PaddingValues(18.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                RoleHero(item)
-                RoleDetailActions(
-                    item = item,
-                    isGeneratingImage = uiState.isGeneratingImage,
-                    onFavorite = { viewModel.toggleFavorite(item.role.id) },
-                    onUnlock = { viewModel.unlock(item.role.id) },
-                    onGenerateImage = { viewModel.generateRoleImage(item.role.id) },
-                    onStartChat = {
-                        viewModel.copyAndActivate(item.role.id, onReady = onStartChat)
-                    }
-                )
-                HorizontalDivider()
-                Text(
-                    text = item.role.description,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                DetailSection("人设摘要", item.role.persona)
-                DetailSection("语音", item.role.voiceSummary)
-                DetailSection("图片风格", item.role.imageStyle.ifBlank { "未配置" })
+                item { RoleHero(item) }
+                item {
+                    RoleDetailActions(
+                        item = item,
+                        isGeneratingImage = uiState.isGeneratingImage,
+                        onFavorite = { viewModel.toggleFavorite(item.role.id) },
+                        onUnlock = { viewModel.unlock(item.role.id) },
+                        onGenerateImage = { viewModel.generateRoleImage(item.role.id) },
+                        onStartChat = {
+                            viewModel.copyAndActivate(item.role.id, onReady = onStartChat)
+                        }
+                    )
+                }
+                item { HorizontalDivider() }
+                item {
+                    Text(
+                        text = roleText?.description ?: item.role.description,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                item { DetailSection(uiText("Persona Summary", "人设摘要"), roleText?.persona ?: item.role.persona) }
+                item { DetailSection(uiText("Voice", "语音"), roleText?.voiceSummary ?: item.role.voiceSummary) }
+                item { DetailSection(uiText("Image Style", "图片风格"), item.role.imageStyle.ifBlank { uiText("Not configured", "未配置") }) }
             }
         }
     }
@@ -243,75 +985,41 @@ private fun DiscoverControls(
     onIncludeMatureChange: (Boolean) -> Unit,
     onCreateRole: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
             modifier = Modifier.fillMaxWidth(),
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             singleLine = true,
-            placeholder = { Text("搜索角色、作者、标签") },
+            placeholder = { Text(uiText("Search roles, authors, or tags", "搜索角色、作者、标签")) },
             shape = RoundedCornerShape(20.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                disabledContainerColor = MaterialTheme.colorScheme.surface,
                 focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
                 unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
             )
         )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
+        ProductCard {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("创建你的角色", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        "人设、头像、语音会保存到角色卡",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(uiText("Create your role", "创建你的角色"), style = MaterialTheme.typography.titleSmall)
+                    Text(uiText("Persona, avatar, and voice are saved to a role card.", "人设、头像、语音会保存到角色卡"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                OutlinedButton(onClick = onCreateRole) {
-                    Text("创建")
-                }
+                OutlinedButton(onClick = onCreateRole) { Text(uiText("Create", "创建")) }
             }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "显示私密",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f)
-            )
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(uiText("Show private roles", "显示私密"), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             Switch(checked = includeMature, onCheckedChange = onIncludeMatureChange)
         }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(tags.size) { index ->
                 val tag = tags[index]
-                FilterChip(
-                    selected = selectedTag == tag,
-                    onClick = { onTagSelected(tag) },
-                    label = { Text(tag) }
-                )
+                FilterChip(selected = selectedTag == tag, onClick = { onTagSelected(tag) }, label = { Text(tag.displayTag()) })
             }
         }
     }
@@ -323,70 +1031,40 @@ private fun DiscoverRoleCard(
     onOpen: () -> Unit,
     onFavorite: () -> Unit
 ) {
+    val language = LocalAppLanguage.current
+    val roleText = item.role.displayText(language)
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onOpen),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        shape = ProductInnerShape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column {
+            Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             CoverBlock(
-                name = item.role.name,
+                name = roleText.name,
                 coverImageUri = item.role.coverImageUri,
                 contentRating = item.role.contentRating,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(0.86f)
+                    .size(88.dp)
+                    .clip(ProductInnerShape)
             )
             Column(
-                modifier = Modifier.padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = item.role.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(
-                        onClick = onFavorite,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (item.collection.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "收藏",
-                            tint = if (item.collection.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Text(
-                    text = "by ${item.role.author}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                Text(roleText.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text("by ${item.role.author}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(roleText.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+            }
+            IconButton(onClick = onFavorite) {
+                Icon(
+                    imageVector = if (item.collection.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = uiText("Favorite", "收藏"),
+                    tint = if (item.collection.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
-                    text = item.role.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    item.role.tags.take(3).forEach { tag ->
-                        AssistChip(
-                            onClick = onOpen,
-                            label = { Text(tag) },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-                    }
-                }
             }
         }
     }
@@ -394,37 +1072,31 @@ private fun DiscoverRoleCard(
 
 @Composable
 private fun RoleHero(item: DiscoverRoleCardItem) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val language = LocalAppLanguage.current
+    val roleText = item.role.displayText(language)
+    ProductCard {
         CoverBlock(
-            name = item.role.name,
+            name = roleText.name,
             coverImageUri = item.role.coverImageUri,
             contentRating = item.role.contentRating,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(240.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .height(260.dp)
+                .clip(ProductInnerShape)
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.role.name,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "by ${item.role.author} · 热度 ${item.role.heat}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(roleText.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(uiText("by ${item.role.author} · Heat ${item.role.heat}", "by ${item.role.author} · 热度 ${item.role.heat}"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (item.collection.importedRoleCardId != null) {
-                ElevatedAssistChip(onClick = {}, label = { Text("已导入") })
+                ElevatedAssistChip(onClick = {}, label = { Text(uiText("Imported", "已导入")) })
             } else if (item.collection.isUnlocked) {
-                ElevatedAssistChip(onClick = {}, label = { Text("已解锁") })
+                ElevatedAssistChip(onClick = {}, label = { Text(uiText("Unlocked", "已解锁")) })
             }
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            item.role.tags.forEach { tag -> AssistChip(onClick = {}, label = { Text(tag) }) }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            roleText.tags.forEach { tag -> AssistChip(onClick = {}, label = { Text(tag) }) }
         }
     }
 }
@@ -440,38 +1112,25 @@ private fun RoleDetailActions(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                onClick = onStartChat,
-                modifier = Modifier.weight(1f)
-            ) {
+            Button(onClick = onStartChat, modifier = Modifier.weight(1f)) {
                 Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("开始聊天")
+                Text(uiText("Start Chat", "开始聊天"))
             }
             OutlinedButton(onClick = onFavorite) {
-                Icon(
-                    imageVector = if (item.collection.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = null
-                )
+                Icon(imageVector = if (item.collection.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, contentDescription = null)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(
-                onClick = onUnlock,
-                modifier = Modifier.weight(1f)
-            ) {
+            OutlinedButton(onClick = onUnlock, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Default.LockOpen, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text(if (item.collection.isUnlocked) "已解锁" else "收藏解锁")
+                Text(if (item.collection.isUnlocked) uiText("Unlocked", "已解锁") else uiText("Favorite to Unlock", "收藏解锁"))
             }
-            OutlinedButton(
-                onClick = onGenerateImage,
-                enabled = !isGeneratingImage,
-                modifier = Modifier.weight(1f)
-            ) {
+            OutlinedButton(onClick = onGenerateImage, enabled = !isGeneratingImage, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Default.Image, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text(if (isGeneratingImage) "生成中" else "生成图片")
+                Text(if (isGeneratingImage) uiText("Generating", "生成中") else uiText("Generate Image", "生成图片"))
             }
         }
     }
@@ -484,36 +1143,29 @@ private fun CoverBlock(
     contentRating: ContentRating,
     modifier: Modifier = Modifier
 ) {
-    val colors = listOf(
-        MaterialTheme.colorScheme.primaryContainer,
-        MaterialTheme.colorScheme.tertiaryContainer,
-        MaterialTheme.colorScheme.surfaceVariant
-    )
     Box(
-        modifier = modifier.background(Brush.linearGradient(colors)),
+        modifier = modifier.background(
+            Brush.linearGradient(
+                listOf(
+                    MaterialTheme.colorScheme.primaryContainer,
+                    MaterialTheme.colorScheme.surfaceVariant,
+                    MaterialTheme.colorScheme.tertiaryContainer
+                )
+            )
+        ),
         contentAlignment = Alignment.Center
     ) {
         if (coverImageUri.isNotBlank()) {
             AsyncImage(
                 model = coverImageUri,
-                contentDescription = "$name 封面",
+                contentDescription = uiText("$name cover", "$name 封面"),
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    modifier = Modifier.size(42.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(42.dp), tint = MaterialTheme.colorScheme.primary)
+                Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
         }
         if (contentRating == ContentRating.MATURE) {
@@ -525,7 +1177,7 @@ private fun CoverBlock(
                 color = MaterialTheme.colorScheme.errorContainer
             ) {
                 Text(
-                    text = "私密",
+                    text = uiText("Private", "私密"),
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onErrorContainer
@@ -539,7 +1191,7 @@ private fun CoverBlock(
 private fun DetailSection(title: String, body: String) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (title == "语音") {
+            if (title == uiText("Voice", "语音")) {
                 Icon(
                     Icons.AutoMirrored.Filled.VolumeUp,
                     contentDescription = null,
@@ -548,29 +1200,98 @@ private fun DetailSection(title: String, body: String) {
                 )
                 Spacer(Modifier.width(6.dp))
             }
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         }
-        Text(
-            text = body,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+private data class RoleDisplayText(
+    val name: String,
+    val tags: List<String>,
+    val description: String,
+    val persona: String,
+    val voiceSummary: String
+)
+
+private fun DiscoverRoleCard.displayText(language: AppLanguage): RoleDisplayText {
+    if (language == AppLanguage.CHINESE) {
+        return RoleDisplayText(
+            name = name,
+            tags = tags,
+            description = description,
+            persona = persona,
+            voiceSummary = voiceSummary
+        )
+    }
+
+    return when (id) {
+        "xia-urban" -> RoleDisplayText(
+            name = "Xia",
+            tags = listOf("Female", "Romance", "Daily", "Chinese"),
+            description = "A warm daily companion who keeps casual conversations light without being clingy.",
+            persona = "Xia is gentle, perceptive, and respects boundaries. She remembers preferences, listens more than lectures, and responds naturally.",
+            voiceSummary = "Xiaoyu sweet voice, MOSS local synthesis first, system TTS fallback"
+        )
+        "chen-nocturne" -> RoleDisplayText(
+            name = "Chen",
+            tags = listOf("Male", "Drama", "Calm", "Chinese"),
+            description = "A restrained, reliable night-radio companion for long talks and reflection.",
+            persona = "Chen is calm, reliable, and observant. He respects personal space while helping the user sort through emotions and plans.",
+            voiceSummary = "Low male voice, system TTS fallback"
+        )
+        "mira-adventure" -> RoleDisplayText(
+            name = name,
+            tags = listOf("Female", "Adventure", "English", "Drama"),
+            description = "A lively adventure partner for roleplay, English practice, and travel-style conversation.",
+            persona = persona,
+            voiceSummary = voiceSummary
+        )
+        "rin-mature" -> RoleDisplayText(
+            name = "Rin",
+            tags = listOf("Female", "Romance", "Mature", "Private"),
+            description = "A more mature, direct intimacy companion whose content boundaries stay in local settings.",
+            persona = "Rin is mature, direct, and careful with private boundaries. She prioritizes consent and builds closeness with restraint.",
+            voiceSummary = "Clone placeholder, system TTS fallback"
+        )
+        "niko-anime" -> RoleDisplayText(
+            name = name,
+            tags = listOf("Anime", "Relaxed", "Adventure", "Chinese"),
+            description = "A bright but not noisy anime partner who breaks tasks down and enjoys imaginative play.",
+            persona = "Niko is bright, quick, and mindful of the user's pace. He breaks pressure into small steps and can shift into light fantasy chat.",
+            voiceSummary = "Lively system TTS"
+        )
+        else -> RoleDisplayText(
+            name = name,
+            tags = tags.map { it.displayTag(AppLanguage.ENGLISH) },
+            description = description,
+            persona = persona,
+            voiceSummary = voiceSummary
         )
     }
 }
 
 @Composable
-private fun SortMenuItem(
-    label: String,
-    mode: RoleSortMode,
-    selected: RoleSortMode,
-    onSelect: (RoleSortMode) -> Unit
-) {
-    DropdownMenuItem(
-        text = { Text(if (selected == mode) "$label ✓" else label) },
-        onClick = { onSelect(mode) }
-    )
+private fun String.displayTag(): String {
+    return displayTag(LocalAppLanguage.current)
+}
+
+private fun String.displayTag(language: AppLanguage): String {
+    if (language == AppLanguage.CHINESE) return this
+    return when (this) {
+        "男性" -> "Male"
+        "女性" -> "Female"
+        "二次元" -> "Anime"
+        "恋爱" -> "Romance"
+        "冒险" -> "Adventure"
+        "剧情" -> "Drama"
+        "英语" -> "English"
+        "中文" -> "Chinese"
+        "日常" -> "Daily"
+        "冷静" -> "Calm"
+        "成熟" -> "Mature"
+        "私密" -> "Private"
+        "轻松" -> "Relaxed"
+        else -> this
+    }
 }

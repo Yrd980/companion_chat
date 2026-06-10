@@ -186,7 +186,7 @@ class ChatViewModel(
                                     isStarting = false,
                                     isListening = true,
                                     inputError = "",
-                                    inputPreview = "正在听..."
+                                    inputPreview = "Listening..."
                                 )
                             )
                         }
@@ -272,8 +272,8 @@ class ChatViewModel(
                 logToFile("图片生成失败: ${error.message}")
                 _uiState.update {
                     it.copy(
-                        imageGenerationState = ImageGenerationState.Error(error.message ?: "图片生成失败"),
-                        imageGenerationError = error.message ?: "图片生成失败"
+                        imageGenerationState = ImageGenerationState.Error(error.message ?: "Image generation failed"),
+                        imageGenerationError = error.message ?: "Image generation failed"
                     )
                 }
             }
@@ -414,7 +414,7 @@ class ChatViewModel(
                     voice = it.voice.copy(
                         isStarting = true,
                         inputError = "",
-                        inputPreview = "正在启动语音识别...",
+                        inputPreview = "Starting voice recognition...",
                         showPermissionDialog = true
                     )
                 )
@@ -435,7 +435,7 @@ class ChatViewModel(
                 voice = it.voice.copy(
                     isStarting = false,
                     showPermissionDialog = false,
-                    inputError = "缺少录音权限，无法使用语音输入",
+                    inputError = "Microphone permission is required for voice input",
                     inputPreview = ""
                 )
             )

@@ -9,7 +9,7 @@ data class VoiceInputConfig(
     val backend: VoiceInputBackend = VoiceInputBackend.LOCAL_SENSEVOICE,
     val localSenseVoiceModelDirectory: String = ""
 ) {
-    val recognitionModeLabel: String = "本地多语言识别"
+    val recognitionModeLabel: String = "Local multilingual recognition"
 }
 
 sealed class LocalSenseVoiceModelStatus {

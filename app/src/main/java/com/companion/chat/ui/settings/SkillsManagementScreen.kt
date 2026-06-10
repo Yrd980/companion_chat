@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companion.chat.data.local.entity.Skill
+import com.companion.chat.ui.language.uiText
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,18 +60,18 @@ fun SkillsManagementScreen(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("陪伴模式", style = MaterialTheme.typography.titleLarge) },
+                title = { Text(uiText("Companion Modes", "陪伴模式"), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = uiText("Back", "返回")
                         )
                     }
                 },
                 actions = {
                     IconButton(onClick = { showCreateDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "添加陪伴模式")
+                        Icon(Icons.Default.Add, contentDescription = uiText("Add companion mode", "添加陪伴模式"))
                     }
                 }
             )
@@ -85,14 +86,17 @@ fun SkillsManagementScreen(
         ) {
             item {
                 Text(
-                    text = "为当前角色叠加一个轻量模式，让它更适合翻译、创作、学习或情绪整理。",
+                    text = uiText(
+                        "Add a lightweight mode to the current companion for translation, writing, study, or emotional reflection.",
+                        "为当前角色叠加一个轻量模式，让它更适合翻译、创作、学习或情绪整理。"
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             uiState.activeSkill?.let { activeSkill ->
-                item { SkillsSectionTitle("当前激活") }
+                item { SkillsSectionTitle(uiText("Currently Active", "当前激活")) }
                 item {
                     SkillItem(
                         skill = activeSkill,
@@ -104,10 +108,13 @@ fun SkillsManagementScreen(
                 }
             }
 
-            item { SkillsSectionTitle("内置模式") }
+            item { SkillsSectionTitle(uiText("Built-in Modes", "内置模式")) }
             if (uiState.builtInSkills.isEmpty()) {
                 item {
-                    SkillsEmptyState("当前没有内置模式", "后续可在数据库初始化中补充。")
+                    SkillsEmptyState(
+                        uiText("No built-in modes", "当前没有内置模式"),
+                        uiText("Built-in modes can be added during database initialization.", "后续可在数据库初始化中补充。")
+                    )
                 }
             } else {
                 items(uiState.builtInSkills, key = { it.id }) { skill ->
@@ -126,10 +133,13 @@ fun SkillsManagementScreen(
                 }
             }
 
-            item { SkillsSectionTitle("我的模式") }
+            item { SkillsSectionTitle(uiText("My Modes", "我的模式")) }
             if (uiState.customSkills.isEmpty()) {
                 item {
-                    SkillsEmptyState("还没有自定义模式", "点击右上角“+”创建你的自定义陪伴模式。")
+                    SkillsEmptyState(
+                        uiText("No custom modes yet", "还没有自定义模式"),
+                        uiText("Tap the plus button in the top-right to create a custom companion mode.", "点击右上角“+”创建你的自定义陪伴模式。")
+                    )
                 }
             } else {
                 items(uiState.customSkills, key = { it.id }) { skill ->
@@ -186,8 +196,8 @@ fun SkillsManagementScreen(
     deletingSkill?.let { skill ->
         AlertDialog(
             onDismissRequest = { deletingSkill = null },
-            title = { Text("删除 Skill") },
-            text = { Text("确认删除“${skill.name}”吗？") },
+            title = { Text(uiText("Delete Skill", "删除 Skill")) },
+            text = { Text(uiText("Delete \"${skill.displayName()}\"?", "确认删除“${skill.displayName()}”吗？")) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -195,12 +205,12 @@ fun SkillsManagementScreen(
                         deletingSkill = null
                     }
                 ) {
-                    Text("删除")
+                    Text(uiText("Delete", "删除"))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { deletingSkill = null }) {
-                    Text("取消")
+                    Text(uiText("Cancel", "取消"))
                 }
             }
         )
@@ -237,22 +247,23 @@ private fun SkillItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = skill.name, style = MaterialTheme.typography.titleMedium)
-                    if (skill.description.isNotBlank()) {
+                    Text(text = skill.displayName(), style = MaterialTheme.typography.titleMedium)
+                    val description = skill.displayDescription()
+                    if (description.isNotBlank()) {
                         Text(
-                            text = skill.description,
+                            text = description,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
                 if (isActive) {
-                    AssistChip(onClick = {}, label = { Text("使用中") })
+                    AssistChip(onClick = {}, label = { Text(uiText("Active", "使用中")) })
                 }
             }
 
             Text(
-                text = "已使用 ${skill.usageCount} 次",
+                text = uiText("Used ${skill.usageCount} times", "已使用 ${skill.usageCount} 次"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -260,21 +271,42 @@ private fun SkillItem(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!isActive) {
                     TextButton(onClick = onActivate) {
-                        Text("启用")
+                        Text(uiText("Enable", "启用"))
                     }
                 }
                 onEdit?.let {
                     TextButton(onClick = it) {
-                        Text("编辑")
+                        Text(uiText("Edit", "编辑"))
                     }
                 }
                 onDelete?.let {
                     TextButton(onClick = it) {
-                        Text("删除")
+                        Text(uiText("Delete", "删除"))
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun Skill.displayName(): String {
+    return if (isBuiltIn && name == "翻译助手") {
+        uiText("Translation Helper", "翻译助手")
+    } else {
+        name
+    }
+}
+
+@Composable
+private fun Skill.displayDescription(): String {
+    return if (isBuiltIn && name == "翻译助手") {
+        uiText(
+            "Professional translation that accounts for context, culture, and native-language differences.",
+            "考虑语境、文化和母语差异的专业翻译"
+        )
+    } else {
+        description
     }
 }
 

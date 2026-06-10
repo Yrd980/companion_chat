@@ -158,7 +158,7 @@ class DefaultCompanionTurnModule(
         } catch (error: Exception) {
             logger("!!! initializeModelRuntime 异常 !!! ${error.javaClass.simpleName}: ${error.message}")
             _snapshot.update {
-                it.copy(engineState = InferenceState.Error("初始化异常: ${error.message}"))
+                it.copy(engineState = InferenceState.Error("Initialization failed: ${error.message}"))
             }
         }
     }
@@ -173,7 +173,7 @@ class DefaultCompanionTurnModule(
             emit(
                 CompanionTurnEvent.Rejected(
                     reason = CompanionTurnRejectReason.BlankInput,
-                    message = "请输入内容"
+                    message = "Please enter a message"
                 )
             )
             return@flow
@@ -182,7 +182,7 @@ class DefaultCompanionTurnModule(
             emit(
                 CompanionTurnEvent.Rejected(
                     reason = CompanionTurnRejectReason.AlreadyGenerating,
-                    message = "正在生成回复，请稍后再说"
+                    message = "A reply is already generating. Please wait."
                 )
             )
             return@flow
@@ -193,7 +193,7 @@ class DefaultCompanionTurnModule(
             emit(
                 CompanionTurnEvent.Rejected(
                     reason = CompanionTurnRejectReason.EngineNotReady,
-                    message = "模型未加载，请在设置中配置模型路径。"
+                    message = "The model is not loaded. Configure the model path in settings."
                 )
             )
             return@flow
@@ -227,8 +227,8 @@ class DefaultCompanionTurnModule(
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
-            updateAssistantMessage("推理出错: ${error.message}")
-            emit(CompanionTurnEvent.Failed("推理出错: ${error.message}"))
+            updateAssistantMessage("Inference failed: ${error.message}")
+            emit(CompanionTurnEvent.Failed("Inference failed: ${error.message}"))
         } finally {
             finishStreaming(shouldSpeak = voiceFirst)
             emit(CompanionTurnEvent.Completed)
@@ -509,8 +509,8 @@ class DefaultCompanionTurnModule(
                     eventEmitter(CompanionTurnEvent.AssistantToken(event.token))
                 }
                 is RuntimeTurnEvent.TurnFailed -> {
-                    updateAssistantMessage("推理出错: ${event.message}")
-                    eventEmitter(CompanionTurnEvent.Failed("推理出错: ${event.message}"))
+                    updateAssistantMessage("Inference failed: ${event.message}")
+                    eventEmitter(CompanionTurnEvent.Failed("Inference failed: ${event.message}"))
                 }
             }
         }
