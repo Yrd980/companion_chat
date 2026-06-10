@@ -77,6 +77,9 @@ interface MemoryDao {
     @Query("DELETE FROM memories WHERE layer = 'short_term' AND expiresAt IS NOT NULL AND expiresAt < :now")
     suspend fun cleanupExpiredShortTerm(now: Long): Int
 
+    @Query("DELETE FROM memories")
+    suspend fun deleteAll(): Int
+
     @Query("SELECT * FROM memories WHERE layer = 'short_term' AND referenceCount >= 3")
     suspend fun getPromotableShortTerm(): List<Memory>
 }

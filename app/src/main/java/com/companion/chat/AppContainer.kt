@@ -9,6 +9,7 @@ import com.companion.chat.context.DefaultContextManager
 import com.companion.chat.context.PromptAssembler
 import com.companion.chat.data.dashboard.HomeDashboardRepository
 import com.companion.chat.data.discover.DiscoverRoleRepository
+import com.companion.chat.data.export.DataExportRepository
 import com.companion.chat.engine.ModelConfigRepository
 import com.companion.chat.engine.image.HttpImageGenerationEngine
 import com.companion.chat.engine.image.ImageGenerationConfigRepository
@@ -85,6 +86,12 @@ class AppContainer(
         PrivacySettingsRepository(application)
     }
     val planRepository: PlanRepository by lazy { PlanRepository() }
+    val dataExportRepository: DataExportRepository by lazy {
+        DataExportRepository(
+            context = application,
+            database = database
+        )
+    }
     val setupRepository: SetupRepository by lazy {
         SetupRepository(
             context = application,

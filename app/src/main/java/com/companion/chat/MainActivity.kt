@@ -58,6 +58,7 @@ import com.companion.chat.ui.settings.CharacterManagementScreen
 import com.companion.chat.ui.settings.DarkModeSettingsScreen
 import com.companion.chat.ui.settings.LanguageSettingsScreen
 import com.companion.chat.ui.settings.ModelConfigScreen
+import com.companion.chat.ui.settings.ProfileViewModel
 import com.companion.chat.ui.settings.SettingsScreen
 import com.companion.chat.ui.settings.SkillsManagementScreen
 import com.companion.chat.ui.settings.VoiceSettingsScreen
@@ -208,7 +209,9 @@ fun MainApp() {
                     MemoryScreen(memoryViewModel = viewModel(factory = viewModelFactory))
                 }
                 composable(Screen.PROFILE.route) {
+                    val profileViewModel: ProfileViewModel = viewModel(factory = viewModelFactory)
                     SettingsScreen(
+                        viewModel = profileViewModel,
                         onNavigateToCharacter = { navController.navigate(SettingsRoutes.CHARACTER) },
                         onNavigateToSkills = { navController.navigate(SettingsRoutes.SKILLS) },
                         onNavigateToMemory = { navController.navigate(Screen.MEMORY.route) },

@@ -34,4 +34,7 @@ interface RoleCardDao {
 
     @Query("UPDATE role_cards SET isActive = 1, updatedAt = :now WHERE id = :id")
     suspend fun activate(id: Long, now: Long = System.currentTimeMillis()): Int
+
+    @Query("DELETE FROM role_cards WHERE isBuiltIn = 0")
+    suspend fun deleteUserRoleCards(): Int
 }

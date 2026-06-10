@@ -8,6 +8,7 @@ import com.companion.chat.ui.home.DiscoverViewModel
 import com.companion.chat.ui.home.HomeDashboardViewModel
 import com.companion.chat.ui.memory.MemoryViewModel
 import com.companion.chat.ui.settings.ModelConfigViewModel
+import com.companion.chat.ui.settings.ProfileViewModel
 import com.companion.chat.ui.settings.RoleManagementViewModel
 import com.companion.chat.ui.settings.SkillsManagementViewModel
 import com.companion.chat.ui.settings.VoiceSettingsViewModel
@@ -40,6 +41,15 @@ class AppViewModelFactory(
                 application = application,
                 memoryRepository = container.memoryRepository,
                 workerScope = ioScope
+            ) as T
+            modelClass.isAssignableFrom(ProfileViewModel::class.java) -> ProfileViewModel(
+                userProfileRepository = container.userProfileRepository,
+                privacySettingsRepository = container.privacySettingsRepository,
+                planRepository = container.planRepository,
+                dataExportRepository = container.dataExportRepository,
+                timelineEventRepository = container.timelineEventRepository,
+                readinessRepository = container.companionReadinessRepository,
+                retainedRoundsProvider = { container.contextConfigRepository.getSettings().retainedRounds }
             ) as T
             modelClass.isAssignableFrom(RoleManagementViewModel::class.java) -> RoleManagementViewModel(
                 application = application,
