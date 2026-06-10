@@ -53,6 +53,7 @@ import com.companion.chat.ui.navigation.AppRoutes
 import com.companion.chat.ui.navigation.DiscoverRoutes
 import com.companion.chat.ui.navigation.Screen
 import com.companion.chat.ui.navigation.SettingsRoutes
+import com.companion.chat.ui.navigation.SetupRoutes
 import com.companion.chat.ui.settings.AboutScreen
 import com.companion.chat.ui.settings.CharacterManagementScreen
 import com.companion.chat.ui.settings.DarkModeSettingsScreen
@@ -62,6 +63,7 @@ import com.companion.chat.ui.settings.ProfileViewModel
 import com.companion.chat.ui.settings.SettingsScreen
 import com.companion.chat.ui.settings.SkillsManagementScreen
 import com.companion.chat.ui.settings.VoiceSettingsScreen
+import com.companion.chat.ui.setup.OnboardingScreen
 import com.companion.chat.ui.theme.CompanionChatTheme
 import kotlinx.coroutines.launch
 
@@ -219,7 +221,18 @@ fun MainApp() {
                         onNavigateToVoice = { navController.navigate(SettingsRoutes.VOICE) },
                         onNavigateToLanguage = { navController.navigate(SettingsRoutes.LANGUAGE) },
                         onNavigateToDarkMode = { navController.navigate(SettingsRoutes.DARK_MODE) },
+                        onNavigateToSetup = { navController.navigate(SetupRoutes.ONBOARDING) },
                         onNavigateToAbout = { navController.navigate(SettingsRoutes.ABOUT) }
+                    )
+                }
+                composable(SetupRoutes.ONBOARDING) {
+                    OnboardingScreen(
+                        viewModel = viewModel(factory = viewModelFactory),
+                        onBack = { navController.popBackStack() },
+                        onOpenProfile = { navController.navigate(Screen.PROFILE.route) },
+                        onOpenModelSettings = { navController.navigate(SettingsRoutes.MODEL) },
+                        onOpenVoiceSettings = { navController.navigate(SettingsRoutes.VOICE) },
+                        onOpenLanguage = { navController.navigate(SettingsRoutes.LANGUAGE) }
                     )
                 }
                 composable(SettingsRoutes.CHARACTER) {

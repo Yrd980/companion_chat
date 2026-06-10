@@ -12,6 +12,7 @@ import com.companion.chat.ui.settings.ProfileViewModel
 import com.companion.chat.ui.settings.RoleManagementViewModel
 import com.companion.chat.ui.settings.SkillsManagementViewModel
 import com.companion.chat.ui.settings.VoiceSettingsViewModel
+import com.companion.chat.ui.setup.OnboardingViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -50,6 +51,10 @@ class AppViewModelFactory(
                 timelineEventRepository = container.timelineEventRepository,
                 readinessRepository = container.companionReadinessRepository,
                 retainedRoundsProvider = { container.contextConfigRepository.getSettings().retainedRounds }
+            ) as T
+            modelClass.isAssignableFrom(OnboardingViewModel::class.java) -> OnboardingViewModel(
+                setupRepository = container.setupRepository,
+                timelineEventRepository = container.timelineEventRepository
             ) as T
             modelClass.isAssignableFrom(RoleManagementViewModel::class.java) -> RoleManagementViewModel(
                 application = application,

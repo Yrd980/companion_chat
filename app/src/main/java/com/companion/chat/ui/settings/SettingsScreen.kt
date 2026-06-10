@@ -101,6 +101,7 @@ fun SettingsScreen(
     onNavigateToVoice: () -> Unit = {},
     onNavigateToLanguage: () -> Unit = {},
     onNavigateToDarkMode: () -> Unit = {},
+    onNavigateToSetup: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -189,7 +190,8 @@ fun SettingsScreen(
                     onNavigateToVoice = onNavigateToVoice,
                     onNavigateToLanguage = onNavigateToLanguage,
                     onNavigateToDarkMode = onNavigateToDarkMode,
-                    onNavigateToSkills = onNavigateToSkills
+                    onNavigateToSkills = onNavigateToSkills,
+                    onNavigateToSetup = onNavigateToSetup
                 )
             }
             item {
@@ -543,7 +545,8 @@ private fun AdvancedCard(
     onNavigateToVoice: () -> Unit,
     onNavigateToLanguage: () -> Unit,
     onNavigateToDarkMode: () -> Unit,
-    onNavigateToSkills: () -> Unit
+    onNavigateToSkills: () -> Unit,
+    onNavigateToSetup: () -> Unit
 ) {
     ProductCard {
         SectionTitle(uiText("Advanced", "高级"))
@@ -558,6 +561,7 @@ private fun AdvancedCard(
             SurfaceChip(uiText("Language", "语言"), onNavigateToLanguage)
             SurfaceChip(uiText("Appearance", "外观"), onNavigateToDarkMode)
             SurfaceChip(uiText("Companion modes", "陪伴模式"), onNavigateToSkills)
+            SurfaceChip(uiText("Run Setup Check", "运行设置检查"), onNavigateToSetup)
         }
     }
 }

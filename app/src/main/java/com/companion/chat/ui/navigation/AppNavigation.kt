@@ -62,6 +62,10 @@ object DiscoverRoutes {
     fun detail(roleId: String): String = "discover/$roleId"
 }
 
+object SetupRoutes {
+    const val ONBOARDING = "setup/onboarding"
+}
+
 object SettingsRoutes {
     const val CHARACTER = "settings/character"
     const val SKILLS = "settings/skills"
