@@ -12,12 +12,14 @@ import com.companion.chat.data.local.dao.MessageDao
 import com.companion.chat.data.local.dao.PreferenceDao
 import com.companion.chat.data.local.dao.RoleCardDao
 import com.companion.chat.data.local.dao.SkillDao
+import com.companion.chat.data.local.dao.TimelineEventDao
 import com.companion.chat.data.local.entity.ConversationEntity
 import com.companion.chat.data.local.entity.Memory
 import com.companion.chat.data.local.entity.MessageEntity
 import com.companion.chat.data.local.entity.RoleCard
 import com.companion.chat.data.local.entity.Skill
 import com.companion.chat.data.local.entity.UserPreference
+import com.companion.chat.data.timeline.TimelineEvent
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
@@ -27,9 +29,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Memory::class,
         UserPreference::class,
         Skill::class,
-        RoleCard::class
+        RoleCard::class,
+        TimelineEvent::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -41,6 +44,7 @@ abstract class CompanionDatabase : RoomDatabase() {
     abstract fun preferenceDao(): PreferenceDao
     abstract fun skillDao(): SkillDao
     abstract fun roleCardDao(): RoleCardDao
+    abstract fun timelineEventDao(): TimelineEventDao
 
     companion object {
         private const val DATABASE_NAME = "companion_chat.db"
@@ -55,7 +59,7 @@ abstract class CompanionDatabase : RoomDatabase() {
                     CompanionDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .addCallback(DatabaseInitializationCallback())
                     .build()
                     .also { instance = it }
@@ -142,6 +146,25 @@ abstract class CompanionDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE role_cards ADD COLUMN voiceProfileUri TEXT NOT NULL DEFAULT ''")
                 db.execSQL("ALTER TABLE role_cards ADD COLUMN voiceMode TEXT NOT NULL DEFAULT 'SYSTEM_TTS'")
                 db.execSQL("ALTER TABLE role_cards ADD COLUMN voiceDisplayName TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS timeline_events (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        type TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        detail TEXT NOT NULL,
+                        relatedSessionId TEXT,
+                        relatedMemoryId INTEGER,
+                        mediaUri TEXT,
+                        createdAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
             }
         }
 

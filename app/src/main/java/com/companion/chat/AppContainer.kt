@@ -7,6 +7,7 @@ import com.companion.chat.companion.turn.DefaultCompanionTurnModule
 import com.companion.chat.context.ContextConfigRepository
 import com.companion.chat.context.DefaultContextManager
 import com.companion.chat.context.PromptAssembler
+import com.companion.chat.data.dashboard.HomeDashboardRepository
 import com.companion.chat.data.discover.DiscoverRoleRepository
 import com.companion.chat.engine.ModelConfigRepository
 import com.companion.chat.engine.image.HttpImageGenerationEngine
@@ -16,11 +17,16 @@ import com.companion.chat.engine.image.LocalImageGenerationEngine
 import com.companion.chat.data.local.CompanionDatabase
 import com.companion.chat.memory.MemoryPromptBuilder
 import com.companion.chat.data.memory.MemoryRepository
+import com.companion.chat.data.plan.PlanRepository
+import com.companion.chat.data.privacy.PrivacySettingsRepository
+import com.companion.chat.data.profile.UserProfileRepository
 import com.companion.chat.preference.PreferenceMemoryDeriver
 import com.companion.chat.data.preferences.PreferenceRepository
 import com.companion.chat.preference.UnifiedExtractionParser
 import com.companion.chat.preference.UnifiedExtractionPromptBuilder
 import com.companion.chat.data.repository.ChatSessionRepository
+import com.companion.chat.data.setup.SetupRepository
+import com.companion.chat.data.timeline.TimelineEventRepository
 import com.companion.chat.identity.RoleCardPromptBuilder
 import com.companion.chat.identity.RoleCardRepository
 import com.companion.chat.capability.SkillRepository
@@ -71,6 +77,29 @@ class AppContainer(
     val preferenceRepository: PreferenceRepository by lazy { PreferenceRepository(database.preferenceDao()) }
     val roleCardRepository: RoleCardRepository by lazy { RoleCardRepository(database.roleCardDao()) }
     val skillRepository: SkillRepository by lazy { SkillRepository(database.skillDao()) }
+    val timelineEventRepository: TimelineEventRepository by lazy {
+        TimelineEventRepository(database.timelineEventDao())
+    }
+    val userProfileRepository: UserProfileRepository by lazy { UserProfileRepository(application) }
+    val privacySettingsRepository: PrivacySettingsRepository by lazy {
+        PrivacySettingsRepository(application)
+    }
+    val planRepository: PlanRepository by lazy { PlanRepository() }
+    val setupRepository: SetupRepository by lazy {
+        SetupRepository(
+            context = application,
+            userProfileRepository = userProfileRepository,
+            readinessRepository = companionReadinessRepository
+        )
+    }
+    val homeDashboardRepository: HomeDashboardRepository by lazy {
+        HomeDashboardRepository(
+            roleCardRepository = roleCardRepository,
+            memoryRepository = memoryRepository,
+            readinessRepository = companionReadinessRepository,
+            timelineEventRepository = timelineEventRepository
+        )
+    }
     val discoverRoleRepository: DiscoverRoleRepository by lazy {
         DiscoverRoleRepository(
             context = application,
