@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.companion.chat.ui.chat.ChatViewModel
 import com.companion.chat.ui.home.DiscoverViewModel
+import com.companion.chat.ui.home.HomeDashboardViewModel
 import com.companion.chat.ui.memory.MemoryViewModel
 import com.companion.chat.ui.settings.ModelConfigViewModel
 import com.companion.chat.ui.settings.RoleManagementViewModel
@@ -25,6 +26,9 @@ class AppViewModelFactory(
         val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         return when {
             modelClass.isAssignableFrom(ChatViewModel::class.java) -> ChatViewModel(application, container) as T
+            modelClass.isAssignableFrom(HomeDashboardViewModel::class.java) -> HomeDashboardViewModel(
+                repository = container.homeDashboardRepository
+            ) as T
             modelClass.isAssignableFrom(DiscoverViewModel::class.java) -> DiscoverViewModel(
                 application = application,
                 repository = container.discoverRoleRepository,

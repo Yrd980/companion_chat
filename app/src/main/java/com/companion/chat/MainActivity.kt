@@ -43,6 +43,7 @@ import com.companion.chat.ui.chat.ChatViewModel
 import com.companion.chat.ui.helmet.HelmetScreen
 import com.companion.chat.ui.home.DiscoverViewModel
 import com.companion.chat.ui.home.DiscoverRoleDetailScreen
+import com.companion.chat.ui.home.HomeDashboardViewModel
 import com.companion.chat.ui.home.HomeScreen
 import com.companion.chat.ui.language.AppLanguage
 import com.companion.chat.ui.language.LocalAppLanguage
@@ -90,6 +91,7 @@ fun MainApp() {
     val lifecycleOwner = LocalLifecycleOwner.current
     val chatViewModel: ChatViewModel = viewModel(factory = viewModelFactory)
     val discoverViewModel: DiscoverViewModel = viewModel(factory = viewModelFactory)
+    val homeDashboardViewModel: HomeDashboardViewModel = viewModel(factory = viewModelFactory)
     val languageRepository = remember(application) { application.appContainer.appLanguageRepository }
     var appLanguage by remember { mutableStateOf(languageRepository.getLanguage()) }
     val coroutineScope = rememberCoroutineScope()
@@ -161,6 +163,7 @@ fun MainApp() {
                 composable(Screen.HOME.route) {
                     HomeScreen(
                         viewModel = discoverViewModel,
+                        dashboardViewModel = homeDashboardViewModel,
                         onStartChat = { navController.navigate(AppRoutes.CHAT) },
                         onOpenHelmet = { navController.navigate(Screen.HELMET.route) },
                         onOpenMemory = { navController.navigate(Screen.MEMORY.route) },

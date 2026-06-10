@@ -43,7 +43,6 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -81,17 +80,18 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
-import com.companion.chat.CompanionChatApplication
-import com.companion.chat.appContainer
 import com.companion.chat.companion.readiness.CompanionReadinessLevel
-import com.companion.chat.companion.readiness.CompanionReadinessSnapshot
+import com.companion.chat.data.dashboard.HomeActivitySummary
+import com.companion.chat.data.dashboard.HomeDashboardUiState
+import com.companion.chat.data.dashboard.HomeMemorySummary
+import com.companion.chat.data.dashboard.HomeQuickAction
+import com.companion.chat.data.dashboard.HomeSuggestion
 import com.companion.chat.data.discover.ContentRating
 import com.companion.chat.data.discover.DiscoverRoleCard
 import com.companion.chat.data.discover.DiscoverRoleCardItem
@@ -105,7 +105,6 @@ import com.companion.chat.ui.components.SectionTitle
 import com.companion.chat.ui.components.StatusChip
 import com.companion.chat.ui.language.AppLanguage
 import com.companion.chat.ui.language.LocalAppLanguage
-import com.companion.chat.ui.language.uiSummary
 import com.companion.chat.ui.language.uiText
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -113,6 +112,7 @@ import com.companion.chat.ui.language.uiText
 fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: DiscoverViewModel = viewModel(),
+    dashboardViewModel: HomeDashboardViewModel = viewModel(),
     onStartChat: () -> Unit = {},
     onOpenHelmet: () -> Unit = {},
     onOpenMemory: () -> Unit = {},
@@ -121,16 +121,16 @@ fun HomeScreen(
     onCreateRole: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val dashboardUiState by dashboardViewModel.uiState.collectAsStateWithLifecycle()
     val language = LocalAppLanguage.current
-    val context = LocalContext.current
-    val readinessRepository = remember(context) {
-        (context.applicationContext as CompanionChatApplication).appContainer.companionReadinessRepository
-    }
-    val readinessSnapshot = readinessRepository.getSnapshot()
     val activeItem = uiState.items.firstOrNull { it.collection.importedRoleCardId != null }
         ?: uiState.items.firstOrNull { it.collection.isFavorite }
         ?: uiState.items.firstOrNull()
     var showRoleLibrary by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        dashboardViewModel.refresh()
+    }
 
     Scaffold(
         modifier = modifier,
@@ -188,28 +188,33 @@ fun HomeScreen(
                 CompanionHeroCard(
                     activeItem = activeItem,
                     language = language,
-                    readinessSnapshot = readinessSnapshot,
+                    dashboardState = dashboardUiState,
                     onStartChat = onStartChat,
                     onCreateRole = onCreateRole
                 )
             }
             item {
-                HelmetStatusCard(
-                    readinessSnapshot = readinessSnapshot,
+                HelmetReadinessCard(
+                    dashboardState = dashboardUiState,
                     onOpenHelmet = onOpenHelmet
                 )
             }
             item { ModeSelector() }
             item {
                 ActionGrid(
-                    readinessSnapshot = readinessSnapshot,
+                    dashboardState = dashboardUiState,
                     onStartChat = onStartChat,
                     onOpenHelmet = onOpenHelmet,
                     onOpenMemory = onOpenMemory,
                     onOpenProfile = onOpenProfile
                 )
             }
-            item { RecentMemories(onOpenMemory = onOpenMemory) }
+            item {
+                RecentMemories(
+                    memories = dashboardUiState.recentMemories,
+                    onOpenMemory = onOpenMemory
+                )
+            }
             item {
                 RecommendedCompanions(
                     items = uiState.items,
@@ -231,14 +236,16 @@ fun HomeScreen(
             }
             item {
                 SuggestionsRow(
+                    suggestions = dashboardUiState.suggestions,
                     onOpenHelmet = onOpenHelmet,
                     onOpenMemory = onOpenMemory,
-                    onStartChat = onStartChat
+                    onStartChat = onStartChat,
+                    onOpenProfile = onOpenProfile
                 )
             }
             item {
                 ActivityList(
-                    readinessSnapshot = readinessSnapshot,
+                    activities = dashboardUiState.recentActivity,
                     onOpenHelmet = onOpenHelmet,
                     onOpenMemory = onOpenMemory
                 )
@@ -251,11 +258,17 @@ fun HomeScreen(
 private fun CompanionHeroCard(
     activeItem: DiscoverRoleCardItem?,
     language: AppLanguage,
-    readinessSnapshot: CompanionReadinessSnapshot,
+    dashboardState: HomeDashboardUiState,
     onStartChat: () -> Unit,
     onCreateRole: () -> Unit
 ) {
     val activeRoleText = activeItem?.role?.displayText(language)
+    val relationship = dashboardState.relationship
+    val progressPercent = if (relationship.nextLevelXp > 0) {
+        ((relationship.xp.toFloat() / relationship.nextLevelXp.toFloat()) * 100).toInt().coerceIn(0, 100)
+    } else {
+        0
+    }
     ProductCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(contentAlignment = Alignment.BottomEnd) {
@@ -275,23 +288,24 @@ private fun CompanionHeroCard(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = activeRoleText?.name ?: uiText("Aiko Hoshizora", "星空爱子"),
+                    text = activeRoleText?.name ?: relationship.companionName,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 StatusChip(
-                    text = if (activeItem == null) uiText("Needs setup", "需要设置") else uiText("Bright", "明亮"),
-                    level = if (activeItem == null) CompanionReadinessLevel.DEGRADED else CompanionReadinessLevel.READY
+                    text = relationship.companionMood,
+                    level = if (dashboardState.localDevice.modelReady) {
+                        CompanionReadinessLevel.READY
+                    } else {
+                        CompanionReadinessLevel.DEGRADED
+                    }
                 )
                 Text(
                     text = activeItem?.role?.description
                         ?.let { activeRoleText?.description ?: it }
-                        ?: uiText(
-                            "Cheerful and observant. Loves starry skies and road trips.",
-                            "开朗细心，喜欢星空和公路旅行。"
-                        ),
+                        ?: relationship.closenessLabel,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -299,14 +313,14 @@ private fun CompanionHeroCard(
                 )
             }
             CompanionLevelRing(
-                percent = if (readinessSnapshot.isReadyForVoiceFirstTurn) 87 else 38,
-                label = if (activeItem == null) uiText("Setup", "设置") else uiText("Active Level", "活跃等级")
+                percent = progressPercent,
+                label = uiText("Lv. ${relationship.level}", "${relationship.level} 级")
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
                 onClick = onStartChat,
-                enabled = activeItem != null || readinessSnapshot.llm.isUsable,
+                enabled = dashboardState.localDevice.modelReady,
                 modifier = Modifier
                     .weight(1f)
                     .height(48.dp)
@@ -361,10 +375,11 @@ private fun CompanionLevelRing(percent: Int, label: String) {
 }
 
 @Composable
-private fun HelmetStatusCard(
-    readinessSnapshot: CompanionReadinessSnapshot,
+private fun HelmetReadinessCard(
+    dashboardState: HomeDashboardUiState,
     onOpenHelmet: () -> Unit
 ) {
+    val localDevice = dashboardState.localDevice
     ProductCard(
         modifier = Modifier.clickable(onClick = onOpenHelmet)
     ) {
@@ -388,14 +403,18 @@ private fun HelmetStatusCard(
                         .padding(start = 12.dp)
                 ) {
                     Text(
-                        uiText("Helmet Status", "头盔状态"),
+                        uiText("Helmet & Local Readiness", "头盔与本地就绪状态"),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = if (readinessSnapshot.isReadyForVoiceFirstTurn) uiText("Online", "在线") else uiText("Setup required", "需要设置"),
+                        text = if (localDevice.noHelmetMode) {
+                            uiText("Helmet not connected - local checks available", "头盔未连接 - 可用本地检查")
+                        } else {
+                            localDevice.statusLabel
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
@@ -404,10 +423,18 @@ private fun HelmetStatusCard(
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                MetricInline(uiText("Battery", "电量"), "78%", Modifier.weight(1f))
-                MetricInline(uiText("Signal", "信号"), if (readinessSnapshot.asr.isUsable) "4/5" else "0/5", Modifier.weight(1f))
-                MetricInline(uiText("FW Version", "固件版本"), "1.4.2", Modifier.weight(1f))
+                MetricInline(uiText("Model", "模型"), localDevice.modelReady.readyLabel(), Modifier.weight(1f))
+                MetricInline(uiText("Voice", "语音"), localDevice.voiceReady.readyLabel(), Modifier.weight(1f))
+                MetricInline(uiText("Image", "图片"), localDevice.imageReady.readyLabel(), Modifier.weight(1f))
             }
+            Text(
+                text = uiText(
+                    "Pairing is skipped in this build. Model, voice, image, and memory remain local.",
+                    "此构建暂时跳过配对。模型、语音、图片和记忆保留在本机。"
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -484,65 +511,61 @@ private fun ModeChip(icon: ImageVector, label: String, selected: Boolean, modifi
 
 @Composable
 private fun ActionGrid(
-    readinessSnapshot: CompanionReadinessSnapshot,
+    dashboardState: HomeDashboardUiState,
     onStartChat: () -> Unit,
     onOpenHelmet: () -> Unit,
     onOpenMemory: () -> Unit,
     onOpenProfile: () -> Unit
 ) {
+    val actions = dashboardState.quickActions.ifEmpty {
+        listOf(
+            HomeQuickAction("chat", uiText("Start chat", "开始聊天"), uiText("Continue locally", "本地继续")),
+            HomeQuickAction("voice", uiText("Voice check", "语音检查"), uiText("Review voice readiness", "检查语音就绪状态")),
+            HomeQuickAction("memory", uiText("Review memories", "查看记忆"), uiText("Inspect local memory", "检查本地记忆")),
+            HomeQuickAction("image", uiText("Generate image", "生成图片"), uiText("Review image readiness", "检查图片就绪状态"))
+        )
+    }
+    val actionHandlers = mapOf(
+        "chat" to onStartChat,
+        "voice" to onOpenHelmet,
+        "memory" to onOpenMemory,
+        "image" to onOpenHelmet
+    )
+    val actionIcons = mapOf(
+        "chat" to Icons.AutoMirrored.Filled.Chat,
+        "voice" to Icons.AutoMirrored.Filled.VolumeUp,
+        "memory" to Icons.Default.BookmarkBorder,
+        "image" to Icons.Default.Image
+    )
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HomeAction(
-                title = uiText("Start Chat", "开始聊天"),
-                subtitle = uiText("Talk with Aiko", "和爱子聊天"),
-                icon = Icons.AutoMirrored.Filled.Chat,
-                filled = true,
-                enabled = readinessSnapshot.llm.isUsable,
-                modifier = Modifier.weight(1f),
-                onClick = onStartChat
-            )
-            HomeAction(
-                title = uiText("Listen Live", "实时收听"),
-                subtitle = uiText("Hear Aiko", "听爱子说话"),
-                icon = Icons.AutoMirrored.Filled.VolumeUp,
-                enabled = readinessSnapshot.asr.isUsable,
-                modifier = Modifier.weight(1f),
-                onClick = onStartChat
-            )
+        actions.chunked(2).forEachIndexed { rowIndex, rowActions ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                rowActions.forEach { action ->
+                    HomeAction(
+                        title = action.title.homeText(),
+                        subtitle = if (action.enabled) action.subtitle.homeText()
+                        else action.disabledReason.ifBlank { action.subtitle }.homeText(),
+                        icon = actionIcons[action.id] ?: Icons.Default.Home,
+                        filled = rowIndex == 0 && action.id == "chat",
+                        enabled = action.enabled,
+                        modifier = Modifier.weight(1f),
+                        onClick = actionHandlers[action.id] ?: onOpenProfile
+                    )
+                }
+                if (rowActions.size == 1) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HomeAction(
-                title = uiText("Play Ambient", "播放环境音"),
-                subtitle = uiText("Focus & Relax", "专注和放松"),
-                icon = Icons.Default.MusicNote,
-                modifier = Modifier.weight(1f),
-                onClick = onStartChat
-            )
-            HomeAction(
-                title = uiText("Start Ride Mode", "启动骑行模式"),
-                subtitle = uiText("Safe & Aware", "安全感知"),
-                icon = Icons.Default.DirectionsBike,
-                modifier = Modifier.weight(1f),
-                onClick = onOpenHelmet
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            HomeAction(
-                title = uiText("New Memory", "新记忆"),
-                subtitle = uiText("Capture a moment", "记录瞬间"),
-                icon = Icons.Default.BookmarkBorder,
-                modifier = Modifier.weight(1f),
-                onClick = onOpenMemory
-            )
-            HomeAction(
-                title = uiText("Emergency SOS", "紧急 SOS"),
-                subtitle = uiText("Get help now", "立即求助"),
-                icon = Icons.Default.Emergency,
-                alert = true,
-                modifier = Modifier.weight(1f),
-                onClick = onOpenProfile
-            )
-        }
+        HomeAction(
+            title = uiText("Emergency SOS", "紧急 SOS"),
+            subtitle = uiText("Configure contact first", "请先配置联系人"),
+            icon = Icons.Default.Emergency,
+            alert = true,
+            enabled = false,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onOpenProfile
+        )
     }
 }
 
@@ -601,19 +624,32 @@ private fun HomeAction(
 }
 
 @Composable
-private fun RecentMemories(onOpenMemory: () -> Unit) {
-    val language = LocalAppLanguage.current
+private fun RecentMemories(
+    memories: List<HomeMemorySummary>,
+    onOpenMemory: () -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionTitle(uiText("Recent Memories", "最近记忆"), action = uiText("View all", "查看全部"))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val cards = listOf(
-                Triple(uiText(language, "Coastal Sunset Ride", "海岸落日骑行"), uiText(language, "Beautiful evening ride along the coast.", "沿海岸的一次美丽夜骑。"), Icons.Default.DirectionsBike),
-                Triple(uiText(language, "Starry Camping", "星空露营"), uiText(language, "We watched the Perseids together.", "我们一起看了英仙座流星雨。"), Icons.Default.WbSunny),
-                Triple(uiText(language, "Morning Coffee", "晨间咖啡"), uiText(language, "Flat white, no sugar. Extra shot.", "Flat white，不加糖，多一份浓缩。"), Icons.Default.MusicNote)
-            )
-            items(cards.size) { index ->
-                val (title, body, icon) = cards[index]
-                MemoryStoryCard(title, body, icon, onOpenMemory)
+        if (memories.isEmpty()) {
+            ProductCard(modifier = Modifier.clickable(onClick = onOpenMemory)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.BookmarkBorder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                        Text(uiText("No memories yet", "还没有记忆"), style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            uiText("Add a local memory to build continuity.", "添加本地记忆来建立连续感。"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(memories.size) { index ->
+                    val memory = memories[index]
+                    MemoryStoryCard(memory, onOpenMemory)
+                }
             }
         }
     }
@@ -621,9 +657,7 @@ private fun RecentMemories(onOpenMemory: () -> Unit) {
 
 @Composable
 private fun MemoryStoryCard(
-    title: String,
-    body: String,
-    icon: ImageVector,
+    memory: HomeMemorySummary,
     onClick: () -> Unit
 ) {
     Surface(
@@ -649,7 +683,7 @@ private fun MemoryStoryCard(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.BookmarkBorder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             }
             Column(
                 modifier = Modifier
@@ -657,12 +691,12 @@ private fun MemoryStoryCard(
                     .padding(start = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                Text(memory.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(memory.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(5.dp))
-                    Text("May 16, 2025", style = MaterialTheme.typography.labelSmall)
+                    Text(memory.category, style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -743,21 +777,29 @@ private fun CompactCompanionCard(
 
 @Composable
 private fun SuggestionsRow(
+    suggestions: List<HomeSuggestion>,
     onOpenHelmet: () -> Unit,
     onOpenMemory: () -> Unit,
-    onStartChat: () -> Unit
+    onStartChat: () -> Unit,
+    onOpenProfile: () -> Unit
 ) {
-    val language = LocalAppLanguage.current
+    val fallbackSuggestions = listOf(
+        HomeSuggestion("privacy", uiText("Review local-only privacy controls.", "查看本地优先隐私控制。"), "profile"),
+        HomeSuggestion("first_memory", uiText("Add a memory so your companion can keep continuity.", "添加一条记忆，让陪伴保持连续。"), "memory"),
+        HomeSuggestion("voice_setup", uiText("Check local voice input and output readiness.", "检查本地语音输入和输出状态。"), "settings/voice")
+    )
+    val rows = suggestions.ifEmpty { fallbackSuggestions }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionTitle(uiText("Suggestions for You", "给你的建议"))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val suggestions = listOf(
-                Triple(Icons.Default.Shield, uiText(language, "Try Ride Mode for safer journeys.", "试试骑行模式，让旅途更安全。"), onOpenHelmet),
-                Triple(Icons.Default.MusicNote, uiText(language, "Play lo-fi ambient for better focus.", "播放 lo-fi 环境音，帮助专注。"), onStartChat),
-                Triple(Icons.Default.BookmarkBorder, uiText(language, "Save memories to relive special moments.", "保存记忆，重温特别瞬间。"), onOpenMemory)
-            )
-            items(suggestions.size) { index ->
-                val (icon, text, action) = suggestions[index]
+            items(rows.size) { index ->
+                val suggestion = rows[index]
+                val action = when (suggestion.routeHint) {
+                    "memory" -> onOpenMemory
+                    "profile" -> onOpenProfile
+                    "settings/model", "settings/voice" -> onOpenHelmet
+                    else -> onStartChat
+                }
                 Surface(
                     modifier = Modifier
                         .width(218.dp)
@@ -776,10 +818,15 @@ private fun SuggestionsRow(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.primary
                         ) {
-                            Icon(icon, contentDescription = null, modifier = Modifier.padding(9.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                            Icon(
+                                suggestionIcon(suggestion.id),
+                                contentDescription = null,
+                                modifier = Modifier.padding(9.dp),
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
                         }
                         Text(
-                            text = text,
+                            text = suggestion.text.homeText(),
                             modifier = Modifier.padding(start = 12.dp),
                             style = MaterialTheme.typography.bodyMedium,
                             maxLines = 2
@@ -793,17 +840,38 @@ private fun SuggestionsRow(
 
 @Composable
 private fun ActivityList(
-    readinessSnapshot: CompanionReadinessSnapshot,
+    activities: List<HomeActivitySummary>,
     onOpenHelmet: () -> Unit,
     onOpenMemory: () -> Unit
 ) {
-    val language = LocalAppLanguage.current
     ProductCard {
         SectionTitle(uiText("Recent Activity", "最近动态"), action = uiText("View all", "查看全部"))
-        ActivityRow(Icons.AutoMirrored.Filled.Chat, uiText("Chat", "聊天"), readinessSnapshot.llm.uiSummary(language), "9:32 AM", onOpenHelmet)
-        ActivityRow(Icons.Default.MusicNote, uiText("Ambient", "环境音"), uiText("Lo-fi Chill Mix played", "已播放 Lo-fi Chill Mix"), "9:21 AM", onOpenHelmet)
-        ActivityRow(Icons.Default.Image, uiText("Memory", "记忆"), uiText("Starry Camping saved", "已保存星空露营"), "May 16, 8:45 PM", onOpenMemory)
-        ActivityRow(Icons.Default.Shield, uiText("Safety Check", "安全检查"), uiText("All systems normal", "所有系统正常"), "May 16, 8:30 PM", onOpenHelmet)
+        if (activities.isEmpty()) {
+            ActivityRow(
+                Icons.Default.HeadsetMic,
+                uiText("Helmet", "头盔"),
+                uiText("Helmet not connected. Local diagnostics are available.", "头盔未连接，可查看本地诊断。"),
+                uiText("Now", "现在"),
+                onOpenHelmet
+            )
+            ActivityRow(
+                Icons.Default.Memory,
+                uiText("Memory", "记忆"),
+                uiText("Local memories will appear here after you save them.", "保存本地记忆后会显示在这里。"),
+                uiText("Ready", "待命"),
+                onOpenMemory
+            )
+        } else {
+            activities.forEach { activity ->
+                ActivityRow(
+                    Icons.AutoMirrored.Filled.Chat,
+                    activity.title.homeText(),
+                    activity.detail.homeText(),
+                    activity.timestampLabel.homeText(),
+                    onOpenMemory
+                )
+            }
+        }
     }
 }
 
@@ -1213,6 +1281,55 @@ private data class RoleDisplayText(
     val persona: String,
     val voiceSummary: String
 )
+
+@Composable
+private fun Boolean.readyLabel(): String {
+    return if (this) uiText("Ready", "就绪") else uiText("Needs setup", "需要设置")
+}
+
+@Composable
+private fun String.homeText(): String {
+    val language = LocalAppLanguage.current
+    if (language == AppLanguage.ENGLISH) return this
+    return when (this) {
+        "Start chat", "Start Chat" -> "开始聊天"
+        "Continue locally" -> "本地继续"
+        "Set up the text model first" -> "先设置文本模型"
+        "Text model package is not ready" -> "文本模型包未就绪"
+        "Voice check" -> "语音检查"
+        "Voice input and output are usable" -> "语音输入和输出可用"
+        "Review voice setup" -> "检查语音设置"
+        "Voice readiness needs attention" -> "语音就绪状态需要处理"
+        "Review memories" -> "查看记忆"
+        "Inspect local companion memory" -> "检查本地陪伴记忆"
+        "Generate image" -> "生成图片"
+        "Image generation is ready" -> "图片生成已就绪"
+        "Review image model setup" -> "检查图片模型设置"
+        "Image generation is not ready" -> "图片生成未就绪"
+        "Finish local text model setup." -> "完成本地文本模型设置。"
+        "Check local voice input and output readiness." -> "检查本地语音输入和输出状态。"
+        "Add a memory so your companion can keep continuity." -> "添加一条记忆，让陪伴保持连续。"
+        "Review local-only privacy controls." -> "查看本地优先隐私控制。"
+        "Just now" -> "刚刚"
+        "Earlier" -> "更早"
+        else -> when {
+            endsWith("m ago") -> "${removeSuffix("m ago")} 分钟前"
+            endsWith("h ago") -> "${removeSuffix("h ago")} 小时前"
+            endsWith("d ago") -> "${removeSuffix("d ago")} 天前"
+            else -> this
+        }
+    }
+}
+
+private fun suggestionIcon(id: String): ImageVector {
+    return when (id) {
+        "model_setup" -> Icons.Default.Memory
+        "voice_setup" -> Icons.AutoMirrored.Filled.VolumeUp
+        "first_memory" -> Icons.Default.BookmarkBorder
+        "privacy" -> Icons.Default.Shield
+        else -> Icons.Default.WbSunny
+    }
+}
 
 private fun DiscoverRoleCard.displayText(language: AppLanguage): RoleDisplayText {
     if (language == AppLanguage.CHINESE) {
