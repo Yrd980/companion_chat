@@ -223,7 +223,11 @@ class DefaultCompanionTurnModule(
 
         try {
             storeRuleBasedMemoriesForMessage(userMessage, sessionId)
-            generateResponse(userInput = text, eventEmitter = { emit(it) })
+            generateResponse(
+                userInput = text,
+                oneTurnMemoryIds = request.oneTurnMemoryIds,
+                eventEmitter = { emit(it) }
+            )
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -479,6 +483,7 @@ class DefaultCompanionTurnModule(
 
     private suspend fun generateResponse(
         userInput: String,
+        oneTurnMemoryIds: List<Long>,
         eventEmitter: suspend (CompanionTurnEvent) -> Unit
     ) {
         val messages = snapshot.value.messages
@@ -487,7 +492,8 @@ class DefaultCompanionTurnModule(
             messages = messages,
             baseSystemPrompt = baseSystemPrompt,
             settings = contextSettings,
-            userInput = userInput
+            userInput = userInput,
+            oneTurnMemoryIds = oneTurnMemoryIds
         ).collect { event ->
             when (event) {
                 is RuntimeTurnEvent.ContextPrepared -> {
@@ -746,10 +752,11 @@ class DefaultCompanionTurnModule(
 
         logger(
             "$reason: recentMessages=${rebuildResult.recentMessageCount}, " +
-                "summaryEmpty=${rebuildResult.historySummaryEmpty}, " +
-                "preferenceInjected=${rebuildResult.preferenceInjected}, " +
-                "persistentMemoryInjected=${rebuildResult.persistentMemoryInjected}, " +
-                "memoryInjected=${rebuildResult.memoryInjected}"
+            "summaryEmpty=${rebuildResult.historySummaryEmpty}, " +
+            "preferenceInjected=${rebuildResult.preferenceInjected}, " +
+            "persistentMemoryInjected=${rebuildResult.persistentMemoryInjected}, " +
+            "memoryInjected=${rebuildResult.memoryInjected}, " +
+            "oneTurnMemoryInjected=${rebuildResult.oneTurnMemoryInjected}"
         )
 
         if (rebuildResult.rebuildSucceeded == false) {
@@ -787,6 +794,9 @@ class DefaultCompanionTurnModule(
             )
         } else {
             logger("动态记忆检索为空: query=${context.query}")
+        }
+        if (context.hasOneTurnMemories) {
+            logger("本轮选择记忆注入: count=${context.oneTurnMemoryCount}")
         }
     }
 

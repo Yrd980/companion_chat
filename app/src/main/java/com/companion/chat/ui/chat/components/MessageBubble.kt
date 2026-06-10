@@ -47,6 +47,7 @@ import java.util.Locale
 fun MessageBubble(
     message: ChatMessage,
     assistantAvatarImageUri: String = "",
+    privacyLabel: String = "",
     modifier: Modifier = Modifier
 ) {
     val isUser = message.role == MessageRole.USER
@@ -70,6 +71,7 @@ fun MessageBubble(
                 BubbleContent(
                     message = message,
                     isUser = false,
+                    privacyLabel = "",
                     onImageClick = { showFullScreenImage = it }
                 )
             }
@@ -85,6 +87,7 @@ fun MessageBubble(
                 BubbleContent(
                     message = message,
                     isUser = true,
+                    privacyLabel = privacyLabel,
                     onImageClick = { showFullScreenImage = it }
                 )
             }
@@ -151,6 +154,7 @@ private fun AvatarIcon(isUser: Boolean, imageUri: String = "") {
 private fun BubbleContent(
     message: ChatMessage,
     isUser: Boolean,
+    privacyLabel: String,
     onImageClick: (android.net.Uri) -> Unit
 ) {
     Surface(
@@ -210,6 +214,16 @@ private fun BubbleContent(
             }
 
             if (!message.isStreaming) {
+                if (isUser && privacyLabel.isNotBlank()) {
+                    Text(
+                        text = privacyLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.68f),
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = 4.dp)
+                    )
+                }
                 Text(
                     text = formatTime(message.timestamp),
                     style = MaterialTheme.typography.labelSmall,

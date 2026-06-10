@@ -92,7 +92,8 @@ class CompanionRuntime(
         val engine = inferenceEngineProvider() ?: return CompanionRebuildResult.skipped()
         val shouldInjectContext = turnContext.userPreferences.isNotBlank() ||
             turnContext.persistentMemoryPrompt.isNotBlank() ||
-            turnContext.memoryPrompt.isNotBlank()
+            turnContext.memoryPrompt.isNotBlank() ||
+            turnContext.oneTurnMemoryPrompt.isNotBlank()
 
         if (!forceRebuild && !manager.shouldCompress(stableMessages, settings) && !shouldInjectContext) {
             return CompanionRebuildResult.skipped()
@@ -104,6 +105,7 @@ class CompanionRuntime(
             userPreferences = turnContext.userPreferences,
             persistentMemoryPrompt = turnContext.persistentMemoryPrompt,
             memoryPrompt = turnContext.memoryPrompt,
+            oneTurnMemoryPrompt = turnContext.oneTurnMemoryPrompt,
             settings = settings
         )
         val rebuildSucceeded = engine.rebuildConversation(contextWindow.systemPrompt)
@@ -117,7 +119,8 @@ class CompanionRuntime(
                 historySummaryEmpty = contextWindow.historySummary.isBlank(),
                 preferenceInjected = contextWindow.userPreferences.isNotBlank(),
                 persistentMemoryInjected = contextWindow.persistentMemoryPrompt.isNotBlank(),
-                memoryInjected = contextWindow.memoryPrompt.isNotBlank()
+                memoryInjected = contextWindow.memoryPrompt.isNotBlank(),
+                oneTurnMemoryInjected = contextWindow.oneTurnMemoryPrompt.isNotBlank()
             )
         }
 
@@ -132,7 +135,8 @@ class CompanionRuntime(
                 historySummaryEmpty = contextWindow.historySummary.isBlank(),
                 preferenceInjected = contextWindow.userPreferences.isNotBlank(),
                 persistentMemoryInjected = contextWindow.persistentMemoryPrompt.isNotBlank(),
-                memoryInjected = contextWindow.memoryPrompt.isNotBlank()
+                memoryInjected = contextWindow.memoryPrompt.isNotBlank(),
+                oneTurnMemoryInjected = contextWindow.oneTurnMemoryPrompt.isNotBlank()
             )
         }
 
@@ -141,6 +145,7 @@ class CompanionRuntime(
             userPreferences = "",
             persistentMemoryPrompt = "",
             memoryPrompt = "",
+            oneTurnMemoryPrompt = "",
             historySummary = "",
             recentConversationSnippet = buildRecentConversationSnippet(contextWindow.recentMessages)
         )
@@ -154,7 +159,8 @@ class CompanionRuntime(
             historySummaryEmpty = contextWindow.historySummary.isBlank(),
             preferenceInjected = contextWindow.userPreferences.isNotBlank(),
             persistentMemoryInjected = contextWindow.persistentMemoryPrompt.isNotBlank(),
-            memoryInjected = contextWindow.memoryPrompt.isNotBlank()
+            memoryInjected = contextWindow.memoryPrompt.isNotBlank(),
+            oneTurnMemoryInjected = contextWindow.oneTurnMemoryPrompt.isNotBlank()
         )
     }
 
@@ -230,11 +236,12 @@ class CompanionRuntime(
         messages: List<ChatMessage>,
         baseSystemPrompt: String,
         settings: ContextSettings,
-        userInput: String
+        userInput: String,
+        oneTurnMemoryIds: List<Long> = emptyList()
     ): Flow<CompanionTurnEvent> = flow {
         val engine = inferenceEngineProvider() ?: return@flow
         val stableMessages = messages.filterNot { it.isStreaming }
-        val turnContext = prepareTurnContext(userInput)
+        val turnContext = prepareTurnContext(userInput).withOneTurnMemories(oneTurnMemoryIds)
         emit(CompanionTurnEvent.ContextPrepared(turnContext))
         val rebuildResult = rebuildConversationWithContext(
             stableMessages = stableMessages,
@@ -253,6 +260,21 @@ class CompanionRuntime(
         } catch (e: Exception) {
             emit(CompanionTurnEvent.TurnFailed(e.message ?: e.javaClass.simpleName))
         }
+    }
+
+    private suspend fun CompanionTurnContext.withOneTurnMemories(memoryIds: List<Long>): CompanionTurnContext {
+        val repository = memoryRepository ?: return this
+        val memories = repository.getConfirmedMemoriesByIds(memoryIds)
+        if (memories.isEmpty()) {
+            return this
+        }
+        memories.forEach { memory ->
+            repository.markMemoryUsed(memory.id)
+        }
+        return copy(
+            oneTurnMemoryPrompt = memoryPromptBuilder.buildOneTurn(memories),
+            oneTurnMemoryCount = memories.size
+        )
     }
 
     companion object {
@@ -296,9 +318,11 @@ data class CompanionTurnContext(
     val userPreferences: String = "",
     val persistentMemoryPrompt: String = "",
     val memoryPrompt: String = "",
+    val oneTurnMemoryPrompt: String = "",
     val confirmedPreferenceCount: Int = 0,
     val persistentMemoryCount: Int = 0,
     val retrievedMemoryCount: Int = 0,
+    val oneTurnMemoryCount: Int = 0,
     val preparationError: String = ""
 ) {
     val hasConfirmedPreferences: Boolean
@@ -309,6 +333,9 @@ data class CompanionTurnContext(
 
     val hasRetrievedMemories: Boolean
         get() = memoryPrompt.isNotBlank()
+
+    val hasOneTurnMemories: Boolean
+        get() = oneTurnMemoryPrompt.isNotBlank()
 }
 
 data class CompanionBasePromptRebuildResult(
@@ -325,7 +352,8 @@ data class CompanionRebuildResult(
     val historySummaryEmpty: Boolean = true,
     val preferenceInjected: Boolean = false,
     val persistentMemoryInjected: Boolean = false,
-    val memoryInjected: Boolean = false
+    val memoryInjected: Boolean = false,
+    val oneTurnMemoryInjected: Boolean = false
 ) {
     companion object {
         fun skipped(): CompanionRebuildResult {

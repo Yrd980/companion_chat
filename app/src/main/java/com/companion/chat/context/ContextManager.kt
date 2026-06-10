@@ -12,6 +12,7 @@ interface ContextManager {
         userPreferences: String,
         persistentMemoryPrompt: String = "",
         memoryPrompt: String = "",
+        oneTurnMemoryPrompt: String = "",
         settings: ContextSettings
     ): ContextWindow
 

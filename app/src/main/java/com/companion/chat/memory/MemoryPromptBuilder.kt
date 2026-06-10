@@ -30,6 +30,13 @@ class MemoryPromptBuilder {
         return sections.joinToString(separator = "\n\n")
     }
 
+    fun buildOneTurn(memories: List<Memory>): String {
+        return buildSection(
+            title = "本轮用户明确选择使用的记忆：",
+            memories = memories
+        )
+    }
+
     private fun buildSection(title: String, memories: List<Memory>): String {
         if (memories.isEmpty()) {
             return ""

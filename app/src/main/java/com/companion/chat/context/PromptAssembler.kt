@@ -7,11 +7,14 @@ class PromptAssembler {
         userPreferences: String,
         persistentMemoryPrompt: String = "",
         memoryPrompt: String = "",
+        oneTurnMemoryPrompt: String = "",
         historySummary: String,
         recentConversationSnippet: String = ""
     ): String {
         val sections = mutableListOf<String>()
-        val hasMemoryContext = persistentMemoryPrompt.isNotBlank() || memoryPrompt.isNotBlank()
+        val hasMemoryContext = persistentMemoryPrompt.isNotBlank() ||
+            memoryPrompt.isNotBlank() ||
+            oneTurnMemoryPrompt.isNotBlank()
 
         if (baseSystemPrompt.isNotBlank()) {
             sections += baseSystemPrompt.trim()
@@ -27,6 +30,9 @@ class PromptAssembler {
         }
         if (memoryPrompt.isNotBlank()) {
             sections += memoryPrompt.trim()
+        }
+        if (oneTurnMemoryPrompt.isNotBlank()) {
+            sections += "Memory selected for this turn:\n${oneTurnMemoryPrompt.trim()}"
         }
         if (historySummary.isNotBlank()) {
             sections += "之前对话的摘要：\n${historySummary.trim()}"

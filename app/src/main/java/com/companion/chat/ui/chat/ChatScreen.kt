@@ -85,8 +85,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import com.companion.chat.companion.readiness.CompanionReadinessLevel
+import com.companion.chat.data.local.entity.Memory
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.MessageRole
+import com.companion.chat.data.timeline.TimelineEvent
 import com.companion.chat.engine.InferenceState
 import com.companion.chat.engine.image.ImageGenerationState
 import com.companion.chat.ui.chat.components.ChatInputBar
@@ -100,6 +102,9 @@ import com.companion.chat.ui.components.StatusChip
 import com.companion.chat.ui.language.AppLanguage
 import com.companion.chat.ui.language.LocalAppLanguage
 import com.companion.chat.ui.language.uiText
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -181,7 +186,7 @@ fun ChatScreen(
                                 Spacer(Modifier.width(5.dp))
                                 Text(
                                     text = if (uiState.engineState is InferenceState.Ready) {
-                                        uiText("Helmet Connected", "头盔已连接")
+                                        uiText("Helmet not connected - local chat ready", "头盔未连接 - 本地聊天就绪")
                                     } else {
                                         engineStatusLabel(uiState.engineState, uiState.isConversationWarmingUp, language)
                                     },
@@ -219,7 +224,14 @@ fun ChatScreen(
             contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item { PinnedMemoriesDeck() }
+            item {
+                PinnedMemoriesDeck(
+                    memories = uiState.pinnedMemories,
+                    selectedMemory = uiState.useNextTurnMemory,
+                    onUseNextTurn = viewModel::useMemoryNextTurn,
+                    onClearUseNextTurn = viewModel::clearUseNextTurnMemory
+                )
+            }
             item { ConversationTimelineCard(uiState) }
             if (uiState.messages.isEmpty()) {
                 item { AssistantSceneCard(uiState) }
@@ -227,7 +239,11 @@ fun ChatScreen(
                 item { HelmetStreamCard() }
             } else {
                 items(items = uiState.messages, key = { it.id }) { message ->
-                    MessageBubble(message = message, assistantAvatarImageUri = uiState.assistantAvatarImageUri)
+                    MessageBubble(
+                        message = message,
+                        assistantAvatarImageUri = uiState.assistantAvatarImageUri,
+                        privacyLabel = localizedPrivacyLabel(uiState)
+                    )
                 }
             }
             item {
@@ -288,39 +304,77 @@ fun ChatScreen(
 }
 
 @Composable
-private fun PinnedMemoriesDeck() {
-    val language = LocalAppLanguage.current
+private fun PinnedMemoriesDeck(
+    memories: List<Memory>,
+    selectedMemory: Memory?,
+    onUseNextTurn: (Long) -> Unit,
+    onClearUseNextTurn: () -> Unit
+) {
     ProductCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.PushPin, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.width(10.dp))
             SectionTitle(uiText("Pinned Memories", "置顶记忆"), action = uiText("Manage", "管理"), modifier = Modifier.weight(1f))
         }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val memories = listOf(
-                Triple(uiText(language, "Sunset Ride in Enoshima", "江之岛落日骑行"), uiText(language, "You loved the view and the sea breeze.", "你喜欢那里的景色和海风。"), Icons.Default.Image),
-                Triple(uiText(language, "Your Helmet: Kuro", "你的头盔：Kuro"), uiText(language, "Shoei GT-Air 3, matte black. Clear visor.", "Shoei GT-Air 3，哑光黑，透明镜片。"), Icons.Default.HeadsetMic),
-                Triple(uiText(language, "Morning Coffee", "晨间咖啡"), uiText(language, "Flat white, no sugar. Extra shot.", "Flat white，不加糖，多一份浓缩。"), Icons.Default.Memory)
+        if (selectedMemory != null) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onClearUseNextTurn),
+                shape = ProductInnerShape,
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Memory, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text(uiText("Memory selected for this turn", "本轮已选择记忆"), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        Text(selectedMemory.content, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(uiText("Clear", "清除"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+        if (memories.isEmpty()) {
+            Text(
+                uiText(
+                    "Pin memories in Memory & Relationship to reuse them during chat.",
+                    "在记忆与关系中置顶记忆，聊天时即可复用。"
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            items(memories.size) { index ->
-                val (title, body, icon) = memories[index]
-                Surface(
-                    modifier = Modifier.width(252.dp),
-                    shape = ProductInnerShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    shadowElevation = 1.dp
-                ) {
-                    Row(modifier = Modifier.padding(10.dp)) {
-                        MemoryThumb(icon)
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
-                            StatusChip(uiText("Pinned", "已置顶"), CompanionReadinessLevel.READY)
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(memories, key = { it.id }) { memory ->
+                    val selected = selectedMemory?.id == memory.id
+                    Surface(
+                        modifier = Modifier
+                            .width(252.dp)
+                            .clickable { onUseNextTurn(memory.id) },
+                        shape = ProductInnerShape,
+                        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                        shadowElevation = 1.dp
+                    ) {
+                        Row(modifier = Modifier.padding(10.dp)) {
+                            MemoryThumb(Icons.Default.Memory)
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Text(memory.category.ifBlank { uiText("Memory", "记忆") }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
+                                Text(memory.content, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                                StatusChip(
+                                    if (selected) uiText("Using next turn", "下轮使用") else uiText("Use next turn", "下轮使用"),
+                                    CompanionReadinessLevel.READY
+                                )
+                            }
                         }
                     }
                 }
@@ -354,45 +408,45 @@ private fun ConversationTimelineCard(uiState: ChatUiState) {
             Spacer(Modifier.width(10.dp))
             SectionTitle(uiText("Conversation Timeline", "对话时间线"), action = uiText("Open Timeline", "打开时间线"), modifier = Modifier.weight(1f))
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
-        ) {
-            TimelineNode("1", uiText("Helmet\nConnected", "头盔\n已连接"), "10:01", active = true)
-            TimelineNode("...", uiText("Aiko\nGreeted You", "Aiko\n问候你"), "10:02", active = uiState.messages.isNotEmpty())
-            TimelineNode("|", uiText("You\nVoice Note", "你\n语音备注"), "10:05", active = uiState.voice.isInputActive)
-            TimelineNode("A", uiText("Aiko\nReplied", "Aiko\n已回复"), "10:06", active = uiState.hasSpeakableAssistantMessage)
-            TimelineNode("img", uiText("Scenic Clip\nCaptured", "风景片段\n已捕捉"), "10:08", active = false)
+        if (uiState.timelineEvents.isEmpty()) {
+            Text(
+                uiText(
+                    "Timeline events appear after messages, voice transcripts, images, and memory selections.",
+                    "发送消息、语音转写、图片和选择记忆后会显示时间线。"
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(uiState.timelineEvents, key = { it.id }) { event ->
+                    TimelineNode(event)
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun TimelineNode(
-    mark: String,
-    label: String,
-    time: String,
-    active: Boolean
-) {
+private fun TimelineNode(event: TimelineEvent) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Surface(
             modifier = Modifier.size(38.dp),
             shape = CircleShape,
-            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+            color = MaterialTheme.colorScheme.primary,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
-                    text = mark,
+                    text = event.type.name.take(1),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
-                    color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }
-        Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
-        Text(time, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(localizedTimelineTitle(event), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(formatTimelineTime(event.createdAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -522,7 +576,11 @@ private fun VoiceNoteCard(uiState: ChatUiState) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(uiText("You", "你"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.width(8.dp))
-                    Text(uiText("10:05 AM · Voice Note", "10:05 · 语音备注"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        uiText("Voice Note · ${localizedPrivacyLabel(uiState)}", "语音备注 · ${localizedPrivacyLabel(uiState)}"),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
                 Text(uiState.voice.inputPreview.ifBlank { uiText("It was incredible. The ocean, the sky, everything just clicked today.", "太不可思议了。海、天空，一切在今天都刚刚好。") })
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -559,11 +617,11 @@ private fun HelmetStreamCard() {
                     .padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
-                Text(uiText("Helmet Stream · 10:08 AM", "头盔流 · 10:08"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(uiText("Scenic moment captured", "已捕捉风景瞬间"), style = MaterialTheme.typography.bodyMedium)
+                Text(uiText("Helmet Stream", "头盔流"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(uiText("No helmet connected. Hardware stream is unavailable in this build.", "头盔未连接。此构建无法使用硬件流。"), style = MaterialTheme.typography.bodyMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatusChip("1080p · 30s", CompanionReadinessLevel.DEGRADED)
-                    StatusChip(uiText("Enoshima Coast Rd", "江之岛海岸路"), CompanionReadinessLevel.DEGRADED)
+                    StatusChip(uiText("Pairing skipped", "已跳过配对"), CompanionReadinessLevel.DEGRADED)
+                    StatusChip(uiText("Hardware required", "需要真实硬件"), CompanionReadinessLevel.NOT_READY)
                 }
             }
             ScenePreview()
@@ -634,7 +692,7 @@ private fun VoiceDock(
                     Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(uiText("Local Only", "仅本地"), style = MaterialTheme.typography.labelLarge)
+                        Text(localizedPrivacyLabel(uiState), style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }
@@ -645,6 +703,34 @@ private fun VoiceDock(
             Text(uiText("Save", "保存"), style = MaterialTheme.typography.bodyMedium)
         }
     }
+}
+
+@Composable
+private fun localizedPrivacyLabel(uiState: ChatUiState): String {
+    return if (uiState.localOnlyMode) {
+        uiText("Local Only", "仅本地")
+    } else {
+        uiText("Cloud Optional", "云端可选")
+    }
+}
+
+@Composable
+private fun localizedTimelineTitle(event: TimelineEvent): String {
+    return when (event.type) {
+        com.companion.chat.data.timeline.TimelineEventType.CHAT -> uiText("Chat", "对话")
+        com.companion.chat.data.timeline.TimelineEventType.VOICE_NOTE -> uiText("Voice", "语音")
+        com.companion.chat.data.timeline.TimelineEventType.IMAGE_GENERATED -> uiText("Image", "图片")
+        com.companion.chat.data.timeline.TimelineEventType.MEMORY_PINNED -> uiText("Memory", "记忆")
+        com.companion.chat.data.timeline.TimelineEventType.MEMORY_CREATED -> uiText("Memory", "记忆")
+        com.companion.chat.data.timeline.TimelineEventType.PRIVACY_CHANGED -> uiText("Privacy", "隐私")
+        com.companion.chat.data.timeline.TimelineEventType.SETUP_CHANGED -> uiText("Setup", "设置")
+        com.companion.chat.data.timeline.TimelineEventType.DATA_EXPORTED -> uiText("Export", "导出")
+        com.companion.chat.data.timeline.TimelineEventType.LOCAL_DATA_DELETED -> uiText("Delete", "删除")
+    }
+}
+
+private fun formatTimelineTime(timestamp: Long): String {
+    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
 }
 
 @Composable

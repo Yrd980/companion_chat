@@ -67,6 +67,14 @@ class MemoryRepository(
         return memoryDao.getPinnedMemories()
     }
 
+    suspend fun getConfirmedMemoriesByIds(ids: List<Long>): List<Memory> {
+        val uniqueIds = ids.distinct()
+        if (uniqueIds.isEmpty()) {
+            return emptyList()
+        }
+        return memoryDao.getConfirmedMemoriesByIds(uniqueIds)
+    }
+
     fun observeAllMemories(): Flow<List<Memory>> {
         return memoryDao.observeAll()
     }

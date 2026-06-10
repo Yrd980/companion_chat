@@ -21,10 +21,13 @@ import com.companion.chat.engine.VoiceOutputState
 import com.companion.chat.engine.image.ImageGenerationPurpose
 import com.companion.chat.engine.image.ImageGenerationRequest
 import com.companion.chat.engine.image.ImageGenerationState
+import com.companion.chat.data.local.entity.Memory
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.ConversationSession
 import com.companion.chat.data.model.DEFAULT_SESSION_TITLE
 import com.companion.chat.data.model.MessageRole
+import com.companion.chat.data.timeline.TimelineEvent
+import com.companion.chat.data.timeline.TimelineEventType
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -58,7 +61,13 @@ data class ChatUiState(
     val sessionSearchQuery: String = "",
     val dateFilter: DateFilter = DateFilter.ALL,
     val editingSessionId: String = "",
-    val editingTitle: String = ""
+    val editingTitle: String = "",
+    val privacyModeLabel: String = "Local Only",
+    val localOnlyMode: Boolean = true,
+    val pinnedMemories: List<Memory> = emptyList(),
+    val useNextTurnMemory: Memory? = null,
+    val timelineEvents: List<TimelineEvent> = emptyList(),
+    val voiceNoteDurationLabel: String = ""
 ) {
     val hasSpeakableAssistantMessage: Boolean
         get() = messages.any { message ->
@@ -81,6 +90,9 @@ class ChatViewModel(
     private val readinessRepository = container.companionReadinessRepository
     private val imageGenerationConfigRepository = container.imageGenerationConfigRepository
     private val imageGenerationEngineSelector = container.imageGenerationEngineSelector
+    private val memoryRepository = container.memoryRepository
+    private val privacySettingsRepository = container.privacySettingsRepository
+    private val timelineEventRepository = container.timelineEventRepository
     private val companionTurnModule: CompanionTurnModule = container.createCompanionTurnModule(
         scope = viewModelScope,
         logger = ::logToFile
@@ -95,6 +107,8 @@ class ChatViewModel(
         collectVoiceOutputState()
         collectImageGenerationState()
         collectCompanionTurnSnapshot()
+        collectTimelineEvents()
+        refreshPrivacyAndMemories()
         voiceInputEngine.warmUp()
 
         viewModelScope.launch {
@@ -177,6 +191,14 @@ class ChatViewModel(
                                 )
                             )
                         }
+                        if (transcript.isNotBlank()) {
+                            recordTimeline(
+                                type = TimelineEventType.VOICE_NOTE,
+                                title = "Voice transcript ready",
+                                detail = transcript.take(160),
+                                relatedSessionId = _uiState.value.currentSessionId
+                            )
+                        }
                         handleVoiceTranscript(transcript)
                     }
                     is VoiceInputEvent.Listening -> {
@@ -243,6 +265,31 @@ class ChatViewModel(
         }
     }
 
+    private fun collectTimelineEvents() {
+        viewModelScope.launch {
+            timelineEventRepository.observeRecent(limit = 8).collectLatest { events ->
+                _uiState.update { it.copy(timelineEvents = events) }
+            }
+        }
+    }
+
+    private fun refreshPrivacyAndMemories() {
+        viewModelScope.launch {
+            val privacySettings = privacySettingsRepository.getSettings()
+            _uiState.update {
+                it.copy(
+                    privacyModeLabel = if (privacySettings.localOnlyMode) {
+                        "Local Only"
+                    } else {
+                        "Cloud Optional"
+                    },
+                    localOnlyMode = privacySettings.localOnlyMode,
+                    pinnedMemories = memoryRepository.getPinnedMemories()
+                )
+            }
+        }
+    }
+
     fun updateInputText(text: String) {
         _uiState.update { it.copy(inputText = text) }
     }
@@ -268,6 +315,12 @@ class ChatViewModel(
             ).onSuccess { uri ->
                 logToFile("图片生成成功: $uri")
                 addImage(Uri.parse(uri))
+                recordTimeline(
+                    type = TimelineEventType.IMAGE_GENERATED,
+                    title = "Image generated",
+                    detail = resolvedPrompt.take(120),
+                    mediaUri = uri
+                )
             }.onFailure { error ->
                 logToFile("图片生成失败: ${error.message}")
                 _uiState.update {
@@ -331,6 +384,7 @@ class ChatViewModel(
 
         generateJob?.cancel()
         generateJob = viewModelScope.launch {
+            val oneTurnMemoryIds = state.useNextTurnMemory?.let { listOf(it.id) }.orEmpty()
             companionTurnModule.submit(
                 CompanionTurnRequest(
                     text = state.inputText,
@@ -339,15 +393,23 @@ class ChatViewModel(
                         CompanionTurnDelivery.VoiceFirst
                     } else {
                         CompanionTurnDelivery.TextOnly
-                    }
+                    },
+                    oneTurnMemoryIds = oneTurnMemoryIds
                 )
             ).collect { event ->
                 when (event) {
                     is CompanionTurnEvent.Accepted -> {
+                        recordTimeline(
+                            type = if (event.voiceFirst) TimelineEventType.VOICE_NOTE else TimelineEventType.CHAT,
+                            title = if (event.voiceFirst) "Voice note sent" else "Message sent",
+                            detail = state.inputText.take(160),
+                            relatedSessionId = state.currentSessionId
+                        )
                         _uiState.update {
                             it.copy(
                                 inputText = "",
                                 selectedImages = emptyList(),
+                                useNextTurnMemory = null,
                                 voice = it.voice.copy(isAutoSending = event.voiceFirst)
                             )
                         }
@@ -360,6 +422,15 @@ class ChatViewModel(
                     }
                     CompanionTurnEvent.Completed -> {
                         _uiState.update { it.copy(voice = it.voice.copy(isAutoSending = false)) }
+                        recordTimeline(
+                            type = TimelineEventType.CHAT,
+                            title = "Assistant reply completed",
+                            detail = _uiState.value.messages.lastOrNull { message ->
+                                message.role == MessageRole.ASSISTANT && message.content.isNotBlank()
+                            }?.content.orEmpty().take(160),
+                            relatedSessionId = _uiState.value.currentSessionId
+                        )
+                        refreshPrivacyAndMemories()
                     }
                     is CompanionTurnEvent.AssistantToken -> Unit
                 }
@@ -475,6 +546,25 @@ class ChatViewModel(
 
     fun stopSpeaking() {
         voiceOutputEngine.stop()
+    }
+
+    fun useMemoryNextTurn(memoryId: Long) {
+        viewModelScope.launch {
+            val memory = _uiState.value.pinnedMemories.firstOrNull { it.id == memoryId }
+                ?: memoryRepository.getConfirmedMemoriesByIds(listOf(memoryId)).firstOrNull()
+                ?: return@launch
+            _uiState.update { it.copy(useNextTurnMemory = memory) }
+            recordTimeline(
+                type = TimelineEventType.MEMORY_PINNED,
+                title = "Memory selected for next turn",
+                detail = memory.content.take(160),
+                relatedMemoryId = memory.id
+            )
+        }
+    }
+
+    fun clearUseNextTurnMemory() {
+        _uiState.update { it.copy(useNextTurnMemory = null) }
     }
 
     fun cancelGeneration() {
@@ -609,5 +699,25 @@ class ChatViewModel(
 
     suspend fun activateSkill(skillId: Long) {
         companionTurnModule.activateSkill(skillId)
+    }
+
+    private fun recordTimeline(
+        type: TimelineEventType,
+        title: String,
+        detail: String,
+        relatedSessionId: String? = null,
+        relatedMemoryId: Long? = null,
+        mediaUri: String? = null
+    ) {
+        viewModelScope.launch {
+            timelineEventRepository.add(
+                type = type,
+                title = title,
+                detail = detail,
+                relatedSessionId = relatedSessionId,
+                relatedMemoryId = relatedMemoryId,
+                mediaUri = mediaUri
+            )
+        }
     }
 }

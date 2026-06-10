@@ -44,6 +44,9 @@ interface MemoryDao {
     @Query("SELECT * FROM memories WHERE isPinned = 1 ORDER BY updatedAt DESC")
     suspend fun getPinnedMemories(): List<Memory>
 
+    @Query("SELECT * FROM memories WHERE id IN (:ids) AND reviewState != 'candidate' ORDER BY updatedAt DESC")
+    suspend fun getConfirmedMemoriesByIds(ids: List<Long>): List<Memory>
+
     @Query("SELECT * FROM memories WHERE category = :category ORDER BY updatedAt DESC")
     suspend fun getByCategory(category: String): List<Memory>
 
