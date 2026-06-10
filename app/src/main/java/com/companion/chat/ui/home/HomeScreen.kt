@@ -138,7 +138,7 @@ fun HomeScreen(
             CenterAlignedTopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onOpenProfile) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Open profile")
+                        Icon(Icons.Default.MoreVert, contentDescription = uiText("Open profile", "打开个人页"))
                     }
                 },
                 title = {
@@ -163,7 +163,7 @@ fun HomeScreen(
                 actions = {
                     IconButton(onClick = onOpenProfile) {
                         Box {
-                            Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                            Icon(Icons.Default.Notifications, contentDescription = uiText("Notifications", "通知"))
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
@@ -1186,7 +1186,10 @@ private fun RoleDetailActions(
                 Text(uiText("Start Chat", "开始聊天"))
             }
             OutlinedButton(onClick = onFavorite) {
-                Icon(imageVector = if (item.collection.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, contentDescription = null)
+                Icon(
+                    imageVector = if (item.collection.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = uiText("Favorite", "收藏")
+                )
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1369,7 +1372,7 @@ private fun DiscoverRoleCard.displayText(language: AppLanguage): RoleDisplayText
             tags = listOf("Female", "Romance", "Mature", "Private"),
             description = "A more mature, direct intimacy companion whose content boundaries stay in local settings.",
             persona = "Rin is mature, direct, and careful with private boundaries. She prioritizes consent and builds closeness with restraint.",
-            voiceSummary = "Clone placeholder, system TTS fallback"
+            voiceSummary = "Local voice package optional, system TTS fallback"
         )
         "niko-anime" -> RoleDisplayText(
             name = name,
