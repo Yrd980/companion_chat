@@ -20,12 +20,14 @@ class MemoryRetriever(
             SELECT memories.* FROM memories
             JOIN memories_fts ON memories.id = memories_fts.docid
             WHERE memories_fts MATCH '${escapeSqlLiteral(ftsExpression)}'
+              AND memories.reviewState = 'confirmed'
             """.trimIndent()
         )
 
         val fallbackMatches = memoryDao.getAll().filter { memory ->
             val content = memory.content.lowercase()
-            keywords.any { keyword -> content.contains(keyword) }
+            memory.reviewState == REVIEW_STATE_CONFIRMED &&
+                keywords.any { keyword -> content.contains(keyword) }
         }
 
         val results = (memoryDao.searchByFTS(query) + fallbackMatches)
@@ -80,6 +82,7 @@ class MemoryRetriever(
 
     companion object {
         private const val LONG_TERM_LAYER = "long_term"
+        private const val REVIEW_STATE_CONFIRMED = "confirmed"
         private const val MAX_RESULTS = 5
         private const val MIN_LATIN_KEYWORD_LENGTH = 2
         private const val MIN_CJK_KEYWORD_LENGTH = 2

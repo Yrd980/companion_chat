@@ -158,7 +158,7 @@ class DefaultCompanionTurnModule(
         } catch (error: Exception) {
             logger("!!! initializeModelRuntime 异常 !!! ${error.javaClass.simpleName}: ${error.message}")
             _snapshot.update {
-                it.copy(engineState = InferenceState.Error("初始化异常: ${error.message}"))
+                it.copy(engineState = InferenceState.Error("Initialization failed: ${error.message}"))
             }
         }
     }
@@ -173,7 +173,7 @@ class DefaultCompanionTurnModule(
             emit(
                 CompanionTurnEvent.Rejected(
                     reason = CompanionTurnRejectReason.BlankInput,
-                    message = "请输入内容"
+                    message = "Please enter a message"
                 )
             )
             return@flow
@@ -182,7 +182,7 @@ class DefaultCompanionTurnModule(
             emit(
                 CompanionTurnEvent.Rejected(
                     reason = CompanionTurnRejectReason.AlreadyGenerating,
-                    message = "正在生成回复，请稍后再说"
+                    message = "A reply is already generating. Please wait."
                 )
             )
             return@flow
@@ -193,7 +193,7 @@ class DefaultCompanionTurnModule(
             emit(
                 CompanionTurnEvent.Rejected(
                     reason = CompanionTurnRejectReason.EngineNotReady,
-                    message = "模型未加载，请在设置中配置模型路径。"
+                    message = "The model is not loaded. Configure the model path in settings."
                 )
             )
             return@flow
@@ -223,12 +223,16 @@ class DefaultCompanionTurnModule(
 
         try {
             storeRuleBasedMemoriesForMessage(userMessage, sessionId)
-            generateResponse(userInput = text, eventEmitter = { emit(it) })
+            generateResponse(
+                userInput = text,
+                oneTurnMemoryIds = request.oneTurnMemoryIds,
+                eventEmitter = { emit(it) }
+            )
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
-            updateAssistantMessage("推理出错: ${error.message}")
-            emit(CompanionTurnEvent.Failed("推理出错: ${error.message}"))
+            updateAssistantMessage("Inference failed: ${error.message}")
+            emit(CompanionTurnEvent.Failed("Inference failed: ${error.message}"))
         } finally {
             finishStreaming(shouldSpeak = voiceFirst)
             emit(CompanionTurnEvent.Completed)
@@ -479,6 +483,7 @@ class DefaultCompanionTurnModule(
 
     private suspend fun generateResponse(
         userInput: String,
+        oneTurnMemoryIds: List<Long>,
         eventEmitter: suspend (CompanionTurnEvent) -> Unit
     ) {
         val messages = snapshot.value.messages
@@ -487,7 +492,8 @@ class DefaultCompanionTurnModule(
             messages = messages,
             baseSystemPrompt = baseSystemPrompt,
             settings = contextSettings,
-            userInput = userInput
+            userInput = userInput,
+            oneTurnMemoryIds = oneTurnMemoryIds
         ).collect { event ->
             when (event) {
                 is RuntimeTurnEvent.ContextPrepared -> {
@@ -509,8 +515,8 @@ class DefaultCompanionTurnModule(
                     eventEmitter(CompanionTurnEvent.AssistantToken(event.token))
                 }
                 is RuntimeTurnEvent.TurnFailed -> {
-                    updateAssistantMessage("推理出错: ${event.message}")
-                    eventEmitter(CompanionTurnEvent.Failed("推理出错: ${event.message}"))
+                    updateAssistantMessage("Inference failed: ${event.message}")
+                    eventEmitter(CompanionTurnEvent.Failed("Inference failed: ${event.message}"))
                 }
             }
         }
@@ -746,10 +752,11 @@ class DefaultCompanionTurnModule(
 
         logger(
             "$reason: recentMessages=${rebuildResult.recentMessageCount}, " +
-                "summaryEmpty=${rebuildResult.historySummaryEmpty}, " +
-                "preferenceInjected=${rebuildResult.preferenceInjected}, " +
-                "persistentMemoryInjected=${rebuildResult.persistentMemoryInjected}, " +
-                "memoryInjected=${rebuildResult.memoryInjected}"
+            "summaryEmpty=${rebuildResult.historySummaryEmpty}, " +
+            "preferenceInjected=${rebuildResult.preferenceInjected}, " +
+            "persistentMemoryInjected=${rebuildResult.persistentMemoryInjected}, " +
+            "memoryInjected=${rebuildResult.memoryInjected}, " +
+            "oneTurnMemoryInjected=${rebuildResult.oneTurnMemoryInjected}"
         )
 
         if (rebuildResult.rebuildSucceeded == false) {
@@ -787,6 +794,9 @@ class DefaultCompanionTurnModule(
             )
         } else {
             logger("动态记忆检索为空: query=${context.query}")
+        }
+        if (context.hasOneTurnMemories) {
+            logger("本轮选择记忆注入: count=${context.oneTurnMemoryCount}")
         }
     }
 

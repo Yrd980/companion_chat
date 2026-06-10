@@ -35,8 +35,17 @@ interface MemoryDao {
     @Query("SELECT * FROM memories WHERE layer = :layer ORDER BY updatedAt DESC")
     suspend fun getByLayer(layer: String): List<Memory>
 
-    @Query("SELECT * FROM memories WHERE layer = 'long_term' ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM memories WHERE layer = 'long_term' AND reviewState = 'confirmed' ORDER BY updatedAt DESC")
     suspend fun getPersistentMemories(): List<Memory>
+
+    @Query("SELECT * FROM memories WHERE reviewState = 'candidate' ORDER BY createdAt DESC")
+    suspend fun getCandidateMemories(): List<Memory>
+
+    @Query("SELECT * FROM memories WHERE isPinned = 1 ORDER BY updatedAt DESC")
+    suspend fun getPinnedMemories(): List<Memory>
+
+    @Query("SELECT * FROM memories WHERE id IN (:ids) AND reviewState != 'candidate' ORDER BY updatedAt DESC")
+    suspend fun getConfirmedMemoriesByIds(ids: List<Long>): List<Memory>
 
     @Query("SELECT * FROM memories WHERE category = :category ORDER BY updatedAt DESC")
     suspend fun getByCategory(category: String): List<Memory>
@@ -59,8 +68,20 @@ interface MemoryDao {
     @Query("UPDATE memories SET layer = 'long_term', updatedAt = :now WHERE id = :id")
     suspend fun promoteToLongTerm(id: Long, now: Long = System.currentTimeMillis()): Int
 
+    @Query("UPDATE memories SET reviewState = 'confirmed', updatedAt = :now WHERE id = :id")
+    suspend fun confirmCandidate(id: Long, now: Long): Int
+
+    @Query("UPDATE memories SET isPinned = :pinned, updatedAt = :now WHERE id = :id")
+    suspend fun setPinned(id: Long, pinned: Boolean, now: Long): Int
+
+    @Query("UPDATE memories SET lastUsedAt = :now, referenceCount = referenceCount + 1 WHERE id = :id")
+    suspend fun markUsed(id: Long, now: Long): Int
+
     @Query("DELETE FROM memories WHERE layer = 'short_term' AND expiresAt IS NOT NULL AND expiresAt < :now")
     suspend fun cleanupExpiredShortTerm(now: Long): Int
+
+    @Query("DELETE FROM memories")
+    suspend fun deleteAll(): Int
 
     @Query("SELECT * FROM memories WHERE layer = 'short_term' AND referenceCount >= 3")
     suspend fun getPromotableShortTerm(): List<Memory>

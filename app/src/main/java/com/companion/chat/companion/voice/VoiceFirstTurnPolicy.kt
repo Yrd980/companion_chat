@@ -13,10 +13,10 @@ object VoiceFirstTurnPolicy {
         isVoiceFirstReady: Boolean = true
     ): VoiceTranscriptDecision {
         return when {
-            transcript.isBlank() -> VoiceTranscriptDecision.HoldForUser("未识别到文本")
-            isGenerating -> VoiceTranscriptDecision.HoldForUser("正在生成回复，请稍后再说")
-            !isEngineReady -> VoiceTranscriptDecision.HoldForUser("模型未就绪，语音内容已保留在输入框")
-            !isVoiceFirstReady -> VoiceTranscriptDecision.HoldForUser("语音链路未就绪，语音内容已保留在输入框")
+            transcript.isBlank() -> VoiceTranscriptDecision.HoldForUser("No speech was recognized.")
+            isGenerating -> VoiceTranscriptDecision.HoldForUser("A reply is still generating. Please wait.")
+            !isEngineReady -> VoiceTranscriptDecision.HoldForUser("The model is not ready. The transcript stayed in the input field.")
+            !isVoiceFirstReady -> VoiceTranscriptDecision.HoldForUser("Voice mode is not ready. The transcript stayed in the input field.")
             else -> VoiceTranscriptDecision.AutoSend
         }
     }

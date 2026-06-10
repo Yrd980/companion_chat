@@ -19,9 +19,9 @@ data class VoiceFirstInteractionState(
 
     val inputPlaceholder: String
         get() = when {
-            isStarting -> "正在启动语音识别..."
-            isListening -> "正在听..."
-            isAutoSending -> "正在发送语音..."
-            else -> "输入消息..."
+            isStarting -> "Starting voice recognition..."
+            isListening -> "Listening..."
+            isAutoSending -> "Sending voice..."
+            else -> "Type a message..."
         }
 }

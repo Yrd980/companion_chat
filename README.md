@@ -398,37 +398,39 @@ You need to prepare a `.litertlm` model manually and push it to:
 
 ## Build And Run
 
-### 1. Build the debug APK
+### 1. Bootstrap, build, install, and launch
 
 From the project root:
 
 ```powershell
-.\gradlew.bat :app:assembleDebug
+scripts\android-dev.bat fresh
 ```
+
+This command checks the local Android build environment, initializes Git
+submodules recursively, builds the debug APK, installs it to the connected
+device, and launches the app.
+
+Useful script tasks:
+
+```powershell
+scripts\android-dev.bat doctor
+scripts\android-dev.bat bootstrap
+scripts\android-dev.bat build
+scripts\android-dev.bat download
+scripts\android-dev.bat deploy
+```
+
+See `docs/android-dev-scripts.md` for all script tasks.
 
 If your environment does not already point to JDK 17, set `JAVA_HOME` to your local JDK 17 installation before building.
 
-### 2. Install to device
+### 2. Push the model
 
 ```powershell
-adb uninstall com.companion.chat
-adb push .\app\build\outputs\apk\debug\app-debug.apk /data/local/tmp/companionchat.apk
-adb shell pm install -r -t --user 0 /data/local/tmp/companionchat.apk
+powershell -ExecutionPolicy Bypass -File scripts\android-dev.ps1 model -ModelPath <path-to-model>\gemma-4-E2B-it.litertlm
 ```
 
-### 3. Launch once to create app directories
-
-```powershell
-adb shell am start -n com.companion.chat/.MainActivity
-```
-
-### 4. Push the model
-
-```powershell
-adb push <path-to-model>\gemma-4-E2B-it.litertlm /sdcard/Android/data/com.companion.chat/files/models/gemma-4-E2B-it.litertlm
-```
-
-### 5. Restart and verify
+### 3. Restart and verify
 
 After the model is pushed, restart the app and check runtime logs if needed.
 

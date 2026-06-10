@@ -394,37 +394,37 @@ docs/progress/jindu.md             # 开发进度记录
 
 ## 构建与运行
 
-### 1. 编译 APK
+### 1. 初始化、编译、安装并启动
 
 在项目根目录执行：
 
 ```powershell
-.\gradlew.bat :app:assembleDebug
+scripts\android-dev.bat fresh
 ```
+
+这个命令会检查本机 Android 构建环境，递归初始化 Git submodules，编译 debug APK，安装到当前连接设备，并启动 app。
+
+常用脚本任务：
+
+```powershell
+scripts\android-dev.bat doctor
+scripts\android-dev.bat bootstrap
+scripts\android-dev.bat build
+scripts\android-dev.bat download
+scripts\android-dev.bat deploy
+```
+
+完整说明见 `docs/android-dev-scripts.md`。
 
 如果本机环境还没有指向 JDK 17，请先把 `JAVA_HOME` 设置为你自己的本地 JDK 17 路径。
 
-### 2. 安装到真机
+### 2. 推送模型
 
 ```powershell
-adb uninstall com.companion.chat
-adb push .\app\build\outputs\apk\debug\app-debug.apk /data/local/tmp/companionchat.apk
-adb shell pm install -r -t --user 0 /data/local/tmp/companionchat.apk
+powershell -ExecutionPolicy Bypass -File scripts\android-dev.ps1 model -ModelPath <模型文件路径>\gemma-4-E2B-it.litertlm
 ```
 
-### 3. 启动一次应用创建目录
-
-```powershell
-adb shell am start -n com.companion.chat/.MainActivity
-```
-
-### 4. 推送模型
-
-```powershell
-adb push <模型文件路径>\gemma-4-E2B-it.litertlm /sdcard/Android/data/com.companion.chat/files/models/gemma-4-E2B-it.litertlm
-```
-
-### 5. 重启并检查日志
+### 3. 重启并检查日志
 
 如果需要确认模型是否识别成功，可以查看：
 

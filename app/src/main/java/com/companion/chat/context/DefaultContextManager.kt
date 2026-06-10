@@ -19,6 +19,7 @@ class DefaultContextManager(
         userPreferences: String,
         persistentMemoryPrompt: String,
         memoryPrompt: String,
+        oneTurnMemoryPrompt: String,
         settings: ContextSettings
     ): ContextWindow {
         val currentMessage = messages.lastOrNull { it.role == MessageRole.USER }
@@ -44,11 +45,13 @@ class DefaultContextManager(
                 userPreferences = userPreferences,
                 persistentMemoryPrompt = persistentMemoryPrompt,
                 memoryPrompt = memoryPrompt,
+                oneTurnMemoryPrompt = oneTurnMemoryPrompt,
                 historySummary = historySummary
             ),
             userPreferences = userPreferences,
             persistentMemoryPrompt = persistentMemoryPrompt,
             memoryPrompt = memoryPrompt,
+            oneTurnMemoryPrompt = oneTurnMemoryPrompt,
             historySummary = historySummary,
             recentMessages = recentMessages,
             currentMessage = currentMessage

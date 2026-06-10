@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companion.chat.data.local.entity.RoleCard
 import coil3.compose.AsyncImage
+import com.companion.chat.ui.language.uiText
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,7 +69,7 @@ fun CharacterManagementScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "角色管理",
+                        text = uiText("Role Management", "角色管理"),
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
@@ -76,7 +77,7 @@ fun CharacterManagementScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = uiText("Back", "返回")
                         )
                     }
                 },
@@ -84,7 +85,7 @@ fun CharacterManagementScreen(
                     IconButton(onClick = { showCreateDialog = true }) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "添加角色卡"
+                            contentDescription = uiText("Add role card", "添加角色卡")
                         )
                     }
                 }
@@ -100,7 +101,7 @@ fun CharacterManagementScreen(
         ) {
             item {
                 Text(
-                    text = "创建和切换陪伴角色卡",
+                    text = uiText("Create and switch companion role cards", "创建和切换陪伴角色卡"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -108,7 +109,7 @@ fun CharacterManagementScreen(
 
             uiState.activeRoleCard?.let { activeRole ->
                 item {
-                    SectionTitle("当前激活")
+                    SectionTitle(uiText("Currently Active", "当前激活"))
                 }
                 item {
                     RoleCardItem(
@@ -123,14 +124,14 @@ fun CharacterManagementScreen(
             }
 
             item {
-                SectionTitle("我的角色卡")
+                SectionTitle(uiText("My Role Cards", "我的角色卡"))
             }
 
             if (uiState.roleCards.isEmpty()) {
                 item {
                     EmptyState(
-                        title = "还没有角色卡",
-                        description = "点击右上角“+”创建你的第一张角色卡。"
+                        title = uiText("No role cards yet", "还没有角色卡"),
+                        description = uiText("Tap the plus button in the top-right to create your first role card.", "点击右上角“+”创建你的第一张角色卡。")
                     )
                 }
             } else {
@@ -218,8 +219,8 @@ fun CharacterManagementScreen(
     deletingRoleCard?.let { roleCard ->
         AlertDialog(
             onDismissRequest = { deletingRoleCard = null },
-            title = { Text("删除角色卡") },
-            text = { Text("确认删除“${roleCard.name}”吗？") },
+            title = { Text(uiText("Delete Role Card", "删除角色卡")) },
+            text = { Text(uiText("Delete \"${roleCard.name}\"?", "确认删除“${roleCard.name}”吗？")) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -227,12 +228,12 @@ fun CharacterManagementScreen(
                         deletingRoleCard = null
                     }
                 ) {
-                    Text("删除")
+                    Text(uiText("Delete", "删除"))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { deletingRoleCard = null }) {
-                    Text("取消")
+                    Text(uiText("Cancel", "取消"))
                 }
             }
         )
@@ -287,20 +288,20 @@ private fun RoleCardItem(
                 if (isActive) {
                     AssistChip(
                         onClick = {},
-                        label = { Text("使用中") }
+                        label = { Text(uiText("Active", "使用中")) }
                     )
                 }
             }
 
             Text(
-                text = "人设：${roleCard.persona}",
+                text = uiText("Persona: ${roleCard.persona}", "人设：${roleCard.persona}"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             if (roleCard.speakingStyle.isNotBlank()) {
                 Text(
-                    text = "风格：${roleCard.speakingStyle}",
+                    text = uiText("Style: ${roleCard.speakingStyle}", "风格：${roleCard.speakingStyle}"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -308,7 +309,10 @@ private fun RoleCardItem(
 
             if (roleCard.avatarImageUri.isNotBlank() || roleCard.galleryImageUris.isNotEmpty()) {
                 Text(
-                    text = "图片：头像${if (roleCard.avatarImageUri.isNotBlank()) "已配置" else "未配置"}，图库 ${roleCard.galleryImageUris.size} 张",
+                    text = uiText(
+                        "Images: avatar ${if (roleCard.avatarImageUri.isNotBlank()) "configured" else "not configured"}, gallery ${roleCard.galleryImageUris.size}",
+                        "图片：头像${if (roleCard.avatarImageUri.isNotBlank()) "已配置" else "未配置"}，图库 ${roleCard.galleryImageUris.size} 张"
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -316,7 +320,7 @@ private fun RoleCardItem(
 
             if (roleCard.voiceProfileUri.isNotBlank() || roleCard.voiceDisplayName.isNotBlank()) {
                 Text(
-                    text = "语音：${roleCard.voiceDisplayName.ifBlank { roleCard.voiceMode }}",
+                    text = uiText("Voice: ${roleCard.voiceDisplayName.ifBlank { roleCard.voiceMode }}", "语音：${roleCard.voiceDisplayName.ifBlank { roleCard.voiceMode }}"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -325,19 +329,19 @@ private fun RoleCardItem(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onStartChat) {
                     Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
-                    Text("对话")
+                    Text(uiText("Chat", "对话"))
                 }
                 if (!isActive) {
                     TextButton(onClick = onActivate) {
-                        Text("启用")
+                        Text(uiText("Activate", "启用"))
                     }
                 }
                 TextButton(onClick = onEdit) {
-                    Text("编辑")
+                    Text(uiText("Edit", "编辑"))
                 }
                 onDelete?.let {
                     TextButton(onClick = it) {
-                        Text("删除")
+                        Text(uiText("Delete", "删除"))
                     }
                 }
             }
@@ -361,7 +365,7 @@ private fun RoleAvatarPreview(avatarImageUri: String) {
 
     AsyncImage(
         model = avatarImageUri,
-        contentDescription = "角色头像",
+        contentDescription = uiText("Role avatar", "角色头像"),
         modifier = Modifier
             .padding(end = 12.dp)
             .size(44.dp)

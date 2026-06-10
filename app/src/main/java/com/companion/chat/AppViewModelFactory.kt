@@ -5,11 +5,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.companion.chat.ui.chat.ChatViewModel
 import com.companion.chat.ui.home.DiscoverViewModel
+import com.companion.chat.ui.home.HomeDashboardViewModel
 import com.companion.chat.ui.memory.MemoryViewModel
 import com.companion.chat.ui.settings.ModelConfigViewModel
+import com.companion.chat.ui.settings.ProfileViewModel
 import com.companion.chat.ui.settings.RoleManagementViewModel
 import com.companion.chat.ui.settings.SkillsManagementViewModel
 import com.companion.chat.ui.settings.VoiceSettingsViewModel
+import com.companion.chat.ui.setup.OnboardingViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,6 +28,9 @@ class AppViewModelFactory(
         val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         return when {
             modelClass.isAssignableFrom(ChatViewModel::class.java) -> ChatViewModel(application, container) as T
+            modelClass.isAssignableFrom(HomeDashboardViewModel::class.java) -> HomeDashboardViewModel(
+                repository = container.homeDashboardRepository
+            ) as T
             modelClass.isAssignableFrom(DiscoverViewModel::class.java) -> DiscoverViewModel(
                 application = application,
                 repository = container.discoverRoleRepository,
@@ -36,6 +42,19 @@ class AppViewModelFactory(
                 application = application,
                 memoryRepository = container.memoryRepository,
                 workerScope = ioScope
+            ) as T
+            modelClass.isAssignableFrom(ProfileViewModel::class.java) -> ProfileViewModel(
+                userProfileRepository = container.userProfileRepository,
+                privacySettingsRepository = container.privacySettingsRepository,
+                planRepository = container.planRepository,
+                dataExportRepository = container.dataExportRepository,
+                timelineEventRepository = container.timelineEventRepository,
+                readinessRepository = container.companionReadinessRepository,
+                retainedRoundsProvider = { container.contextConfigRepository.getSettings().retainedRounds }
+            ) as T
+            modelClass.isAssignableFrom(OnboardingViewModel::class.java) -> OnboardingViewModel(
+                setupRepository = container.setupRepository,
+                timelineEventRepository = container.timelineEventRepository
             ) as T
             modelClass.isAssignableFrom(RoleManagementViewModel::class.java) -> RoleManagementViewModel(
                 application = application,

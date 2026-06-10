@@ -18,7 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.companion.chat.ui.theme.Purple40
+import com.companion.chat.ui.theme.CompanionGreen
 
 @Composable
 fun TypingIndicator(modifier: Modifier = Modifier) {
@@ -43,7 +43,7 @@ fun TypingIndicator(modifier: Modifier = Modifier) {
                     .size(8.dp)
                     .alpha(alpha)
                     .clip(CircleShape)
-                    .background(Purple40)
+                    .background(CompanionGreen)
             )
         }
     }

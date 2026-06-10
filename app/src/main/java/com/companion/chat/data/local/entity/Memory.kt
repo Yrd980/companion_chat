@@ -14,5 +14,8 @@ data class Memory(
     val sessionId: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
-    val expiresAt: Long? = null
+    val expiresAt: Long? = null,
+    val isPinned: Boolean = false,
+    val reviewState: String = "confirmed",
+    val lastUsedAt: Long? = null
 )

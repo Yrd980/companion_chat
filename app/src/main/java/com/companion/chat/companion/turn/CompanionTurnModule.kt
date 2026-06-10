@@ -55,7 +55,8 @@ data class CompanionTurnSnapshot(
 data class CompanionTurnRequest(
     val text: String,
     val images: List<Uri> = emptyList(),
-    val delivery: CompanionTurnDelivery = CompanionTurnDelivery.TextOnly
+    val delivery: CompanionTurnDelivery = CompanionTurnDelivery.TextOnly,
+    val oneTurnMemoryIds: List<Long> = emptyList()
 )
 
 sealed class CompanionTurnDelivery {

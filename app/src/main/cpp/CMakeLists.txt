@@ -21,7 +21,7 @@ set(GGML_NATIVE OFF CACHE BOOL "Disable host-native flags for Android cross buil
 set(GGML_OPENMP OFF CACHE BOOL "Disable OpenMP" FORCE)
 set(GGML_BLAS OFF CACHE BOOL "Disable BLAS" FORCE)
 set(GGML_LLAMAFILE OFF CACHE BOOL "Disable llamafile" FORCE)
-set(GGML_VULKAN ON CACHE BOOL "Enable Vulkan backend for shared ggml users" FORCE)
+set(GGML_VULKAN OFF CACHE BOOL "Disable Vulkan backend for Android debug builds on Windows" FORCE)
 if (CMAKE_MAKE_PROGRAM)
     get_filename_component(CMAKE_MAKE_PROGRAM_DIR "${CMAKE_MAKE_PROGRAM}" DIRECTORY)
     set(ENV{PATH} "${CMAKE_MAKE_PROGRAM_DIR}:$ENV{PATH}")
@@ -30,6 +30,9 @@ if (ANDROID AND CMAKE_MAKE_PROGRAM)
     find_program(COMPANION_HOST_C_COMPILER NAMES cc gcc clang)
     find_program(COMPANION_HOST_CXX_COMPILER NAMES c++ g++ clang++)
     if (COMPANION_HOST_C_COMPILER AND COMPANION_HOST_CXX_COMPILER)
+        file(TO_CMAKE_PATH "${COMPANION_HOST_C_COMPILER}" COMPANION_HOST_C_COMPILER_CMAKE)
+        file(TO_CMAKE_PATH "${COMPANION_HOST_CXX_COMPILER}" COMPANION_HOST_CXX_COMPILER_CMAKE)
+        file(TO_CMAKE_PATH "${CMAKE_MAKE_PROGRAM}" COMPANION_CMAKE_MAKE_PROGRAM)
         set(COMPANION_VULKAN_HOST_TOOLCHAIN "${CMAKE_CURRENT_BINARY_DIR}/companion-vulkan-shaders-host-toolchain.cmake")
         file(WRITE "${COMPANION_VULKAN_HOST_TOOLCHAIN}"
             "set(CMAKE_BUILD_TYPE Release)\n"
@@ -38,9 +41,9 @@ if (ANDROID AND CMAKE_MAKE_PROGRAM)
             "set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)\n"
             "set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY NEVER)\n"
             "set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE NEVER)\n"
-            "set(CMAKE_C_COMPILER \"${COMPANION_HOST_C_COMPILER}\")\n"
-            "set(CMAKE_CXX_COMPILER \"${COMPANION_HOST_CXX_COMPILER}\")\n"
-            "set(CMAKE_MAKE_PROGRAM \"${CMAKE_MAKE_PROGRAM}\" CACHE FILEPATH \"\" FORCE)\n"
+            "set(CMAKE_C_COMPILER \"${COMPANION_HOST_C_COMPILER_CMAKE}\")\n"
+            "set(CMAKE_CXX_COMPILER \"${COMPANION_HOST_CXX_COMPILER_CMAKE}\")\n"
+            "set(CMAKE_MAKE_PROGRAM \"${COMPANION_CMAKE_MAKE_PROGRAM}\" CACHE FILEPATH \"\" FORCE)\n"
         )
         set(GGML_VULKAN_SHADERS_GEN_TOOLCHAIN "${COMPANION_VULKAN_HOST_TOOLCHAIN}" CACHE FILEPATH "Host toolchain for Vulkan shader generator" FORCE)
     endif()
@@ -133,7 +136,7 @@ if (EXISTS "${STABLE_DIFFUSION_CPP_DIR}/CMakeLists.txt")
     set(SD_BUILD_EXAMPLES OFF CACHE BOOL "Skip stable-diffusion.cpp examples" FORCE)
     set(SD_WEBP OFF CACHE BOOL "Disable stable-diffusion.cpp WebP support" FORCE)
     set(SD_WEBM OFF CACHE BOOL "Disable stable-diffusion.cpp WebM support" FORCE)
-    set(SD_VULKAN ON CACHE BOOL "Enable stable-diffusion.cpp Vulkan backend" FORCE)
+    set(SD_VULKAN OFF CACHE BOOL "Disable stable-diffusion.cpp Vulkan backend for Android debug builds on Windows" FORCE)
     set(SD_BUILD_SHARED_LIBS OFF CACHE BOOL "Build stable-diffusion.cpp as static library" FORCE)
     set(SD_BUILD_SHARED_GGML_LIB OFF CACHE BOOL "Build stable-diffusion.cpp ggml as static library" FORCE)
     set(SD_USE_SYSTEM_GGML OFF CACHE BOOL "Use bundled stable-diffusion.cpp ggml" FORCE)

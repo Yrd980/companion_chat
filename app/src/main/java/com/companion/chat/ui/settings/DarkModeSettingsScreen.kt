@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.companion.chat.ui.language.uiText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,7 +36,7 @@ fun DarkModeSettingsScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "深色模式",
+                        text = uiText("Appearance", "深色模式"),
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
@@ -43,7 +44,7 @@ fun DarkModeSettingsScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = uiText("Back", "返回")
                         )
                     }
                 }
@@ -65,13 +66,16 @@ fun DarkModeSettingsScreen(
             )
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "深色模式",
+                text = uiText("Appearance", "深色模式"),
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "跟随系统 / 浅色 / 深色\n即将上线",
+                text = uiText(
+                    "System / Light / Dark\nComing soon",
+                    "跟随系统 / 浅色 / 深色\n即将上线"
+                ),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center

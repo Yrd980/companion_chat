@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.MessageRole
+import com.companion.chat.ui.language.uiText
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -46,6 +47,7 @@ import java.util.Locale
 fun MessageBubble(
     message: ChatMessage,
     assistantAvatarImageUri: String = "",
+    privacyLabel: String = "",
     modifier: Modifier = Modifier
 ) {
     val isUser = message.role == MessageRole.USER
@@ -69,6 +71,7 @@ fun MessageBubble(
                 BubbleContent(
                     message = message,
                     isUser = false,
+                    privacyLabel = "",
                     onImageClick = { showFullScreenImage = it }
                 )
             }
@@ -84,6 +87,7 @@ fun MessageBubble(
                 BubbleContent(
                     message = message,
                     isUser = true,
+                    privacyLabel = privacyLabel,
                     onImageClick = { showFullScreenImage = it }
                 )
             }
@@ -96,13 +100,13 @@ fun MessageBubble(
             onDismissRequest = { showFullScreenImage = null },
             confirmButton = {
                 TextButton(onClick = { showFullScreenImage = null }) {
-                    Text("关闭")
+                    Text(uiText("Close", "关闭"))
                 }
             },
             text = {
                 AsyncImage(
                     model = uri,
-                    contentDescription = "图片预览",
+                    contentDescription = uiText("Image preview", "图片预览"),
                     modifier = Modifier.fillMaxWidth(),
                     contentScale = ContentScale.Fit
                 )
@@ -133,7 +137,7 @@ private fun AvatarIcon(isUser: Boolean, imageUri: String = "") {
         } else {
             Icon(
                 imageVector = if (isUser) Icons.Default.Person else Icons.Default.SmartToy,
-                contentDescription = if (isUser) "用户" else "AI",
+                contentDescription = if (isUser) uiText("User", "用户") else "AI",
                 tint = if (isUser) {
                     MaterialTheme.colorScheme.onPrimaryContainer
                 } else {
@@ -150,6 +154,7 @@ private fun AvatarIcon(isUser: Boolean, imageUri: String = "") {
 private fun BubbleContent(
     message: ChatMessage,
     isUser: Boolean,
+    privacyLabel: String,
     onImageClick: (android.net.Uri) -> Unit
 ) {
     Surface(
@@ -174,7 +179,7 @@ private fun BubbleContent(
                     message.images.forEach { uri ->
                         AsyncImage(
                             model = uri,
-                            contentDescription = "消息图片",
+                            contentDescription = uiText("Message image", "消息图片"),
                             modifier = Modifier
                                 .size(120.dp)
                                 .clip(RoundedCornerShape(8.dp))
@@ -186,7 +191,7 @@ private fun BubbleContent(
             }
 
             val contentText = if (message.content.isEmpty() && message.isStreaming) {
-                "正在输入..."
+                uiText("Typing...", "正在输入...")
             } else {
                 message.content
             }
@@ -209,6 +214,16 @@ private fun BubbleContent(
             }
 
             if (!message.isStreaming) {
+                if (isUser && privacyLabel.isNotBlank()) {
+                    Text(
+                        text = privacyLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.68f),
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = 4.dp)
+                    )
+                }
                 Text(
                     text = formatTime(message.timestamp),
                     style = MaterialTheme.typography.labelSmall,

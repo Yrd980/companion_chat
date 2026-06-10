@@ -43,6 +43,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.companion.chat.companion.voice.VoiceFirstInteractionState
+import com.companion.chat.ui.language.AppLanguage
+import com.companion.chat.ui.language.LocalAppLanguage
+import com.companion.chat.ui.language.uiText
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -64,6 +67,7 @@ fun ChatInputBar(
     onStopSpeaking: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val language = LocalAppLanguage.current
     Surface(
         tonalElevation = 2.dp,
         color = MaterialTheme.colorScheme.surface,
@@ -100,13 +104,17 @@ fun ChatInputBar(
                     ChatToolIconButton(
                         onClick = onPickImage,
                         icon = Icons.Default.AddPhotoAlternate,
-                        contentDescription = "上传图片"
+                        contentDescription = uiText("Upload image", "上传图片")
                     )
                     ChatToolIconButton(
                         onClick = onGenerateImage,
                         enabled = !isImageGenerating,
                         icon = Icons.Default.AutoAwesome,
-                        contentDescription = if (isImageGenerating) "图片生成中" else "根据输入生成图片",
+                        contentDescription = if (isImageGenerating) {
+                            uiText("Generating image", "图片生成中")
+                        } else {
+                            uiText("Generate image from input", "根据输入生成图片")
+                        },
                         active = isImageGenerating
                     )
                     Spacer(Modifier.width(2.dp))
@@ -126,7 +134,7 @@ fun ChatInputBar(
                             Box {
                                 if (inputText.isEmpty()) {
                                     Text(
-                                        text = voice.inputPlaceholder,
+                                        text = voiceInputPlaceholder(voice, language),
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f)
                                     )
@@ -149,7 +157,7 @@ fun ChatInputBar(
                         } else {
                             Icons.AutoMirrored.Filled.VolumeUp
                         },
-                        contentDescription = if (voice.isSpeaking) "停止播放" else "朗读最近回复",
+                        contentDescription = if (voice.isSpeaking) uiText("Stop playback", "停止播放") else uiText("Read latest reply", "朗读最近回复"),
                         active = voice.isSpeaking
                     )
                     Spacer(Modifier.width(4.dp))
@@ -165,7 +173,7 @@ fun ChatInputBar(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Stop,
-                                contentDescription = "取消生成"
+                                contentDescription = uiText("Cancel generation", "取消生成")
                             )
                         }
                     } else if (inputText.isNotBlank() || selectedImages.isNotEmpty()) {
@@ -178,13 +186,14 @@ fun ChatInputBar(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "发送"
+                                contentDescription = uiText("Send", "发送")
                             )
                         }
                     } else {
                         VoicePrimaryButton(
                             voice = voice,
                             isGenerating = isGenerating,
+                            language = language,
                             onVoiceInput = onVoiceInput
                         )
                     }
@@ -198,12 +207,13 @@ fun ChatInputBar(
 private fun VoiceInputPreview(
     voice: VoiceFirstInteractionState
 ) {
+    val language = LocalAppLanguage.current
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
     ) {
         Text(
-            text = voice.inputPreview.ifBlank { voice.inputPlaceholder },
+            text = voice.inputPreview.ifBlank { voiceInputPlaceholder(voice, language) },
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -229,7 +239,7 @@ private fun SelectedImagePreviewRow(
             ) {
                 AsyncImage(
                     model = uri,
-                    contentDescription = "选中的图片",
+                    contentDescription = uiText("Selected image", "选中的图片"),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
@@ -246,7 +256,7 @@ private fun SelectedImagePreviewRow(
                 ) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "移除图片",
+                        contentDescription = uiText("Remove image", "移除图片"),
                         modifier = Modifier.size(14.dp)
                     )
                 }
@@ -288,14 +298,15 @@ private fun ChatToolIconButton(
 private fun VoicePrimaryButton(
     voice: VoiceFirstInteractionState,
     isGenerating: Boolean,
+    language: AppLanguage,
     onVoiceInput: () -> Unit
 ) {
     val active = voice.isInputActive
     val description = when {
-        active -> "停止语音输入"
-        voice.isAutoSending -> "正在发送语音"
-        isGenerating -> "正在生成回复"
-        else -> "开始语音输入"
+        active -> uiText(language, "Stop voice input", "停止语音输入")
+        voice.isAutoSending -> uiText(language, "Sending voice", "正在发送语音")
+        isGenerating -> uiText(language, "Generating reply", "正在生成回复")
+        else -> uiText(language, "Start voice input", "开始语音输入")
     }
 
     FilledIconButton(
@@ -324,5 +335,17 @@ private fun VoicePrimaryButton(
             imageVector = if (active) Icons.Default.Stop else Icons.Default.Mic,
             contentDescription = null
         )
+    }
+}
+
+private fun voiceInputPlaceholder(
+    voice: VoiceFirstInteractionState,
+    language: AppLanguage
+): String {
+    return when {
+        voice.isStarting -> uiText(language, "Starting voice recognition...", "正在启动语音识别...")
+        voice.isListening -> uiText(language, "Listening...", "正在听...")
+        voice.isAutoSending -> uiText(language, "Sending voice...", "正在发送语音...")
+        else -> uiText(language, "Type a message...", "输入消息...")
     }
 }

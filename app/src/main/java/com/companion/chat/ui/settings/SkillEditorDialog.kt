@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companion.chat.data.local.entity.Skill
+import com.companion.chat.ui.language.uiText
 
 @Composable
 fun SkillEditorDialog(
@@ -34,7 +35,7 @@ fun SkillEditorDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = if (skill == null) "新建 Skill" else "编辑 Skill",
+                text = if (skill == null) uiText("New Skill", "新建 Skill") else uiText("Edit Skill", "编辑 Skill"),
                 style = MaterialTheme.typography.titleLarge
             )
         },
@@ -49,13 +50,13 @@ fun SkillEditorDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("名称") },
+                    label = { Text(uiText("Name", "名称")) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("简介") },
+                    label = { Text(uiText("Description", "简介")) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2
                 )
@@ -70,12 +71,12 @@ fun SkillEditorDialog(
         },
         confirmButton = {
             TextButton(onClick = { onSave(name, description, systemPrompt) }) {
-                Text("保存")
+                Text(uiText("Save", "保存"))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(uiText("Cancel", "取消"))
             }
         }
     )

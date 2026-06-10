@@ -9,9 +9,9 @@ enum class MessageRole {
     SYSTEM
 }
 
-const val DEFAULT_SESSION_TITLE = "新对话"
+const val DEFAULT_SESSION_TITLE = "New Chat"
 const val DEFAULT_WELCOME_MESSAGE =
-    "你好！我是你的 AI 伙伴。点击下方麦克风按钮开始语音对话，或直接输入文字。"
+    "Hi, I am your AI companion. Tap the microphone to start a voice chat, or type a message."
 
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),

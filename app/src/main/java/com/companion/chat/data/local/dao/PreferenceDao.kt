@@ -30,4 +30,10 @@ interface PreferenceDao {
 
     @Query("SELECT * FROM user_preferences WHERE confidence >= :minimumConfidence ORDER BY updatedAt DESC")
     suspend fun getConfirmed(minimumConfidence: Int = 3): List<UserPreference>
+
+    @Query("SELECT * FROM user_preferences ORDER BY updatedAt DESC")
+    suspend fun getAll(): List<UserPreference>
+
+    @Query("DELETE FROM user_preferences")
+    suspend fun deleteAll(): Int
 }

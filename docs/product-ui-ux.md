@@ -10,12 +10,19 @@ Design dials:
 - Motion: 4/10. Quiet state changes, tactile controls, and subtle voice/session feedback.
 - Density: 7/10. Scannable cockpit density for companion, helmet, memory, safety, and diagnostics.
 
-Assumptions from the reference design:
+Assumptions from the reference images:
 
-- The reference design anchors four visible screens: `Onboarding & Device Setup`, `Home / Companion Hub`, `Companion Chat & Voice`, and `Helmet Control & Diagnostics`.
-- The complete product loop also needs `Memory & Relationship` and `Profile, Privacy & Plan` so conversation output, privacy, plan, data ownership, and emergency setup have clear homes.
+- The `output/imagegen/` references anchor six visible screens: `Onboarding & Device Setup`, `Home / Companion Hub`, `Companion Chat & Voice`, `Helmet Control & Diagnostics`, `Memory & Relationship`, and `Profile, Privacy & Plan`.
+- The six references are:
+  - `anime-companion-onboarding-ui-draft.png`
+  - `anime-companion-home-ui-draft.png`
+  - `anime-companion-chat-voice-ui-draft.png`
+  - `anime-companion-helmet-diagnostics-ui-draft.png`
+  - `anime-companion-memory-relationship-ui-draft.png`
+  - `anime-companion-profile-privacy-plan-ui-draft.png`
+- The complete product loop should preserve all six surfaces so conversation output, privacy, plan, data ownership, memory, and emergency setup have clear homes.
 - Account and plan surfaces may appear in onboarding, but the product remains local-first. Remote account, cloud endpoints, analytics, and partner sharing must stay explicit opt-in.
-- The bottom navigation labels can evolve, but their roles should map to `Chat`, `Helmet`, `Memory`, and `Profile`. Contacts, shared clips, and market/discovery can live inside Memory or Profile instead of replacing Memory.
+- The bottom navigation labels can evolve, but their roles should map to `Home`, `Helmet`, `Memory`, and `Profile`. Chat is a primary action and workspace inside Home, not the default tab label. Contacts, shared clips, and market/discovery can live inside Memory or Profile instead of replacing Memory.
 
 ## Product Shape
 
@@ -34,15 +41,24 @@ CompanionChat should feel like one integrated smart-helmet companion product wit
 6. **Profile, Privacy & Plan**
    Account/local profile, plan status, privacy controls, cloud endpoints, data export/delete, emergency contacts, and advanced settings.
 
-The current app already has the raw capability areas. The redesign should reorganize them into this product hierarchy instead of exposing them as separate engineering features.
+The current app already has the raw capability areas. The redesign should reorganize them into this product hierarchy instead of exposing them as separate engineering features. The six reference images define visual direction, not final implementation copy.
+
+Surface ownership rules:
+
+- Home is the daily loop anchor. It displays summaries and repair prompts, but does not own source data.
+- Chat & Voice owns the active conversation, capture mode, per-capture privacy state, session timeline, and save actions.
+- Memory & Relationship owns memories, preferences, relationship events, pinned context, and Role Card editing.
+- Helmet Control & Diagnostics owns device health, repair flows, firmware, sensors, safety modes, and hardware logs.
+- Profile, Privacy & Plan owns persistent account, plan, privacy, data ownership, emergency contacts, cloud endpoints, and advanced settings.
+- Onboarding captures first-run choices. After setup, persistent choices live in their owning surface instead of being duplicated.
 
 ## Product Closed Loop
 
 The product loop should be complete, not a set of disconnected screens:
 
 1. **Setup**
-   The user creates a local profile or account, pairs the helmet, grants permissions, chooses plan boundaries, validates local model packages, and updates firmware.
-   Outcome: Home receives a companion, a paired helmet state, privacy defaults, and readiness status.
+   The user creates a local profile or account, chooses or creates a companion, pairs the helmet when available, grants permissions, chooses plan boundaries, validates local model packages, and updates firmware.
+   Outcome: Home receives a companion state, helmet readiness state, privacy defaults, and model readiness status.
 
 2. **Prepare**
    Home shows the active companion, helmet readiness, current mode, memories, suggestions, and recent activity.
@@ -56,9 +72,9 @@ The product loop should be complete, not a set of disconnected screens:
    Memory & Relationship lets the user review what was saved, promote or delete extracted memories, replay voice clips, pin important moments, and see which memories affected a turn.
    Outcome: confirmed memories return to Home and Chat as visible continuity, not hidden prompt state.
 
-5. **Control Device**
+5. **Control or Recover Device**
    Helmet Control & Diagnostics handles battery, sensors, firmware, audio controls, safety modes, health checks, and logs.
-   Outcome: healthy/degraded device state returns to Home, Chat, Ride Mode, and SOS availability.
+   Outcome: healthy/degraded device state returns to Home, Chat, Ride Mode, and SOS availability. Helmet disconnect, low battery, firmware-required, and SOS-unavailable states can interrupt Prepare and Interact instead of waiting for a linear device-control step.
 
 6. **Set Boundaries**
    Profile, Privacy & Plan controls local-only/cloud mode, analytics, partner sharing, account, plan, data export/delete, emergency contacts, and advanced endpoints.
@@ -71,10 +87,17 @@ The product loop should be complete, not a set of disconnected screens:
 Closed-loop rules:
 
 - Every action that creates user-owned context must have a review or undo path.
+- Candidate memories do not affect Home, Chat, or prompt context until the user chooses `Keep`, `Pin`, or `Use Next Turn`.
 - Every device problem must surface a repair path and flow back to Home readiness.
 - Every cloud or sharing decision must be visible before data leaves the device.
 - Every premium or plan-gated feature must explain the local alternative when one exists.
 - Home is the loop anchor. Memory, Helmet, and Profile surfaces should return meaningful state to Home.
+
+First-run gate:
+
+- Normal Home requires at least a local profile, one active companion or a visible `Choose or create a companion` continuation, privacy defaults, and model readiness status.
+- Helmet pairing can be skipped only when Home shows an explicit unpaired readiness state and a repair path.
+- Missing local models, denied permissions, or incomplete firmware must create degraded Home states, not blank screens or crashes.
 
 ## Shared UI System
 
@@ -82,7 +105,7 @@ The interface should be light, quiet, and device-like:
 
 - White or near-white canvas.
 - White cards with thin soft-gray borders.
-- One green accent for primary actions, healthy states, selected modes, active toggles, and session-live indicators.
+- One green accent family for primary actions, healthy states, selected modes, active toggles, and session-live indicators, with separate semantic tokens for action, success, selection, and live status.
 - Pale green fills for selected cards, paired devices, active chips, consent highlights, and successful readiness.
 - Charcoal text for primary content and muted olive-gray text for metadata.
 - Red only for emergency, destructive, or severe safety actions.
@@ -90,6 +113,8 @@ The interface should be light, quiet, and device-like:
 - Compact cards with clear thumbnail, title, metadata, and one or two actions.
 - Small status pills for readiness, connection, battery, firmware, privacy, and session state.
 - Familiar mobile controls: chips for modes, toggles for binary settings, sliders for audio controls, progress bars for firmware and diagnostics, and icon buttons for quick actions.
+- Minimum touch target is 48dp for buttons, chips, toggles, sliders, timeline markers, and icon-only actions.
+- Icon-only actions need accessible labels. Status dots and pills need text or icon shape, not color alone.
 
 Avoid anime-fan-site visual language. The app can contain anime character artwork, but the product shell should feel like a reliable wearable companion device.
 
@@ -101,19 +126,26 @@ Avoid anime-fan-site visual language. The app can contain anime character artwor
 - **Line Gray** `#E5E8E0`: dividers and card borders.
 - **Charcoal Ink** `#171A15`: primary text.
 - **Muted Olive Gray** `#687061`: secondary text and metadata.
-- **Companion Green** `#43A51B`: primary action, active state, session live, selected mode.
+- **Companion Green** `#2F7D14`: filled primary action, active state, session live, selected mode.
 - **Green Soft Fill** `#DFF3D2`: active pills, paired device cards, positive status backgrounds.
-- **Alert Red** `#F04452`: Emergency SOS, severe impact, destructive actions.
-- **Warning Amber** `#D99620`: degraded readiness, pending setup, firmware warnings.
+- **Alert Red** `#D92D3A`: Emergency SOS, severe impact, destructive actions.
+- **Warning Amber** `#A86500`: degraded readiness, pending setup, firmware warnings.
 - **Neutral Black** `#050505`: limited to platform sign-in, high-contrast secondary account action, or system-level affordance.
 
 Rules:
 
 - Use green as the only product accent.
+- Use separate semantic green tokens even when they share the same hue:
+  - `Action Green`: filled primary actions and selected primary cards.
+  - `Success Fill`: pale positive backgrounds with charcoal text.
+  - `Selected Fill`: selected chips or paired-device surfaces with green border and charcoal text.
+  - `Live Indicator`: small live/session indicators with a label or waveform state.
 - Do not use purple/blue AI gradients.
 - Do not use neon glows.
 - Do not let dynamic system color override the brand palette on key product screens.
 - Emergency red must never be reused for normal errors or decorative emphasis.
+- Filled green, red, amber, and black controls use white text only when contrast is at least WCAG AA 4.5:1. Pale fills use Charcoal Ink text.
+- Disabled controls must not rely on opacity alone. Include disabled copy or an inline reason when the action is important.
 
 ## Typography
 
@@ -129,11 +161,20 @@ Use Material typography, but tune hierarchy toward product utility:
 
 Avoid large hero typography inside the app. This is a daily-use product, not a marketing page.
 
+Accessibility rules:
+
+- Support system font scale up to 200%.
+- Screen titles and companion names can wrap to two lines.
+- Bottom navigation labels must not truncate.
+- Status pills can collapse to icon plus accessible label only when space is constrained.
+- Body text should not drop below 14sp.
+- Chinese product labels must be checked for wrapping before release.
+
 ## Navigation Model
 
 After onboarding, use bottom navigation focused on the daily product loop:
 
-- **Chat**: default route. Opens Home / Companion Hub and gives fast entry into companion chat.
+- **Home**: default route. Opens Home / Companion Hub and gives fast entry into companion chat.
 - **Helmet**: helmet control, safety modes, connection, firmware, and diagnostics.
 - **Memory**: inspect memories, relationship events, role cards, friends, shared clips, or companion discovery.
 - **Profile**: account, plan, privacy, data export/delete, and advanced settings.
@@ -148,13 +189,13 @@ Product rules:
 
 Purpose:
 
-Get the user from first launch to a paired, permissioned, firmware-ready AI Smart Helmet with explicit privacy and plan boundaries.
+Get the user from first launch to a local profile, active companion or continuation, explicit privacy defaults, model readiness state, and paired or intentionally unpaired AI Smart Helmet state.
 
 Layout:
 
 1. **App identity and progress**
    - App icon/name: `Anime Companion`.
-   - Step progress such as `Step 2 of 7`.
+   - Step progress such as `Step 2 of 8`.
    - Short setup context.
 
 2. **Welcome and account**
@@ -164,7 +205,12 @@ Layout:
    - Google and Apple sign-in as optional account providers.
    - If local-only mode is available, show it with the same visual weight as other privacy-preserving paths.
 
-3. **Verify & Pair Helmet**
+3. **Choose or Create Companion**
+   - Pick an existing Role Card, import one, or create a simple local companion.
+   - Minimum companion setup: name, avatar, voice mode, and short role intro.
+   - The user can skip detailed role editing, but Home must show either an active companion or a clear continuation.
+
+4. **Verify & Pair Helmet**
    - Verification code input.
    - `Resend` action.
    - AI Smart Helmet pairing card with product thumbnail.
@@ -173,19 +219,25 @@ Layout:
    - `Pair` action.
    - Helper copy explaining where the one-time code lives.
 
-4. **Privacy & Permissions**
+5. **Privacy & Permissions**
    - Voice Recording toggle.
    - Usage Analytics toggle.
    - Share anonymized data with partners toggle.
    - Explicit voice-recording consent text.
    - `I Consent` primary action and `Decline` secondary action.
 
-5. **Choose a Plan**
+6. **Model Readiness**
+   - Local model package status.
+   - Missing file path and expected package name.
+   - Backend readiness: CPU, GPU, or NPU when available.
+   - Fix action for selecting a model path or continuing with degraded local capability.
+
+7. **Choose a Plan**
    - Trial, Standard, and Premium cards.
    - Selected plan uses pale green fill and green border.
    - Plan choice must not block local-only core use unless the product explicitly requires cloud or warranty services.
 
-6. **Firmware Update**
+8. **Firmware Update**
    - Firmware package thumbnail.
    - Required/optional label.
    - Available version.
@@ -207,6 +259,16 @@ Behavior:
 Purpose:
 
 The daily home screen. It should answer: who is with me, is my helmet ready, what mode am I in, what can I do now, and what did we recently remember?
+
+Above-fold priority:
+
+- Companion identity.
+- Helmet readiness.
+- Current mode.
+- Top actions: `Start Chat`, `Listen Live`, and `Emergency SOS` when configured.
+- One continuity module, either pinned memories or recent activity.
+
+Routines, discovery, and longer recent activity lists live below this daily control area.
 
 Layout:
 
@@ -249,9 +311,10 @@ Layout:
    - Examples: `Seaside Memory`, `Midnight Piano`, `Umbrella Joke`.
    - Actions such as `Play`, `View`, `Pin`, or `Clip saved`.
 
-7. **Recommended**
+7. **Routines**
    - Small companion or mode cards.
-   - This area can suggest companions, routines, or stories, but must not become the dominant marketplace surface.
+   - Suggestions must be based on active companion, helmet state, recent memory, or routine timing.
+   - This area must not become the dominant marketplace or model-catalog surface.
 
 8. **Suggestions**
    - Compact 2-column cards for routine actions.
@@ -434,7 +497,9 @@ Role editor sections:
 
 Product rules:
 
-- The active Role Card should be visible on Home / Companion Hub.
+- Memory & Relationship owns Role Card editing because Role Card is part of long-term companion identity.
+- Home displays the active Role Card summary.
+- Chat enters the active Role Card context and exposes voice/personality preview actions.
 - Starting a role conversation should feel like entering that role's room.
 - Editing role voice and image should preview the result where possible.
 - Contacts or Market can help discover/import companions as secondary flows, but the active companion relationship remains the center of the app.
@@ -498,6 +563,8 @@ Memory card:
 Memory injection:
 
 - The user should be able to see which memories affected a turn.
+- Candidate memories do not affect Home, Chat, or prompt context until confirmed.
+- `Use Next Turn` can inject a memory once without promoting it to long-term memory.
 - Do not expose raw prompt internals by default. Show human-readable memory chips.
 - Pinned memories should be playable and reusable from Chat, not only editable in a management list.
 
@@ -519,12 +586,33 @@ Privacy controls should appear where the decision happens:
 - Helmet sensors and microphone permissions show repair actions near device controls.
 - Data export/delete lives in Profile, not in the chat surface.
 
+Ownership:
+
+- Profile owns persistent privacy defaults and cloud endpoint configuration.
+- Onboarding captures first consent.
+- Chat owns per-capture cloud/local choice for voice, media, image generation, and sharing.
+- Helmet owns sensor and microphone permission repair.
+- Memory owns memory-learning visibility and memory deletion/editing.
+
 Rules:
 
 - Cloud ASR, HTTP voice clone, HTTP image generation, analytics, and partner sharing are opt-in.
 - Local-only mode must be visible before capture starts.
 - Declining optional consent must not block core local companion use unless a feature truly depends on it.
 - Do not expose raw prompt internals as a privacy substitute. Show user-readable memory, sensor, and cloud-use state.
+
+Pre-action gate:
+
+Before any action sends data off-device, the UI must show:
+
+- Data type.
+- Destination or endpoint class.
+- Reason for sending.
+- Local alternative when one exists.
+- Primary confirm action.
+- Cancel action.
+
+This gate applies to Cloud ASR, HTTP voice clone, HTTP image generation, clip sharing, analytics, partner sharing, diagnostic upload, and cloud backup.
 
 ## Profile, Privacy & Plan UX
 
@@ -584,23 +672,49 @@ Behavior:
 
 ## Interaction States
 
-Every screen must define:
+Every state needs a trigger, visible copy, disabled controls, repair action, and return path. No blank screens. No generic `Error` messages.
 
-- Empty.
-- Loading.
-- Ready.
-- Degraded.
-- Error.
-- Permission denied.
-- Helmet disconnected.
-- Missing local model.
-- Firmware required.
-- Health check running.
-- Cloud endpoint blocked.
+State matrix:
 
-No blank screens.
-No generic "Error" messages.
-Every failure needs a repair action.
+- **Setup**
+  - Pairing scanning failed: keep manual code visible and offer retry.
+  - Camera permission denied: explain QR scan is unavailable and focus manual pairing.
+  - Local model missing: show expected package, missing path, and model path action.
+  - Firmware failed: preserve paired state, show failed step, and offer retry or later.
+  - Optional consent declined: continue local core flow and mark cloud features unavailable.
+
+- **Home**
+  - No companion: show `Choose or create a companion` as the primary continuation.
+  - Helmet unpaired/disconnected: replace metrics with repair card and degrade helmet-only actions.
+  - Low battery: disable long-running voice or ride actions with inline reason.
+  - Firmware required: show update status near readiness and limit unsafe device actions.
+  - Emergency unconfigured: keep SOS visible but explain missing contact or permission.
+
+- **Chat & Voice**
+  - Voice permission denied: disable push-to-talk and show permission repair.
+  - Missing local model: keep text input available when possible and show model repair.
+  - Listening, processing, speaking, interrupted: show distinct session states in the input dock.
+  - Cloud endpoint blocked: show local-only state before capture and disable cloud-only controls.
+  - Save failed: keep the message visible and offer retry or manual memory save.
+
+- **Memory & Relationship**
+  - Review needed: show candidates before they affect future turns.
+  - Empty: explain memory value and offer one save/import action.
+  - Delete pending: use confirmation with clear scope.
+  - Sync/cloud blocked: keep local memories available and explain unavailable backup/share action.
+
+- **Helmet Control & Diagnostics**
+  - Health check running: show progress and current check step.
+  - Sensor degraded: name the sensor and offer calibration, reboot, or support action.
+  - Firmware downloading/installing/rebooting/failed: show current step and safe controls.
+  - Microphone sensitivity issue: offer calibration and preserve current sensitivity value.
+  - Diagnostic upload blocked: explain local-only privacy mode and keep local logs visible.
+
+- **Profile, Privacy & Plan**
+  - Plan gated: show disabled feature, local alternative, and upgrade path only when relevant.
+  - Export running: show progress and destination.
+  - Delete pending: require confirmation and scope local versus cloud/account data.
+  - Endpoint invalid: show endpoint type, failure reason, and edit action.
 
 ## Motion & Feedback
 
@@ -649,44 +763,76 @@ These can appear in advanced settings only.
 
 ## Implementation Priorities
 
-1. **Home / Companion Hub first**
+This is build order, not first-run user journey order. The user journey still starts with Setup. During early implementation, Home can read existing or mocked setup state, but it must represent incomplete setup as explicit degraded/readiness states.
+
+1. **Design system baseline first**
+   Lock palette, text-on-token rules, radius scale, spacing, status chips, card modules, icon treatment, touch targets, and interaction states before building new surfaces.
+
+2. **Home / Companion Hub second**
    Replace the current chat-first default with a home screen that contains identity, helmet readiness, actions, memories, suggestions, and recent activity.
 
-2. **Companion Chat & Voice second**
+3. **Companion Chat & Voice third**
    Add pinned memories, replay timeline, message actions, voice notes, privacy state, and voice-first dock.
 
-3. **Helmet Control & Diagnostics third**
+4. **Helmet Control & Diagnostics fourth**
    Keep current model and voice functionality, but reorganize the surface around helmet status, safety, controls, health checks, and repair actions.
 
-4. **Memory & Relationship fourth**
+5. **Memory & Relationship fifth**
    Add the review queue, pinned memories, timeline, preference chips, and memory-source visibility so Chat output can become confirmed durable memory.
 
-5. **Profile, Privacy & Plan fifth**
+6. **Profile, Privacy & Plan sixth**
    Add the stable home for privacy, plan, data ownership, emergency contacts, and advanced settings so boundaries are not scattered across daily surfaces.
 
-6. **Onboarding & Device Setup sixth**
+7. **Onboarding & Device Setup seventh**
    Add guided setup for account/local profile, helmet pairing, permissions, plan selection, model readiness, and firmware update after the daily surfaces are coherent.
-
-7. **Visual system**
-   Lock palette, radius scale, spacing, status chips, card modules, icon treatment, and interaction states.
 
 ## Acceptance Checklist
 
-- The original four reference screens keep their names and hierarchy.
-- Memory & Relationship and Profile, Privacy & Plan complete the product loop beyond the reference screens.
-- The complete loop exists: setup, prepare, interact, confirm memory, control device, set boundaries, and return to Home.
-- The app opens into Home / Companion Hub, not a catalog.
-- The active companion is visible above the fold.
-- Helmet/device readiness is visible as a product surface, not buried in advanced settings.
-- The user can tell whether helmet, local model, voice, memory, image generation, and privacy mode are ready.
-- Chat, voice, memory save, helmet controls, SOS, and role switching are reachable from daily surfaces.
-- Memories created from chat or voice can be reviewed, edited, pinned, deleted, replayed, and reused.
-- Profile owns account, plan, privacy, data export/delete, emergency contacts, and advanced settings.
-- Helmet diagnostics show battery, connection, firmware, sensors, controls, safety modes, health checks, and recent logs.
-- Advanced model settings are discoverable but not visually dominant.
-- Memory is inspectable, playable where relevant, and editable.
-- Cloud usage is explicit before capture or generation.
-- Missing models, missing permissions, firmware issues, and disconnected helmet states produce repair flows, not crashes.
-- The UI uses one accent color consistently.
-- Emergency red is reserved for SOS and severe safety actions.
-- The primary experience feels like a smart companion helmet product, not a model demo.
+Design system gate:
+
+- The UI uses the defined green accent family consistently.
+- Filled action, alert, warning, and black controls meet WCAG AA text contrast.
+- Emergency red is reserved for SOS, severe impact, destructive actions, and severe safety states.
+- All primary touch targets are at least 48dp.
+- Icon-only actions have accessible labels.
+- Status dots and pills are understandable without color alone.
+- Bottom navigation uses `Home`, `Helmet`, `Memory`, and `Profile`.
+
+Product hierarchy gate:
+
+- The six reference screens keep their names and product hierarchy.
+- Memory & Relationship and Profile, Privacy & Plan are first-class product surfaces, not secondary settings pages.
+- Home opens as the default daily surface, not a catalog or market.
+- The active companion or `Choose or create a companion` continuation is visible above the fold.
+- Helmet readiness is visible on Home and owned by Helmet Control & Diagnostics.
+- Advanced model settings are discoverable only behind advanced disclosure.
+
+Closed-loop gate:
+
+- Setup can produce a local profile, companion state, privacy defaults, model readiness state, and helmet readiness state.
+- Home exposes Start Chat, Listen Live, memory continuity, helmet repair, and SOS availability from the daily surface.
+- Chat can create candidate memories from text or voice exchanges.
+- Memory can review, edit, pin, delete, replay, and reuse confirmed memories.
+- Helmet diagnostics can show battery, connection, firmware, sensors, controls, safety modes, health checks, and recent logs.
+- Profile owns account, plan, privacy defaults, data export/delete, emergency contacts, cloud endpoints, and advanced settings.
+- Returning to Home reflects updated companion, memory, helmet, privacy, and entitlement state.
+
+Boundary gate:
+
+- Given a voice or media capture that can leave the device, when the user starts capture, then Chat shows cloud/local state before capture begins.
+- Given Cloud ASR, voice clone, image generation, clip share, analytics, partner sharing, diagnostic upload, or cloud backup, when data would leave the device, then the UI shows data type, destination, reason, local alternative when available, confirm, and cancel.
+- Given optional consent is declined, when the user continues, then local companion use remains available unless the selected feature truly depends on that consent.
+
+Memory gate:
+
+- Given a saved voice or chat exchange, when the user taps `Save to Memories`, then Memory shows a review candidate with `Keep`, `Edit`, `Delete`, and `Pin`.
+- Given a candidate memory has not been confirmed, when a new chat turn starts, then that memory does not affect Home, Chat, or prompt context.
+- Given a confirmed memory affected a turn, when the user inspects the turn, then Chat shows a human-readable memory chip instead of raw prompt internals.
+
+Failure gate:
+
+- Missing models show expected package, path, and fix action instead of crashing.
+- Missing permissions show the disabled feature, reason, and repair action.
+- Firmware issues preserve paired state and offer retry or later when safe.
+- Disconnected helmet states produce Home and Chat repair flows.
+- Plan-gated features explain the disabled capability and local alternative when one exists.
