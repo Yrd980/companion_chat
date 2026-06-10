@@ -34,6 +34,8 @@ class MemoryViewModel(
     val uiState: StateFlow<MemoryUiState> = _uiState.asStateFlow()
 
     private var allMemories: List<Memory> = emptyList()
+    private var candidateMemories: List<Memory> = emptyList()
+    private var pinnedMemories: List<Memory> = emptyList()
 
     init {
         observeMemories()
@@ -81,6 +83,52 @@ class MemoryViewModel(
         }
     }
 
+    fun keepCandidate(memoryId: Long) {
+        workerScope.launch {
+            memoryRepository.confirmCandidate(memoryId)
+            refreshMemories(message = "Memory kept")
+        }
+    }
+
+    fun deleteCandidate(memory: Memory) {
+        workerScope.launch {
+            memoryRepository.deleteCandidate(memory)
+            refreshMemories(message = "Candidate deleted")
+        }
+    }
+
+    fun pinMemory(memoryId: Long) {
+        workerScope.launch {
+            memoryRepository.pinMemory(memoryId)
+            refreshMemories(message = "Memory pinned")
+        }
+    }
+
+    fun unpinMemory(memoryId: Long) {
+        workerScope.launch {
+            memoryRepository.unpinMemory(memoryId)
+            refreshMemories(message = "Memory unpinned")
+        }
+    }
+
+    fun useNextTurn(memoryId: Long) {
+        _uiState.update {
+            it.copy(
+                selectedUseNextTurnMemoryId = memoryId,
+                message = "Memory selected for next turn"
+            )
+        }
+    }
+
+    fun clearUseNextTurn() {
+        _uiState.update {
+            it.copy(
+                selectedUseNextTurnMemoryId = null,
+                message = ""
+            )
+        }
+    }
+
     fun promoteMemory(memoryId: Long) {
         workerScope.launch {
             memoryRepository.promoteMemory(memoryId)
@@ -92,31 +140,53 @@ class MemoryViewModel(
         workerScope.launch {
             memoryRepository.observeAllMemories().collectLatest { memories ->
                 allMemories = memories
+                candidateMemories = memoryRepository.getCandidateMemories()
+                pinnedMemories = memoryRepository.getPinnedMemories()
                 publishMemories(isLoading = false)
             }
         }
     }
 
-    private suspend fun refreshMemories() {
+    private suspend fun refreshMemories(message: String = _uiState.value.message) {
         allMemories = memoryRepository.getAllMemories()
-        publishMemories(isLoading = false)
+        candidateMemories = memoryRepository.getCandidateMemories()
+        pinnedMemories = memoryRepository.getPinnedMemories()
+        publishMemories(isLoading = false, message = message)
     }
 
-    private fun publishMemories(isLoading: Boolean = _uiState.value.isLoading) {
+    private fun publishMemories(
+        isLoading: Boolean = _uiState.value.isLoading,
+        message: String = _uiState.value.message
+    ) {
         val filter = _uiState.value.filter
+        val confirmedMemories = allMemories.filter { it.reviewState != MemoryRepository.REVIEW_STATE_CANDIDATE }
         val visibleMemories = when (filter) {
-            MemoryFilter.ALL -> allMemories
-            MemoryFilter.RELATION -> allMemories.filter {
+            MemoryFilter.ALL -> confirmedMemories
+            MemoryFilter.RELATION -> confirmedMemories.filter {
                 it.category == "relation" || it.category == "relationship"
             }
-            else -> allMemories.filter { it.category == filter.category }
+            else -> confirmedMemories.filter { it.category == filter.category }
         }
         _uiState.update {
             it.copy(
                 memories = visibleMemories,
+                candidateMemories = candidateMemories,
+                pinnedMemories = pinnedMemories,
+                healthMetrics = memoryRepositoryHealthSnapshot(),
+                message = message,
                 isLoading = isLoading
             )
         }
+    }
+
+    private fun memoryRepositoryHealthSnapshot(): com.companion.chat.data.memory.MemoryHealthMetrics {
+        return com.companion.chat.data.memory.MemoryHealthMetrics(
+            total = allMemories.size,
+            pinned = pinnedMemories.size,
+            candidates = candidateMemories.size,
+            longTerm = allMemories.count { it.layer == "long_term" },
+            shortTerm = allMemories.count { it.layer == "short_term" }
+        )
     }
 }
 

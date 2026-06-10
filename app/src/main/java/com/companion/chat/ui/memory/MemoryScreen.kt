@@ -32,7 +32,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Schedule
@@ -45,7 +44,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -74,8 +72,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companion.chat.companion.readiness.CompanionReadinessLevel
 import com.companion.chat.data.local.entity.Memory
+import com.companion.chat.data.memory.MemoryHealthMetrics
 import com.companion.chat.ui.components.CompanionAvatar
-import com.companion.chat.ui.components.MetricTile
 import com.companion.chat.ui.components.ProductCard
 import com.companion.chat.ui.components.ProductInnerShape
 import com.companion.chat.ui.components.ProductProgress
@@ -155,9 +153,25 @@ fun MemoryScreen(
             contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 22.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item { RelationshipHero(uiState.memories) }
-            item { ReviewQueueCard() }
-            item { PinnedMemoriesCard(uiState.memories, onEdit = { openEditor(it) }) }
+            item { RelationshipHero(uiState.memories, uiState.healthMetrics) }
+            item {
+                ReviewQueueCard(
+                    candidates = uiState.candidateMemories,
+                    onKeep = memoryViewModel::keepCandidate,
+                    onEdit = { openEditor(it) },
+                    onDelete = memoryViewModel::deleteCandidate,
+                    onPin = memoryViewModel::pinMemory
+                )
+            }
+            item {
+                PinnedMemoriesCard(
+                    memories = uiState.pinnedMemories,
+                    selectedUseNextTurnMemoryId = uiState.selectedUseNextTurnMemoryId,
+                    onUseNextTurn = memoryViewModel::useNextTurn,
+                    onUnpin = memoryViewModel::unpinMemory,
+                    onEdit = { openEditor(it) }
+                )
+            }
             item { RelationshipTimelineCard(uiState.memories) }
             item { LearnedPreferencesCard(uiState.memories) }
             item { LocalOnlyStorageCard() }
@@ -182,7 +196,8 @@ fun MemoryScreen(
                         memory = memory,
                         onEdit = { openEditor(memory) },
                         onDelete = { deletingMemory = memory },
-                        onPromote = { memoryViewModel.promoteMemory(memory.id) }
+                        onPromote = { memoryViewModel.promoteMemory(memory.id) },
+                        onPin = { memoryViewModel.pinMemory(memory.id) }
                     )
                 }
             }
@@ -235,11 +250,12 @@ fun MemoryScreen(
 }
 
 @Composable
-private fun RelationshipHero(memories: List<Memory>) {
-    val pinnedCount = memories.count { it.referenceCount > 0 }
-    val preferenceCount = memories.count { it.category == "preference" }
+private fun RelationshipHero(
+    memories: List<Memory>,
+    healthMetrics: MemoryHealthMetrics
+) {
     val latest = memories.maxByOrNull { it.updatedAt }
-    val progress = (memories.size.coerceAtMost(1248) / 1248f).coerceAtLeast(0.12f)
+    val progress = (healthMetrics.total.coerceAtMost(100) / 100f).coerceAtLeast(0.08f)
 
     ProductCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -281,9 +297,7 @@ private fun RelationshipHero(memories: List<Memory>) {
             }
         }
         MemoryMetricPanel(
-            memories = memories.size.toString(),
-            pinned = pinnedCount.toString(),
-            accuracy = if (memories.isEmpty()) "N/A" else "92%",
+            healthMetrics = healthMetrics,
             capacity = "${(progress * 100).toInt()}%"
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -317,9 +331,7 @@ private fun MetricText(label: String, value: String, modifier: Modifier = Modifi
 
 @Composable
 private fun MemoryMetricPanel(
-    memories: String,
-    pinned: String,
-    accuracy: String,
+    healthMetrics: MemoryHealthMetrics,
     capacity: String
 ) {
     Surface(
@@ -334,35 +346,61 @@ private fun MemoryMetricPanel(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Psychology, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(10.dp))
-                MetricText(uiText("Memories", "记忆"), memories, Modifier.weight(1f))
-                MetricText(uiText("Pinned", "置顶"), pinned, Modifier.weight(1f))
+                MetricText(uiText("Memories", "记忆"), healthMetrics.total.toString(), Modifier.weight(1f))
+                MetricText(uiText("Pinned", "置顶"), healthMetrics.pinned.toString(), Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricText(uiText("Accuracy", "准确率"), accuracy, Modifier.weight(1f))
+                MetricText(uiText("Review", "审核"), healthMetrics.candidates.toString(), Modifier.weight(1f))
                 MetricText(uiText("Capacity", "容量"), capacity, Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MetricText(uiText("Long-term", "长期"), healthMetrics.longTerm.toString(), Modifier.weight(1f))
+                MetricText(uiText("Short-term", "短期"), healthMetrics.shortTerm.toString(), Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-private fun ReviewQueueCard() {
-    val rows = listOf(
-        Triple(Icons.Default.Mic, uiText("Voice Session · Today, 9:58 AM", "语音会话 · 今天 9:58"), uiText("You mentioned wanting to try a sunset ride route.", "你提到想尝试一条落日骑行路线。")),
-        Triple(Icons.Default.Memory, uiText("Chat · Today, 9:31 AM", "聊天 · 今天 9:31"), uiText("You said you prefer lo-fi music during rides.", "你说骑行时更喜欢 lo-fi 音乐。")),
-        Triple(Icons.Default.Mic, uiText("Voice Session · Today, 9:12 AM", "语音会话 · 今天 9:12"), uiText("You mentioned your cat's name is Mochi.", "你提到你的猫叫 Mochi。"))
-    )
+private fun ReviewQueueCard(
+    candidates: List<Memory>,
+    onKeep: (Long) -> Unit,
+    onEdit: (Memory) -> Unit,
+    onDelete: (Memory) -> Unit,
+    onPin: (Long) -> Unit
+) {
     ProductCard {
-        SectionTitle(uiText("Review Queue", "待审核队列"), action = uiText("Review all", "全部审核"))
-        rows.forEachIndexed { index, item ->
-            val (icon, meta, body) = item
-            ReviewRow(icon = icon, meta = meta, body = body, confidence = listOf("92%", "88%", "95%")[index])
+        SectionTitle(
+            uiText("Review Queue", "待审核队列"),
+            action = uiText("${candidates.size} pending", "${candidates.size} 条待处理")
+        )
+        if (candidates.isEmpty()) {
+            EmptyMiniCard(
+                uiText("No candidate memories", "没有候选记忆"),
+                uiText("Model-extracted memories wait here until you keep them.", "模型提取的记忆会先在这里等待确认。")
+            )
+        } else {
+            candidates.forEach { memory ->
+                ReviewRow(
+                    memory = memory,
+                    onKeep = { onKeep(memory.id) },
+                    onEdit = { onEdit(memory) },
+                    onDelete = { onDelete(memory) },
+                    onPin = { onPin(memory.id) }
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun ReviewRow(icon: ImageVector, meta: String, body: String, confidence: String) {
+private fun ReviewRow(
+    memory: Memory,
+    onKeep: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onPin: () -> Unit
+) {
     Surface(
         shape = ProductInnerShape,
         color = MaterialTheme.colorScheme.surface,
@@ -374,43 +412,54 @@ private fun ReviewRow(icon: ImageVector, meta: String, body: String, confidence:
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(modifier = Modifier.size(42.dp), shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
-                    Icon(icon, contentDescription = null, modifier = Modifier.padding(10.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.Memory, contentDescription = null, modifier = Modifier.padding(10.dp), tint = MaterialTheme.colorScheme.primary)
                 }
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 12.dp)
                 ) {
-                    Text(meta, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(body, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        "${sourceLabel(memory.source)} · ${shortDate(memory.createdAt)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(memory.content, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    StatusChip(uiText("High", "高"), CompanionReadinessLevel.READY)
-                    Text(confidence, modifier = Modifier.padding(top = 4.dp), style = MaterialTheme.typography.labelLarge)
+                    StatusChip(categoryLabel(memory.category), CompanionReadinessLevel.DEGRADED)
+                    Text(uiText("Review", "待审核"), modifier = Modifier.padding(top = 4.dp), style = MaterialTheme.typography.labelLarge)
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(uiText("Keep", "保留"), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
-                Text(uiText("Edit", "编辑"), style = MaterialTheme.typography.labelMedium)
-                Text(uiText("Delete", "删除"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
-                Text(uiText("Pin", "置顶"), style = MaterialTheme.typography.labelMedium)
+                TextButton(onClick = onKeep) { Text(uiText("Keep", "保留")) }
+                TextButton(onClick = onEdit) { Text(uiText("Edit", "编辑")) }
+                TextButton(onClick = onDelete) { Text(uiText("Delete", "删除"), color = MaterialTheme.colorScheme.error) }
+                TextButton(onClick = onPin) { Text(uiText("Pin", "置顶")) }
             }
         }
     }
 }
 
 @Composable
-private fun PinnedMemoriesCard(memories: List<Memory>, onEdit: (Memory) -> Unit) {
-    val pinned = memories.filter { it.referenceCount > 0 }.ifEmpty { memories.take(3) }
+private fun PinnedMemoriesCard(
+    memories: List<Memory>,
+    selectedUseNextTurnMemoryId: Long?,
+    onUseNextTurn: (Long) -> Unit,
+    onUnpin: (Long) -> Unit,
+    onEdit: (Memory) -> Unit
+) {
     ProductCard {
-        SectionTitle(uiText("Pinned Memories", "置顶记忆"), action = uiText("View all (${pinned.size})", "查看全部 (${pinned.size})"))
+        SectionTitle(uiText("Pinned Memories", "置顶记忆"), action = uiText("View all (${memories.size})", "查看全部 (${memories.size})"))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (pinned.isEmpty()) {
+            if (memories.isEmpty()) {
                 item {
                     EmptyMiniCard(uiText("No pinned memories yet", "还没有置顶记忆"), uiText("Pin memories from conversations before reusing them.", "从对话中置顶记忆后可复用。"))
                 }
             } else {
-                items(pinned, key = { it.id }) { memory ->
+                items(memories, key = { it.id }) { memory ->
                     Surface(
                         modifier = Modifier
                             .width(270.dp)
@@ -424,12 +473,24 @@ private fun PinnedMemoriesCard(memories: List<Memory>, onEdit: (Memory) -> Unit)
                                 MemoryIllustration(Icons.Default.PushPin)
                                 Column(modifier = Modifier.padding(start = 10.dp)) {
                                     Text(memory.content, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2)
-                                    Text(uiText("Pinned · ${shortDate(memory.updatedAt)}", "置顶 · ${shortDate(memory.updatedAt)}"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                    Text(
+                                        if (selectedUseNextTurnMemoryId == memory.id) {
+                                            uiText("Selected for next turn", "已选择用于下轮")
+                                        } else {
+                                            uiText("Pinned · ${shortDate(memory.updatedAt)}", "置顶 · ${shortDate(memory.updatedAt)}")
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
                                 }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                MiniButton(Icons.Default.PlayArrow, uiText("Play", "播放"))
-                                MiniButton(Icons.Default.KeyboardArrowUp, uiText("Use Next Turn", "下轮使用"))
+                                MiniButton(Icons.Default.KeyboardArrowUp, uiText("Use Next Turn", "下轮使用")) {
+                                    onUseNextTurn(memory.id)
+                                }
+                                MiniButton(Icons.Default.PushPin, uiText("Unpin", "取消置顶")) {
+                                    onUnpin(memory.id)
+                                }
                             }
                         }
                     }
@@ -583,7 +644,8 @@ private fun MemoryCard(
     memory: Memory,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onPromote: () -> Unit
+    onPromote: () -> Unit,
+    onPin: () -> Unit
 ) {
     ProductCard {
         Text(memory.content, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
@@ -591,13 +653,15 @@ private fun MemoryCard(
             MemoryTag(categoryLabel(memory.category), emphatic = true)
             MemoryTag(layerLabel(memory.layer), emphatic = memory.layer == "long_term")
             MemoryTag(sourceLabel(memory.source), emphatic = false)
-            if (memory.referenceCount > 0) MemoryTag(uiText("Pinned ${memory.referenceCount}", "置顶 ${memory.referenceCount}"), emphatic = true)
+            if (memory.isPinned) MemoryTag(uiText("Pinned", "置顶"), emphatic = true)
         }
         Text(uiText("Updated: ${formatTime(memory.updatedAt)}", "更新时间：${formatTime(memory.updatedAt)}"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             FilledTonalIconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = uiText("Edit memory", "编辑记忆")) }
             Spacer(modifier = Modifier.size(8.dp))
             FilledTonalIconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = uiText("Delete memory", "删除记忆")) }
+            Spacer(modifier = Modifier.size(8.dp))
+            FilledTonalIconButton(onClick = onPin) { Icon(Icons.Default.PushPin, contentDescription = uiText("Pin memory", "置顶记忆")) }
             if (memory.layer == "short_term") {
                 Spacer(modifier = Modifier.size(8.dp))
                 FilledTonalIconButton(onClick = onPromote) { Icon(Icons.Default.KeyboardArrowUp, contentDescription = uiText("Promote to long-term memory", "提升为长期记忆")) }
@@ -707,8 +771,13 @@ private fun MemoryIllustration(icon: ImageVector) {
 }
 
 @Composable
-private fun MiniButton(icon: ImageVector, label: String) {
+private fun MiniButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
     Surface(
+        modifier = Modifier.clickable(onClick = onClick),
         shape = ProductInnerShape,
         color = MaterialTheme.colorScheme.surface,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)

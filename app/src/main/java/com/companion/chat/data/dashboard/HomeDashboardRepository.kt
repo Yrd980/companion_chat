@@ -20,6 +20,7 @@ class HomeDashboardRepository(
     suspend fun getDashboardState(): HomeDashboardUiState {
         val roleCard = roleCardRepository.getActiveRoleCard()
         val memories = memoryRepository.getAllMemories()
+            .filter { it.reviewState == MemoryRepository.REVIEW_STATE_CONFIRMED }
         val readiness = readinessRepository.getSnapshot()
         val events = timelineEventRepository.getRecent()
         val memoryCount = memories.size

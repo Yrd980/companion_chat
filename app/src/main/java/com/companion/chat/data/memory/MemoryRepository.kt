@@ -40,7 +40,11 @@ class MemoryRepository(
         extractedMemories: List<ExtractedMemory>,
         sessionId: String
     ): List<Memory> {
-        return storeExtractedMemories(extractedMemories, sessionId)
+        return storeExtractedMemories(
+            extractedMemories = extractedMemories,
+            sessionId = sessionId,
+            reviewState = REVIEW_STATE_CANDIDATE
+        )
     }
 
     suspend fun retrieveRelevantMemories(userMessage: String): List<Memory> {
@@ -53,6 +57,14 @@ class MemoryRepository(
 
     suspend fun getAllMemories(): List<Memory> {
         return memoryDao.getAll()
+    }
+
+    suspend fun getCandidateMemories(): List<Memory> {
+        return memoryDao.getCandidateMemories()
+    }
+
+    suspend fun getPinnedMemories(): List<Memory> {
+        return memoryDao.getPinnedMemories()
     }
 
     fun observeAllMemories(): Flow<List<Memory>> {
@@ -89,6 +101,41 @@ class MemoryRepository(
         memoryDao.delete(memory)
     }
 
+    suspend fun confirmCandidate(memoryId: Long): Boolean {
+        return memoryDao.confirmCandidate(memoryId, nowProvider()) > 0
+    }
+
+    suspend fun deleteCandidate(memory: Memory) {
+        if (memory.reviewState == REVIEW_STATE_CANDIDATE) {
+            memoryDao.delete(memory)
+        }
+    }
+
+    suspend fun pinMemory(memoryId: Long): Boolean {
+        val now = nowProvider()
+        memoryDao.confirmCandidate(memoryId, now)
+        return memoryDao.setPinned(memoryId, true, now) > 0
+    }
+
+    suspend fun unpinMemory(memoryId: Long): Boolean {
+        return memoryDao.setPinned(memoryId, false, nowProvider()) > 0
+    }
+
+    suspend fun markMemoryUsed(memoryId: Long): Boolean {
+        return memoryDao.markUsed(memoryId, nowProvider()) > 0
+    }
+
+    suspend fun getHealthMetrics(): MemoryHealthMetrics {
+        val memories = memoryDao.getAll()
+        return MemoryHealthMetrics(
+            total = memories.size,
+            pinned = memories.count { it.isPinned },
+            candidates = memories.count { it.reviewState == REVIEW_STATE_CANDIDATE },
+            longTerm = memories.count { it.layer == LONG_TERM_LAYER },
+            shortTerm = memories.count { it.layer == SHORT_TERM_LAYER }
+        )
+    }
+
     suspend fun promoteMemory(memoryId: Long, now: Long = nowProvider()): Boolean {
         return memoryDao.promoteToLongTerm(memoryId, now) > 0
     }
@@ -105,7 +152,8 @@ class MemoryRepository(
 
     private suspend fun storeExtractedMemories(
         extractedMemories: List<ExtractedMemory>,
-        sessionId: String
+        sessionId: String,
+        reviewState: String = REVIEW_STATE_CONFIRMED
     ): List<Memory> {
         if (extractedMemories.isEmpty()) {
             return emptyList()
@@ -135,7 +183,8 @@ class MemoryRepository(
                 sessionId = sessionId,
                 createdAt = now,
                 updatedAt = now,
-                expiresAt = extractedMemory.expiresAt ?: now + SHORT_TERM_TTL_MILLIS
+                expiresAt = extractedMemory.expiresAt ?: now + SHORT_TERM_TTL_MILLIS,
+                reviewState = reviewState
             )
             val insertedId = memoryDao.insert(memoryToInsert)
             storedMemories += memoryToInsert.copy(id = insertedId)
@@ -146,7 +195,10 @@ class MemoryRepository(
     companion object {
         const val SHORT_TERM_TTL_MILLIS = 7L * 24 * 60 * 60 * 1000
         private const val LONG_TERM_LAYER = "long_term"
+        private const val SHORT_TERM_LAYER = "short_term"
         private const val MANUAL_SOURCE = "manual"
+        const val REVIEW_STATE_CONFIRMED = "confirmed"
+        const val REVIEW_STATE_CANDIDATE = "candidate"
         const val MODEL_SOURCE = "model_extractor"
     }
 }

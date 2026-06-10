@@ -32,7 +32,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RoleCard::class,
         TimelineEvent::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -59,7 +59,7 @@ abstract class CompanionDatabase : RoomDatabase() {
                     CompanionDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .addCallback(DatabaseInitializationCallback())
                     .build()
                     .also { instance = it }
@@ -165,6 +165,14 @@ abstract class CompanionDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+            }
+        }
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE memories ADD COLUMN isPinned INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE memories ADD COLUMN reviewState TEXT NOT NULL DEFAULT 'confirmed'")
+                db.execSQL("ALTER TABLE memories ADD COLUMN lastUsedAt INTEGER")
             }
         }
 
