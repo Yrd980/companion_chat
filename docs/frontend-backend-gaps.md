@@ -79,6 +79,10 @@ Current data wired:
 
 - LLM, ASR, TTS, and image readiness use `CompanionReadinessSnapshot`.
 - Model and voice settings navigation callbacks remain wired.
+- Real helmet telemetry and controls are out of scope until hardware is
+  available. The current app should expose local device/model/voice diagnostics,
+  keep Helmet as the product surface, and mark hardware controls as unavailable
+  when no helmet is connected.
 
 Backend gaps:
 

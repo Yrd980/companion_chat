@@ -111,7 +111,7 @@ fun HelmetScreen(
             contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 22.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item { HelmetHero(readinessSnapshot, onOpenProfile) }
+            item { HelmetHero(onOpenProfile) }
             item { RuntimeReadinessGrid(readinessSnapshot, onOpenModelSettings, onOpenVoiceSettings) }
             item { TemperatureAndSensors() }
             item { ControlsCard(onOpenVoiceSettings) }
@@ -122,10 +122,7 @@ fun HelmetScreen(
 }
 
 @Composable
-private fun HelmetHero(
-    readinessSnapshot: CompanionReadinessSnapshot,
-    onOpenProfile: () -> Unit
-) {
+private fun HelmetHero(onOpenProfile: () -> Unit) {
     ProductCard {
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -142,10 +139,10 @@ private fun HelmetHero(
                     .fillMaxWidth(0.48f),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                HardwareMetric(Icons.Default.BatteryChargingFull, uiText("Battery", "电量"), "84%", uiText("Charging", "充电中"))
-                HardwareMetric(Icons.Default.Speed, uiText("Est. Runtime", "预计续航"), "12h 45m", null)
-                HardwareMetric(Icons.Default.Bluetooth, uiText("Connection", "连接"), uiText("BLE Strong", "BLE 信号强"), null)
-                HardwareMetric(Icons.Default.SystemUpdate, uiText("Firmware", "固件"), "v2.4.1", null)
+                HardwareMetric(Icons.Default.BatteryChargingFull, uiText("Battery", "电量"), "--", uiText("No device", "无设备"))
+                HardwareMetric(Icons.Default.Speed, uiText("Est. Runtime", "预计续航"), "--", uiText("Unavailable", "不可用"))
+                HardwareMetric(Icons.Default.Bluetooth, uiText("Connection", "连接"), uiText("Not connected", "未连接"), null)
+                HardwareMetric(Icons.Default.SystemUpdate, uiText("Firmware", "固件"), uiText("No helmet", "无头盔"), null)
             }
             Column(
                 modifier = Modifier
@@ -153,27 +150,38 @@ private fun HelmetHero(
                     .fillMaxWidth(0.48f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(uiText("Recent Firmware Changes", "最近固件变更"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                FirmwareBullet(uiText("Improved voice recognition accuracy", "提升语音识别准确率"))
-                FirmwareBullet(uiText("Reduced power usage in standby", "降低待机功耗"))
-                FirmwareBullet(uiText("Enhanced impact detection sensitivity", "增强碰撞检测灵敏度"))
-                Text(uiText("View Full Changelog", "查看完整更新日志"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                Text(uiText("Helmet status", "头盔状态"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                FirmwareBullet(uiText("No helmet is connected to this build.", "此构建尚未连接头盔。"))
+                FirmwareBullet(uiText("Pairing is skipped until real hardware is available.", "真实硬件可用前暂时跳过配对。"))
+                FirmwareBullet(uiText("Local model, voice, and image diagnostics remain available.", "本地模型、语音和图片诊断仍可使用。"))
+                Text(uiText("Hardware controls require a real helmet", "硬件控制需要真实头盔"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
             }
         }
+        StatusChip(uiText("No helmet connected", "头盔未连接"), CompanionReadinessLevel.DEGRADED)
+        Text(
+            uiText(
+                "This screen keeps the Helmet product surface visible, but battery, firmware, sensors, and controls are unavailable without hardware.",
+                "此页面保留头盔产品入口，但没有硬件时电量、固件、传感器和控制不可用。"
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
                 onClick = onOpenProfile,
+                enabled = false,
                 modifier = Modifier
                     .weight(1f)
                     .height(48.dp)
             ) {
-                Text(if (readinessSnapshot.isReadyForVoiceFirstTurn) uiText("Manage pairing", "管理配对") else uiText("Set up pairing", "设置配对"))
+                Text(uiText("Pairing skipped", "已跳过配对"))
             }
             OutlinedButton(
                 onClick = onOpenProfile,
+                enabled = false,
                 modifier = Modifier.height(48.dp)
             ) {
-                Text(uiText("Manual code", "手动代码"))
+                Text(uiText("Manual code unavailable", "手动代码不可用"))
             }
         }
     }
@@ -326,17 +334,17 @@ private fun TemperatureAndSensors() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.Bottom) {
-                        Text("32.6", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        Text("--", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.width(5.dp))
                         Text("°C", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.width(10.dp))
-                        StatusChip(uiText("Normal", "正常"), CompanionReadinessLevel.READY)
+                        StatusChip(uiText("No device", "无设备"), CompanionReadinessLevel.DEGRADED)
                     }
-                    Text(uiText("Optimal operating range", "最佳工作范围"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("15°C - 45°C", style = MaterialTheme.typography.bodyMedium)
+                    Text(uiText("Hardware temperature requires a connected helmet.", "硬件温度需要连接头盔。"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(uiText("Local diagnostics still available", "本地诊断仍可用"), style = MaterialTheme.typography.bodyMedium)
                 }
                 androidx.compose.material3.CircularProgressIndicator(
-                    progress = { 0.72f },
+                    progress = { 0f },
                     modifier = Modifier.size(72.dp),
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -366,7 +374,7 @@ private fun TemperatureAndSensors() {
 private fun SensorStatusRow(label: String) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        StatusChip(uiText("OK", "正常"), CompanionReadinessLevel.READY)
+        StatusChip(uiText("Unavailable", "不可用"), CompanionReadinessLevel.DEGRADED)
     }
 }
 
@@ -376,10 +384,10 @@ private fun ControlsCard(onOpenVoiceSettings: () -> Unit) {
         SectionTitle(uiText("Controls", "控制"))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                ControlSlider(Icons.Default.VolumeUp, uiText("Speaker Volume", "扬声器音量"), 0.70f, "70%")
-                ControlSlider(Icons.Default.Mic, uiText("Mic Sensitivity", "麦克风灵敏度"), 0.60f, "60%")
-                ToggleControl(Icons.Default.Campaign, uiText("ANC (Active Noise Canceling)", "ANC（主动降噪）"), true)
-                ToggleControl(Icons.Default.HeadsetMic, uiText("Ambient Passthrough", "环境声透传"), true)
+                ControlSlider(Icons.Default.VolumeUp, uiText("Speaker Volume", "扬声器音量"), 0f, uiText("Unavailable", "不可用"))
+                ControlSlider(Icons.Default.Mic, uiText("Mic Sensitivity", "麦克风灵敏度"), 0f, uiText("Unavailable", "不可用"))
+                ToggleControl(Icons.Default.Campaign, uiText("ANC (Active Noise Canceling)", "ANC（主动降噪）"), false)
+                ToggleControl(Icons.Default.HeadsetMic, uiText("Ambient Passthrough", "环境声透传"), false)
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Surface(
@@ -397,12 +405,7 @@ private fun ControlsCard(onOpenVoiceSettings: () -> Unit) {
                         Icon(Icons.Default.LightMode, contentDescription = null)
                         Spacer(Modifier.width(12.dp))
                         Text(uiText("LED Personalization", "LED 个性化"), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                        Box(
-                            modifier = Modifier
-                                .size(22.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                        )
+                        StatusChip(uiText("Unavailable", "不可用"), CompanionReadinessLevel.DEGRADED)
                     }
                 }
                 WakeWordCard()
@@ -425,6 +428,11 @@ private fun ControlSlider(icon: ImageVector, label: String, value: Float, valueT
                 Text(valueText, style = MaterialTheme.typography.labelMedium)
             }
             Slider(value = value, onValueChange = {})
+            Text(
+                uiText("Hardware control requires a real helmet.", "硬件控制需要真实头盔。"),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -439,7 +447,7 @@ private fun ToggleControl(icon: ImageVector, label: String, checked: Boolean) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp))
             Text(label, modifier = Modifier.weight(1f).padding(start = 12.dp), style = MaterialTheme.typography.bodyMedium)
-            Switch(checked = checked, onCheckedChange = {})
+            Switch(checked = checked, onCheckedChange = {}, enabled = false)
         }
     }
 }
@@ -478,7 +486,7 @@ private fun WakeWordCard() {
                     }
                 }
             }
-            Text(uiText("Adjusts how sensitive the helmet is to your wake-word.", "调整头盔对唤醒词的敏感程度。"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(uiText("Wake-word hardware sensitivity requires a connected helmet.", "硬件唤醒词灵敏度需要连接头盔。"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -488,9 +496,9 @@ private fun SafetyModesCard(onOpenProfile: () -> Unit) {
     ProductCard {
         SectionTitle(uiText("Safety Modes", "安全模式"))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SafetyMode(Icons.Default.HealthAndSafety, uiText("Ventilation Reminders", "通风提醒"), uiText("Reminds you to ventilate every 2 hours.", "每 2 小时提醒你通风。"), Modifier.weight(1f))
-            SafetyMode(Icons.Default.PowerSettingsNew, uiText("Auto-Shutoff", "自动关机"), uiText("Turns off helmet after 30 min of inactivity.", "闲置 30 分钟后关闭头盔。"), Modifier.weight(1f))
-            SafetyMode(Icons.Default.Shield, uiText("Impact Detection", "碰撞检测"), uiText("Alerts and logs on potential impacts.", "检测到潜在撞击时发出警报并记录。"), Modifier.weight(1f))
+            SafetyMode(Icons.Default.HealthAndSafety, uiText("Ventilation Reminders", "通风提醒"), uiText("Unavailable until a real helmet is connected.", "连接真实头盔前不可用。"), Modifier.weight(1f))
+            SafetyMode(Icons.Default.PowerSettingsNew, uiText("Auto-Shutoff", "自动关机"), uiText("Hardware shutoff requires a connected helmet.", "硬件关机需要连接头盔。"), Modifier.weight(1f))
+            SafetyMode(Icons.Default.Shield, uiText("Impact Detection", "碰撞检测"), uiText("Impact detection requires helmet sensors.", "碰撞检测需要头盔传感器。"), Modifier.weight(1f))
         }
         OutlinedButton(onClick = onOpenProfile, modifier = Modifier.fillMaxWidth()) {
             Text(uiText("Set emergency contacts", "设置紧急联系人"))
@@ -506,7 +514,7 @@ private fun SafetyMode(icon: ImageVector, title: String, body: String, modifier:
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked = true, onCheckedChange = {})
+        Switch(checked = false, onCheckedChange = {}, enabled = false)
     }
 }
 
@@ -523,14 +531,14 @@ private fun DiagnosticsCard(onOpenModelSettings: () -> Unit) {
             ) {
                 Icon(Icons.Default.HealthAndSafety, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text(uiText("Run Health Check", "运行健康检查"))
+                Text(uiText("Open Local Diagnostics", "打开本地诊断"))
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(uiText("Running system check...", "正在运行系统检查..."), style = MaterialTheme.typography.bodyMedium)
-                ProductProgress(progress = 0.68f, modifier = Modifier.padding(vertical = 8.dp))
-                Text(uiText("Testing microphone...", "正在测试麦克风..."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(uiText("Local model, voice, and image readiness", "本地模型、语音和图片就绪状态"), style = MaterialTheme.typography.bodyMedium)
+                ProductProgress(progress = 1f, modifier = Modifier.padding(vertical = 8.dp))
+                Text(uiText("Hardware health check unavailable without a helmet.", "没有头盔时无法运行硬件健康检查。"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text("68%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(uiText("Local", "本地"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         Surface(
             shape = ProductInnerShape,
@@ -547,8 +555,8 @@ private fun DiagnosticsCard(onOpenModelSettings: () -> Unit) {
                     Text(uiText("Recent Logs", "最近日志"), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Text(uiText("View All Logs", "查看全部日志"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
-                DiagnosticLog(Icons.Default.Check, uiText("May 24, 2025  8:57 AM", "2025 年 5 月 24 日 8:57"), uiText("Firmware updated successfully to v2.4.1", "固件已成功更新到 v2.4.1"))
-                DiagnosticLog(Icons.Default.Check, uiText("May 24, 2025  8:56 AM", "2025 年 5 月 24 日 8:56"), uiText("Health check completed. All systems normal.", "健康检查完成，所有系统正常。"))
+                DiagnosticLog(Icons.Default.Bluetooth, uiText("Helmet", "头盔"), uiText("No helmet connected. Pairing is skipped in this build.", "头盔未连接。此构建暂时跳过配对。"))
+                DiagnosticLog(Icons.Default.Sensors, uiText("Hardware", "硬件"), uiText("Battery, firmware, sensors, and controls require a real helmet.", "电量、固件、传感器和控制需要真实头盔。"))
                 DiagnosticLog(Icons.Default.Memory, uiText("Readiness", "就绪状态"), uiText("Open model settings if chat or image generation is unavailable.", "如果聊天或图片生成不可用，请打开模型设置。"))
             }
         }
