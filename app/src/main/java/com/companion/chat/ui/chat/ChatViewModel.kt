@@ -90,7 +90,7 @@ class ChatViewModel(
     private val readinessRepository = container.companionReadinessRepository
     private val imageGenerationConfigRepository = container.imageGenerationConfigRepository
     private val imageGenerationEngineSelector = container.imageGenerationEngineSelector
-    private val memoryRepository = container.memoryRepository
+    private val durableMemoryModule = container.durableMemoryModule
     private val privacySettingsRepository = container.privacySettingsRepository
     private val timelineEventRepository = container.timelineEventRepository
     private val companionTurnModule: CompanionTurnModule = container.createCompanionTurnModule(
@@ -284,7 +284,7 @@ class ChatViewModel(
                         "Cloud Optional"
                     },
                     localOnlyMode = privacySettings.localOnlyMode,
-                    pinnedMemories = memoryRepository.getPinnedMemories()
+                    pinnedMemories = durableMemoryModule.getPinnedProjection()
                 )
             }
         }
@@ -399,12 +399,6 @@ class ChatViewModel(
             ).collect { event ->
                 when (event) {
                     is CompanionTurnEvent.Accepted -> {
-                        recordTimeline(
-                            type = if (event.voiceFirst) TimelineEventType.VOICE_NOTE else TimelineEventType.CHAT,
-                            title = if (event.voiceFirst) "Voice note sent" else "Message sent",
-                            detail = state.inputText.take(160),
-                            relatedSessionId = state.currentSessionId
-                        )
                         _uiState.update {
                             it.copy(
                                 inputText = "",
@@ -420,17 +414,28 @@ class ChatViewModel(
                     is CompanionTurnEvent.Failed -> {
                         logToFile(event.message)
                     }
+                    is CompanionTurnEvent.AssistantMessageCommitted -> Unit
+                    is CompanionTurnEvent.VoicePlaybackRequested -> {
+                        speakMessage(event.text)
+                    }
+                    is CompanionTurnEvent.TimelineEventRequested -> {
+                        recordTimeline(
+                            type = event.type,
+                            title = event.title,
+                            detail = event.detail,
+                            relatedSessionId = event.relatedSessionId,
+                            relatedMemoryId = event.relatedMemoryId,
+                            mediaUri = event.mediaUri
+                        )
+                    }
+                    CompanionTurnEvent.DurableMemoryRefreshRequested -> {
+                        refreshPrivacyAndMemories()
+                    }
+                    CompanionTurnEvent.PreferenceLearningTriggered -> {
+                        logToFile("Preference Learning triggered after Companion Turn commit")
+                    }
                     CompanionTurnEvent.Completed -> {
                         _uiState.update { it.copy(voice = it.voice.copy(isAutoSending = false)) }
-                        recordTimeline(
-                            type = TimelineEventType.CHAT,
-                            title = "Assistant reply completed",
-                            detail = _uiState.value.messages.lastOrNull { message ->
-                                message.role == MessageRole.ASSISTANT && message.content.isNotBlank()
-                            }?.content.orEmpty().take(160),
-                            relatedSessionId = _uiState.value.currentSessionId
-                        )
-                        refreshPrivacyAndMemories()
                     }
                     is CompanionTurnEvent.AssistantToken -> Unit
                 }
@@ -551,7 +556,7 @@ class ChatViewModel(
     fun useMemoryNextTurn(memoryId: Long) {
         viewModelScope.launch {
             val memory = _uiState.value.pinnedMemories.firstOrNull { it.id == memoryId }
-                ?: memoryRepository.getConfirmedMemoriesByIds(listOf(memoryId)).firstOrNull()
+                ?: durableMemoryModule.findConfirmedMemory(memoryId)
                 ?: return@launch
             _uiState.update { it.copy(useNextTurnMemory = memory) }
             recordTimeline(

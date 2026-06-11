@@ -16,9 +16,10 @@ import com.companion.chat.engine.image.ImageGenerationConfigRepository
 import com.companion.chat.engine.image.ImageGenerationEngineSelector
 import com.companion.chat.engine.image.LocalImageGenerationEngine
 import com.companion.chat.data.local.CompanionDatabase
-import com.companion.chat.memory.MemoryPromptBuilder
+import com.companion.chat.data.memory.DurableMemoryModule
 import com.companion.chat.data.memory.MemoryRepository
 import com.companion.chat.data.plan.PlanRepository
+import com.companion.chat.data.privacy.PrivacyGate
 import com.companion.chat.data.privacy.PrivacySettingsRepository
 import com.companion.chat.data.profile.UserProfileRepository
 import com.companion.chat.preference.PreferenceMemoryDeriver
@@ -85,6 +86,9 @@ class AppContainer(
     val privacySettingsRepository: PrivacySettingsRepository by lazy {
         PrivacySettingsRepository(application)
     }
+    val privacyGate: PrivacyGate by lazy {
+        PrivacyGate(settingsProvider = privacySettingsRepository::getSettings)
+    }
     val planRepository: PlanRepository by lazy { PlanRepository() }
     val dataExportRepository: DataExportRepository by lazy {
         DataExportRepository(
@@ -102,7 +106,7 @@ class AppContainer(
     val homeDashboardRepository: HomeDashboardRepository by lazy {
         HomeDashboardRepository(
             roleCardRepository = roleCardRepository,
-            memoryRepository = memoryRepository,
+            durableMemoryModule = durableMemoryModule,
             readinessRepository = companionReadinessRepository,
             timelineEventRepository = timelineEventRepository
         )
@@ -115,7 +119,12 @@ class AppContainer(
     }
 
     val inferenceEngineFactory: InferenceEngineFactory by lazy { InferenceEngineFactory(application) }
-    val voiceInputEngine: AndroidVoiceInputEngine by lazy { AndroidVoiceInputEngine(application) }
+    val voiceInputEngine: AndroidVoiceInputEngine by lazy {
+        AndroidVoiceInputEngine(
+            context = application,
+            privacyGate = privacyGate
+        )
+    }
     val androidVoiceOutputEngine: AndroidVoiceOutputEngine by lazy { AndroidVoiceOutputEngine(application) }
     val localAudioPlaybackEngine: LocalAudioPlaybackEngine by lazy { LocalAudioPlaybackEngine(application) }
     val mossTtsNanoVoiceCloneEngine: MossTtsNanoVoiceCloneEngine by lazy {
@@ -128,7 +137,8 @@ class AppContainer(
     val httpVoiceCloneEngine: HttpVoiceCloneEngine by lazy {
         HttpVoiceCloneEngine(
             context = application,
-            configProvider = { voiceCloneConfigRepository.getConfig() }
+            configProvider = { voiceCloneConfigRepository.getConfig() },
+            privacyGate = privacyGate
         )
     }
     val roleVoiceCloneRouter: RoleVoiceCloneRouter by lazy {
@@ -150,7 +160,12 @@ class AppContainer(
         )
     }
 
-    val imageGenerationEngine: HttpImageGenerationEngine by lazy { HttpImageGenerationEngine(application) }
+    val imageGenerationEngine: HttpImageGenerationEngine by lazy {
+        HttpImageGenerationEngine(
+            context = application,
+            privacyGate = privacyGate
+        )
+    }
     val imageGenerationEngineSelector: ImageGenerationEngineSelector by lazy {
         ImageGenerationEngineSelector(
             httpEngine = imageGenerationEngine,
@@ -161,7 +176,9 @@ class AppContainer(
     val contextManager: DefaultContextManager by lazy { DefaultContextManager() }
     val promptAssembler: PromptAssembler by lazy { PromptAssembler() }
     val roleCardPromptBuilder: RoleCardPromptBuilder by lazy { RoleCardPromptBuilder() }
-    val memoryPromptBuilder: MemoryPromptBuilder by lazy { MemoryPromptBuilder() }
+    val durableMemoryModule: DurableMemoryModule by lazy {
+        DurableMemoryModule(memoryRepository)
+    }
     val unifiedExtractionPromptBuilder: UnifiedExtractionPromptBuilder by lazy {
         UnifiedExtractionPromptBuilder()
     }
@@ -181,10 +198,9 @@ class AppContainer(
             preferenceRepository = preferenceRepository,
             roleCardRepository = roleCardRepository,
             skillRepository = skillRepository,
-            voiceOutputEngine = voiceOutputEngine,
             contextManager = contextManager,
             promptAssembler = promptAssembler,
-            memoryPromptBuilder = memoryPromptBuilder,
+            durableMemoryModule = durableMemoryModule,
             roleCardPromptBuilder = roleCardPromptBuilder,
             preferenceMemoryDeriver = preferenceMemoryDeriver,
             unifiedExtractionPromptBuilder = unifiedExtractionPromptBuilder,

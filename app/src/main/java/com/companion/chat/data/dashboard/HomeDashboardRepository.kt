@@ -3,7 +3,7 @@ package com.companion.chat.data.dashboard
 import com.companion.chat.companion.readiness.CompanionReadinessLevel
 import com.companion.chat.companion.readiness.CompanionReadinessRepository
 import com.companion.chat.data.local.entity.Memory
-import com.companion.chat.data.memory.MemoryRepository
+import com.companion.chat.data.memory.DurableMemoryModule
 import com.companion.chat.data.timeline.TimelineEvent
 import com.companion.chat.data.timeline.TimelineEventRepository
 import com.companion.chat.identity.RoleCardRepository
@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 
 class HomeDashboardRepository(
     private val roleCardRepository: RoleCardRepository,
-    private val memoryRepository: MemoryRepository,
+    private val durableMemoryModule: DurableMemoryModule,
     private val readinessRepository: CompanionReadinessRepository,
     private val timelineEventRepository: TimelineEventRepository,
     private val nowProvider: () -> Long = { System.currentTimeMillis() }
@@ -19,8 +19,8 @@ class HomeDashboardRepository(
 
     suspend fun getDashboardState(): HomeDashboardUiState {
         val roleCard = roleCardRepository.getActiveRoleCard()
-        val memories = memoryRepository.getAllMemories()
-            .filter { it.reviewState == MemoryRepository.REVIEW_STATE_CONFIRMED }
+        val memoryProjection = durableMemoryModule.getReviewProjection()
+        val memories = memoryProjection.confirmedMemories
         val readiness = readinessRepository.getSnapshot()
         val events = timelineEventRepository.getRecent()
         val memoryCount = memories.size

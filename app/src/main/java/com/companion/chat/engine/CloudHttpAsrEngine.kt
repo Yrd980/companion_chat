@@ -1,5 +1,9 @@
 package com.companion.chat.engine
 
+import com.companion.chat.data.privacy.PrivacyDataType
+import com.companion.chat.data.privacy.PrivacyGate
+import com.companion.chat.data.privacy.PrivacyGateDefaults
+import com.companion.chat.data.privacy.PrivacyGateRequest
 import com.companion.chat.engine.voice.CloudAsrConfigRepository
 import com.companion.chat.engine.voice.CloudAsrResponseParser
 import java.io.OutputStream
@@ -8,26 +12,47 @@ import java.net.URL
 
 class CloudHttpAsrEngine private constructor(
     private val configProvider: () -> com.companion.chat.engine.voice.CloudAsrConfig,
+    private val privacyGate: PrivacyGate,
     private val responseParser: CloudAsrResponseParser = CloudAsrResponseParser(),
     private val httpClient: CloudAsrHttpClient = UrlConnectionCloudAsrHttpClient()
 ) {
     constructor(
         configRepository: CloudAsrConfigRepository,
+        privacyGate: PrivacyGate = PrivacyGateDefaults.denyRemoteByDefault(),
         responseParser: CloudAsrResponseParser = CloudAsrResponseParser(),
         httpClient: CloudAsrHttpClient = UrlConnectionCloudAsrHttpClient()
-    ) : this(configProvider = configRepository::getConfig, responseParser = responseParser, httpClient = httpClient)
+    ) : this(
+        configProvider = configRepository::getConfig,
+        privacyGate = privacyGate,
+        responseParser = responseParser,
+        httpClient = httpClient
+    )
 
     internal constructor(
         config: com.companion.chat.engine.voice.CloudAsrConfig,
+        privacyGate: PrivacyGate = PrivacyGateDefaults.denyRemoteByDefault(),
         responseParser: CloudAsrResponseParser = CloudAsrResponseParser(),
         httpClient: CloudAsrHttpClient = UrlConnectionCloudAsrHttpClient()
-    ) : this(configProvider = { config }, responseParser = responseParser, httpClient = httpClient)
+    ) : this(
+        configProvider = { config },
+        privacyGate = privacyGate,
+        responseParser = responseParser,
+        httpClient = httpClient
+    )
 
     fun transcribe(audio: RecordedAudio): String {
         val config = configProvider()
         if (!config.isConfigured) {
             throw IllegalStateException("云 ASR 未配置")
         }
+        privacyGate.requireAllowed(
+            PrivacyGateRequest(
+                dataType = PrivacyDataType.Audio,
+                destination = config.baseUrl,
+                reason = "Cloud ASR",
+                localAlternative = "local SenseVoice recognition"
+            )
+        )
         NetworkEndpointPolicy.requireHttpsOrLoopback(config.baseUrl, "云 ASR")
 
         val boundary = "CompanionChatAsr${System.currentTimeMillis()}"

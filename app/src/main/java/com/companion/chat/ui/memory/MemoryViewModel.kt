@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import com.companion.chat.appContainer
 import com.companion.chat.data.local.CompanionDatabase
 import com.companion.chat.data.local.entity.Memory
+import com.companion.chat.data.memory.DurableMemoryModule
+import com.companion.chat.data.memory.DurableMemoryReviewProjection
 import com.companion.chat.data.memory.MemoryRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,24 +20,35 @@ import kotlinx.coroutines.launch
 
 class MemoryViewModel(
     application: Application,
-    private val memoryRepository: MemoryRepository = MemoryRepository(
-        memoryDao = CompanionDatabase.getInstance(application).memoryDao()
+    private val durableMemoryModule: DurableMemoryModule = DurableMemoryModule(
+        repository = MemoryRepository(
+            memoryDao = CompanionDatabase.getInstance(application).memoryDao()
+        )
     ),
     private val workerScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) : AndroidViewModel(application) {
 
     constructor(application: Application) : this(
         application = application,
-        memoryRepository = defaultMemoryRepository(application),
+        durableMemoryModule = defaultDurableMemoryModule(application),
         workerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     )
 
     private val _uiState = MutableStateFlow(MemoryUiState())
     val uiState: StateFlow<MemoryUiState> = _uiState.asStateFlow()
 
-    private var allMemories: List<Memory> = emptyList()
-    private var candidateMemories: List<Memory> = emptyList()
-    private var pinnedMemories: List<Memory> = emptyList()
+    private var memoryProjection = DurableMemoryReviewProjection(
+        confirmedMemories = emptyList(),
+        candidateMemories = emptyList(),
+        pinnedMemories = emptyList(),
+        healthMetrics = com.companion.chat.data.memory.MemoryHealthMetrics(
+            total = 0,
+            pinned = 0,
+            candidates = 0,
+            longTerm = 0,
+            shortTerm = 0
+        )
+    )
 
     init {
         observeMemories()
@@ -58,15 +71,15 @@ class MemoryViewModel(
             return
         }
         workerScope.launch {
-            memoryRepository.addManualMemory(content, category)
+            durableMemoryModule.addManualMemory(content, category)
             refreshMemories()
         }
     }
 
     fun updateMemory(memoryId: Long, content: String, category: String) {
-        val existing = allMemories.firstOrNull { it.id == memoryId } ?: return
+        val existing = memoryProjection.confirmedMemories.firstOrNull { it.id == memoryId } ?: return
         workerScope.launch {
-            memoryRepository.updateMemory(
+            durableMemoryModule.updateMemory(
                 existing.copy(
                     content = content,
                     category = category
@@ -78,35 +91,35 @@ class MemoryViewModel(
 
     fun deleteMemory(memory: Memory) {
         workerScope.launch {
-            memoryRepository.deleteMemory(memory)
+            durableMemoryModule.deleteMemory(memory)
             refreshMemories()
         }
     }
 
     fun keepCandidate(memoryId: Long) {
         workerScope.launch {
-            memoryRepository.confirmCandidate(memoryId)
+            durableMemoryModule.keepCandidate(memoryId)
             refreshMemories(message = "Memory kept")
         }
     }
 
     fun deleteCandidate(memory: Memory) {
         workerScope.launch {
-            memoryRepository.deleteCandidate(memory)
+            durableMemoryModule.deleteCandidate(memory)
             refreshMemories(message = "Candidate deleted")
         }
     }
 
     fun pinMemory(memoryId: Long) {
         workerScope.launch {
-            memoryRepository.pinMemory(memoryId)
+            durableMemoryModule.pinMemory(memoryId)
             refreshMemories(message = "Memory pinned")
         }
     }
 
     fun unpinMemory(memoryId: Long) {
         workerScope.launch {
-            memoryRepository.unpinMemory(memoryId)
+            durableMemoryModule.unpinMemory(memoryId)
             refreshMemories(message = "Memory unpinned")
         }
     }
@@ -131,26 +144,22 @@ class MemoryViewModel(
 
     fun promoteMemory(memoryId: Long) {
         workerScope.launch {
-            memoryRepository.promoteMemory(memoryId)
+            durableMemoryModule.promoteMemory(memoryId)
             refreshMemories()
         }
     }
 
     private fun observeMemories() {
         workerScope.launch {
-            memoryRepository.observeAllMemories().collectLatest { memories ->
-                allMemories = memories
-                candidateMemories = memoryRepository.getCandidateMemories()
-                pinnedMemories = memoryRepository.getPinnedMemories()
+            durableMemoryModule.observeReviewProjection().collectLatest { projection ->
+                memoryProjection = projection
                 publishMemories(isLoading = false)
             }
         }
     }
 
     private suspend fun refreshMemories(message: String = _uiState.value.message) {
-        allMemories = memoryRepository.getAllMemories()
-        candidateMemories = memoryRepository.getCandidateMemories()
-        pinnedMemories = memoryRepository.getPinnedMemories()
+        memoryProjection = durableMemoryModule.getReviewProjection()
         publishMemories(isLoading = false, message = message)
     }
 
@@ -159,41 +168,25 @@ class MemoryViewModel(
         message: String = _uiState.value.message
     ) {
         val filter = _uiState.value.filter
-        val confirmedMemories = allMemories.filter { it.reviewState != MemoryRepository.REVIEW_STATE_CANDIDATE }
-        val visibleMemories = when (filter) {
-            MemoryFilter.ALL -> confirmedMemories
-            MemoryFilter.RELATION -> confirmedMemories.filter {
-                it.category == "relation" || it.category == "relationship"
-            }
-            else -> confirmedMemories.filter { it.category == filter.category }
-        }
         _uiState.update {
             it.copy(
-                memories = visibleMemories,
-                candidateMemories = candidateMemories,
-                pinnedMemories = pinnedMemories,
-                healthMetrics = memoryRepositoryHealthSnapshot(),
+                memories = memoryProjection.confirmedForCategory(filter.category),
+                candidateMemories = memoryProjection.candidateMemories,
+                pinnedMemories = memoryProjection.pinnedMemories,
+                healthMetrics = memoryProjection.healthMetrics,
                 message = message,
                 isLoading = isLoading
             )
         }
     }
-
-    private fun memoryRepositoryHealthSnapshot(): com.companion.chat.data.memory.MemoryHealthMetrics {
-        return com.companion.chat.data.memory.MemoryHealthMetrics(
-            total = allMemories.size,
-            pinned = pinnedMemories.size,
-            candidates = candidateMemories.size,
-            longTerm = allMemories.count { it.layer == "long_term" },
-            shortTerm = allMemories.count { it.layer == "short_term" }
-        )
-    }
 }
 
-private fun defaultMemoryRepository(application: Application): MemoryRepository {
-    return runCatching { application.appContainer.memoryRepository }.getOrElse {
-        MemoryRepository(
-            memoryDao = CompanionDatabase.getInstance(application).memoryDao()
+private fun defaultDurableMemoryModule(application: Application): DurableMemoryModule {
+    return runCatching { application.appContainer.durableMemoryModule }.getOrElse {
+        DurableMemoryModule(
+            repository = MemoryRepository(
+                memoryDao = CompanionDatabase.getInstance(application).memoryDao()
+            )
         )
     }
 }
