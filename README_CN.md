@@ -109,15 +109,18 @@ Anime Companion 想解决的正是这些问题。
 
 当前版本已经覆盖以下主能力：
 
-- 本地模型聊天
-- 语音优先聊天交互
+- 通过更深的 Companion Turn 模块完成本地模型聊天
+- 语音优先聊天交互，并把语音播放、时间线、记忆刷新、偏好学习作为明确的 turn outcome 发出
 - 会话持久化
-- 长对话上下文压缩
-- 记忆提取与检索
-- 用户偏好后台学习
+- 长对话上下文压缩与模型 Conversation 重建
+- Durable Memory 的候选审核、确认/置顶投影、检索、下轮使用和 prompt 注入
+- 用户偏好后台学习与规则记忆兜底
+- Home dashboard 的关系状态、模型/语音/图片 readiness、最近记忆、建议和时间线活动
 - 发现页角色目录与导入
 - 角色卡管理
 - 图片生成 Provider 配置
+- Profile 隐私控制、本地数据导出/删除、紧急联系人
+- Cloud ASR、HTTP 语音克隆、HTTP 图片生成前的 Privacy Gate
 - Skills 管理
 
 ## 主要功能
@@ -221,19 +224,22 @@ MOSS 模型文件不打包、不提交。当前本机缓存路径为 `third_part
 - 长对话达到阈值后会触发上下文压缩
 - 通过摘要 + 最近消息回放来维持上下文连续性
 - 在需要时重建模型 `Conversation`
+- `ModelRuntimeLifecycle` 集中处理 runtime 切换、模型初始化、实际后端同步、取消、预热和释放
 
 ### 4. 记忆系统
 
 - 能从用户表达中提取记忆
-- 支持短期记忆与长期记忆
-- 生成前会检索相关记忆并注入 prompt
-- 提供单独的记忆管理页面
+- 支持短期、长期、候选、确认、置顶等记忆状态
+- `DurableMemoryModule` 统一负责审核投影、确认/置顶投影、下轮使用、prompt-ready 注入和健康指标
+- 生成前会检索相关记忆，并可把用户选择的记忆仅用于下一轮
+- 提供记忆管理页面，支持候选 Keep/Delete/Pin、置顶、分类筛选、提升长期记忆和下轮使用
 
 ### 5. 偏好学习
 
-- 后台对近期对话做结构化提取
+- Companion Turn 结束后在空闲时对近期对话做结构化提取
 - 把重复出现的偏好合并并提升置信度
 - 已确认偏好会注入到生成 prompt 中
+- 当自动偏好学习关闭时，会用规则记忆提取作为兜底写入用户消息记忆
 
 ### 6. 角色卡与 Skills
 
@@ -265,7 +271,16 @@ MOSS 模型文件不打包、不提交。当前本机缓存路径为 `third_part
 - DreamLite 源码通过 Git submodule 管理在 `third_party/DreamLite`；模型文件默认读取 `/sdcard/Android/data/com.companion.chat/files/models/image/dreamlite`。Android 当前会检查 DreamLite 模型包，真实端侧推理接入前会返回明确的“推理运行时未接入”错误。
 - OpenMOSS Reader/运行时参考代码通过 Git submodule 管理在 `third_party/MOSS-TTS-Nano-Reader`；Android 侧模型文件仍只作为本机缓存放在 `third_party/models/tts/moss-tts-nano/`，不提交模型权重。
 
-### 9. 更开放的私密互动
+### 9. 隐私、所有权与本地数据控制
+
+- Profile 保存本地显示名、头像 URI 和紧急联系人
+- 隐私设置包含 local-only 模式，以及 Cloud ASR、HTTP 语音克隆、HTTP 图片生成、analytics、partner sharing 的独立 opt-in
+- local-only 模式会强制关闭云端、分析和共享开关
+- `PrivacyGate` 会在 Cloud ASR、HTTP 语音克隆和 HTTP 图片生成发送数据前做统一拦截
+- 本地数据导出会把会话、记忆、角色卡、偏好和时间线事件写入 App 私有 JSON 文件
+- 本地数据删除支持按记忆、会话、角色卡或全部本地用户数据分范围删除
+
+### 10. 更开放的私密互动
 
 - 产品目标不是公共平台式的统一聊天规范，而是更贴近个人私密场景
 - 在本地模型与用户自定义 prompt 支持下，可以承载更暧昧、更调情、表达更强烈的陪伴型互动
@@ -275,14 +290,20 @@ MOSS 模型文件不打包、不提交。当前本机缓存路径为 `third_part
 
 当前项目已经包含：
 
-- 基于 Room 的会话、消息、记忆、偏好、角色卡和 Skills 存储
-- 上下文压缩、最近消息回放、记忆检索和 confirmed 偏好注入
+- 基于 Room 的会话、消息、记忆、偏好、角色卡、Skills 和时间线事件存储
+- Companion Turn transaction seam：接收/拒绝、流式 token、最终提交、语音播放请求、时间线请求、记忆刷新信号和偏好学习触发
+- Durable Memory 模块：候选审核队列、确认/置顶投影、下轮使用、prompt-ready 注入和健康指标
+- 上下文压缩、最近消息回放、记忆检索、下轮记忆注入和 confirmed 偏好注入
+- Model Runtime Lifecycle：runtime 切换、初始化、实际后端同步、预热、取消和释放
 - 角色卡身份、Skill prompt、发现页角色导入和独立角色对话
 - 本地 SenseVoice ASR、Android 系统 TTS、HTTP 语音克隆和本地 MOSS 语音克隆回退
+- Cloud ASR、HTTP 语音克隆、HTTP 图片生成前的 Privacy Gate
+- Profile 页面支持隐私设置、本地数据导出/删除、紧急联系人、计划状态和 runtime readiness
+- Home dashboard 支持关系摘要、本地设备 readiness、快捷操作、最近记忆、最近时间线活动和设置建议
 - LiteRT-LM CPU/GPU/NPU 后端选择、加速失败回退和性能日志
 - llama.cpp GGUF 运行时，以及基于 projector 模型的图片输入链路
 - HTTP 图片生成、DreamLite 包状态检查和 `stable-diffusion.cpp` 本地 SD1.5 Hyper-SD 出图
-- 聊天、发现、记忆、模型配置、语音设置、角色卡和 Skills 的 Material 3 页面
+- Home、Chat、Discover、Memory、Helmet diagnostics、Profile/Privacy、模型配置、语音设置、角色卡和 Skills 的 Material 3 页面
 
 目前这版已经完成并验证：
 
@@ -343,24 +364,36 @@ Anime Companion 对应的机会点在于，它不是卖“一个能回答问题�
 ```text
 app/
   src/main/java/com/companion/chat/
+    companion/        # Companion Runtime、Companion Turn transaction seam、readiness、语音优先策略、Preference Learning
+    context/          # 上下文窗口、摘要、Prompt 组装
     data/
-      context/        # 上下文窗口、摘要、Prompt 组装
+      dashboard/      # Home dashboard 投影
       discover/       # 发现页角色种子、收藏/解锁/导入状态
-      image/          # 图片生成配置、Provider 路由与本地占位
-      local/          # Room 数据库、DAO、实体
-      memory/         # 记忆提取、检索、写入
-      preferences/    # 偏好抽取、合并、注入
+      export/         # 本地数据导出和分范围删除
+      local/          # Room 数据库、DAO、实体、迁移
+      migration/      # Room 迁移辅助
+      model/          # 聊天与会话领域模型
+      memory/         # Durable Memory 模块、审核模型、存储 adapter
+      plan/           # 本地 plan 状态占位
+      preferences/    # 偏好存储与 second-engine 编排
+      privacy/        # 隐私设置与 Privacy Gate
+      profile/        # 本地用户资料与紧急联系人
       repository/     # 会话持久化仓库
-      role/           # 角色卡仓库与角色 Prompt 构建
-      skill/          # Skill 仓库
-      voice/          # ASR/TTS/语音克隆配置与回退选择
-    engine/           # LiteRT-LM 与语音引擎实现
+      setup/          # 首次设置状态
+      timeline/       # 类型化本地 Timeline Event
+    engine/           # 模型 runtime adapter、Model Runtime Lifecycle、语音输入/输出、ASR/TTS、图片生成
+    identity/         # 角色卡仓库与角色 Prompt 构建
+    memory/           # 记忆提取、检索、生命周期辅助、Prompt 构建
+    preference/       # Preference Learning prompt/parser/derivation 辅助
+    capability/       # Skill 仓库
     ui/
-      chat/           # 聊天页与 ChatViewModel
-      memory/         # 记忆管理页面
-      settings/       # 设置、角色管理、Skills 管理
-docs/plans/          # 设计与实施文档
-docs/progress/jindu.md             # 开发进度记录
+      chat/           # 聊天页、ChatViewModel、turn outcomes、语音 dock、时间线 strip
+      home/           # Home dashboard 与 Discover 角色目录
+      helmet/         # 面向头盔产品方向的本地诊断/readiness 页面
+      memory/         # Memory & Relationship UI：审核队列、置顶记忆、筛选、紧凑操作
+      settings/       # profile/privacy/plan、模型、语音、角色、Skill 设置
+      setup/          # onboarding/setup 流程
+docs/                # 产品、架构与开发文档
 ```
 
 ## 运行依赖
@@ -448,8 +481,10 @@ adb shell run-as com.companion.chat cat files/viewmodel_log.txt
 ## 文档入口
 
 - 英文 README：[README.md](./README.md)
-- 开发进度：[docs/progress/jindu.md](./docs/progress/jindu.md)
-- 设计/计划文档：[docs/plans/](./docs/plans/)
+- 架构评审：[docs/architecture-review-2026-06-11.md](./docs/architecture-review-2026-06-11.md)
+- 产品 UI/UX 方向：[docs/product-ui-ux.md](./docs/product-ui-ux.md)
+- 前后端差距跟踪：[docs/frontend-backend-gaps.md](./docs/frontend-backend-gaps.md)
+- Android 开发脚本：[docs/android-dev-scripts.md](./docs/android-dev-scripts.md)
 
 ## 这个仓库适合用来做什么
 

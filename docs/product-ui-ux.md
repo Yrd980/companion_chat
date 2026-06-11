@@ -185,6 +185,47 @@ Product rules:
 - Do not bury helmet readiness inside generic settings. Helmet state is a primary product surface.
 - Memory remains visible inside Home and Chat. It can have a deeper management view, but it should not disappear behind a settings route.
 
+## Current Implementation Alignment
+
+The latest `main` has moved several design-only surfaces into real local data
+flows:
+
+- Navigation now opens to Home and keeps `Home`, `Helmet`, `Memory`, and
+  `Profile` as bottom destinations.
+- Home reads typed state from `HomeDashboardRepository`, combining active Role
+  Card identity, `CompanionReadinessRepository`, Durable Memory projections, and
+  recent Timeline Events.
+- Chat submits turns through `CompanionTurnModule`, which emits explicit
+  outcomes for acceptance, streaming, final assistant commit, voice playback,
+  timeline events, Durable Memory refresh, and Preference Learning.
+- `ModelRuntimeLifecycle` centralizes model runtime switching, initialization,
+  actual-backend persistence, warmup, cancellation, and release.
+- `DurableMemoryModule` owns candidate review projection, confirmed and pinned
+  memory projections, one-turn memory injection, prompt-ready memory strings,
+  and simple memory health counts.
+- Timeline Events are persisted locally for chat, voice notes, image generation,
+  memory selection, privacy changes, setup changes, local export, and local
+  deletion.
+- Profile stores local display name, avatar URI, emergency contact, plan state,
+  privacy defaults, runtime readiness, local export, and scoped local delete
+  state.
+- `PrivacyGate` is now enforced by Cloud ASR, HTTP voice clone, and HTTP image
+  generation before those adapters can send audio, voice text, or image prompts
+  off-device.
+
+Areas that remain design intent or hardware/service-gated:
+
+- Real helmet pairing, battery, firmware, BLE signal, sensors, safety modes,
+  audio controls, and health-check runtime.
+- Voice clip persistence, waveform, duration, transcript-source metadata, and
+  clip sharing.
+- Per-capture privacy confirmation UI in Chat. Adapter-level enforcement exists,
+  but the pre-action UI gate is still missing.
+- Real account, subscription entitlement, renewal, warranty, cloud backup,
+  analytics, partner sharing, diagnostic upload, and SOS runtime.
+- Rich memory provenance and quality metrics such as source confidence,
+  extraction reason, capacity, accuracy, and stale-memory risk.
+
 ## Screen 1: Onboarding & Device Setup
 
 Purpose:

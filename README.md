@@ -98,14 +98,17 @@ This is especially important for companionship scenarios, where users often care
 
 The current implementation already covers the main product loop:
 
-- local chat
-- voice-first chat interaction
-- context compression
-- memory retrieval and storage
-- background preference extraction
+- local chat through a deeper Companion Turn module
+- voice-first chat interaction with explicit turn outcomes for playback, timeline, memory refresh, and Preference Learning
+- context compression and model conversation rebuild
+- Durable Memory review, projection, retrieval, pinned memory, and one-turn memory injection
+- background Preference Learning and rule-based memory fallback
+- Home dashboard projections for relationship state, readiness, recent memories, suggestions, and timeline activity
 - discover role catalog and import flow
 - role card management
 - image generation provider configuration
+- Profile privacy controls, local data export/delete, and emergency contact storage
+- Privacy Gate enforcement for Cloud ASR, HTTP voice clone, and HTTP image generation
 - skills management
 
 ## Core Features
@@ -202,19 +205,22 @@ The app does not commit or bundle MOSS model files. A local cache can live at `t
 - Compresses long conversations
 - Rebuilds the model conversation when context gets too large
 - Replays recent messages and injects summary when needed
+- Keeps model runtime lifecycle policy in `ModelRuntimeLifecycle`, including runtime switching, backend fallback persistence, initialization, cancellation, warmup, and release
 
 ### 4. Memory system
 
 - Extracts memories from user messages
-- Stores long-term and short-term memory in Room
-- Retrieves relevant memory before generation
-- Provides a memory management screen
+- Stores long-term, short-term, candidate, confirmed, and pinned memory in Room
+- Uses `DurableMemoryModule` for review projections, confirmed/pinned projections, one-turn memory use, prompt-ready injection, and memory health metrics
+- Retrieves relevant memory before generation and marks selected one-turn memories as used
+- Provides a memory management screen with candidate keep/delete/pin actions, pinned memory actions, category filters, promotion, and use-next-turn selection
 
 ### 5. Preference learning
 
-- Runs background extraction for user preferences
+- Runs background extraction for user preferences after Companion Turns settle
 - Merges repeated preferences into confirmed preferences
 - Injects confirmed preferences into the system prompt
+- Can be disabled, in which case a rule-based memory fallback stores user-message memories directly
 
 ### 6. Role cards and skills
 
@@ -267,7 +273,16 @@ adb push third_party/models/image/sd15-hypersd/. /sdcard/Android/data/com.compan
 - DreamLite source is tracked as a Git submodule at `third_party/DreamLite`; model files are expected under `/sdcard/Android/data/com.companion.chat/files/models/image/dreamlite` and are not committed. The Android path currently checks the DreamLite model package and returns a clear runtime-not-connected error until real on-device inference is wired in.
 - OpenMOSS reader/runtime reference code is tracked as a Git submodule at `third_party/MOSS-TTS-Nano-Reader`; Android integration keeps model files under `third_party/models/tts/moss-tts-nano/` as local cache only.
 
-### 9. More open private interaction
+### 9. Privacy, ownership, and local data controls
+
+- Profile stores a local display name, avatar URI, and emergency contact details
+- Privacy settings include local-only mode plus separate opt-ins for Cloud ASR, HTTP voice clone, HTTP image generation, analytics, and partner sharing
+- Local-only mode forcibly disables cloud, analytics, and sharing opt-ins
+- `PrivacyGate` is enforced by Cloud ASR, HTTP voice clone, and HTTP image generation before data leaves the device
+- Local data export writes conversations, memories, role cards, preferences, and timeline events to an app-private JSON file
+- Local data deletion supports scoped deletion for memories, conversations, role cards, or all local user data
+
+### 10. More open private interaction
 
 - Built for private local use rather than public-platform conversation norms
 - Suitable for flirtatious, emotionally expressive, and more intimate interaction styles when the selected local model and prompts support it
@@ -277,14 +292,20 @@ adb push third_party/models/image/sd15-hypersd/. /sdcard/Android/data/com.compan
 
 The project currently includes:
 
-- Room-backed conversations, messages, memories, preferences, role cards, and skills
-- Context compression, recent-message replay, memory retrieval, and confirmed preference prompt injection
+- Room-backed conversations, messages, memories, preferences, role cards, skills, and timeline events
+- Companion Turn transaction seam with accepted/rejected turns, streaming tokens, final commit events, voice playback requests, timeline event requests, memory refresh signals, and Preference Learning triggers
+- Durable Memory module for candidate review queue, confirmed/pinned projections, one-turn memory use, prompt-ready injection, and health metrics
+- Context compression, recent-message replay, memory retrieval, one-turn memory injection, and confirmed preference prompt injection
+- Model Runtime Lifecycle wrapper for runtime switching, initialization, backend fallback persistence, warmup, cancellation, and release
 - Role-card identity, skill prompts, discover role import, and fresh role-specific chat sessions
 - Local SenseVoice ASR, Android system TTS, HTTP voice clone, and local MOSS voice clone fallback
+- Privacy Gate enforcement for Cloud ASR, HTTP voice clone, and HTTP image generation
+- Profile surfaces for privacy settings, local data export/delete, emergency contact storage, plan status, and runtime readiness
+- Home dashboard projections for relationship summary, local-device readiness, quick actions, recent memories, recent timeline activity, and setup suggestions
 - LiteRT-LM CPU/GPU/NPU backend selection with accelerator fallback and benchmark logging
 - llama.cpp GGUF runtime with image prompt support through a configured projector model
 - HTTP image generation, DreamLite package status checks, and local SD1.5 Hyper-SD generation through `stable-diffusion.cpp`
-- Material 3 screens for chat, discover, memory, model settings, voice settings, role cards, and skills
+- Material 3 screens for home, chat, discover, memory, helmet diagnostics, profile/privacy, model settings, voice settings, role cards, and skills
 
 The current build has passed:
 
@@ -347,24 +368,36 @@ From an investor-style perspective, the larger opportunity is that this is not j
 ```text
 app/
   src/main/java/com/companion/chat/
+    companion/        # Companion Runtime, Companion Turn transaction seam, readiness, voice-first policy, Preference Learning
+    context/          # context window, prompt assembly, summary flow
     data/
-      context/        # context window, prompt assembly, summary flow
+      dashboard/      # Home dashboard projections
       discover/       # discover role seeds plus favorite/unlock/import state
-      image/          # image generation config, provider routing, local placeholder
-      local/          # Room database, dao, entities
-      memory/         # memory extraction, retrieval, storage
-      preferences/    # preference extraction and merge flow
+      export/         # local data export and scoped delete workflows
+      local/          # Room database, DAO, entities, migrations
+      migration/      # Room migration helpers
+      model/          # chat and conversation domain models
+      memory/         # Durable Memory module, review models, storage adapter
+      plan/           # local plan state placeholder
+      preferences/    # preference storage and second-engine orchestration
+      privacy/        # privacy settings and Privacy Gate
+      profile/        # local user profile and emergency contact storage
       repository/     # chat session persistence
-      role/           # role card repository and prompt builder
-      skill/          # skill repository
-      voice/          # ASR/TTS/voice clone configuration and fallback selection
-    engine/           # LiteRT-LM and voice engine implementations
+      setup/          # first-run setup state
+      timeline/       # typed local Timeline Events
+    engine/           # model runtime adapters, Model Runtime Lifecycle, voice input/output, ASR/TTS, image generation
+    identity/         # Role Card repository and prompt builder
+    memory/           # memory extraction, retrieval, lifecycle helpers, prompt builder
+    preference/       # Preference Learning prompt/parser/derivation helpers
+    capability/       # Skill repository
     ui/
-      chat/           # chat screen, ChatViewModel, quiet input panel, message components
-      memory/         # memory management UI with filters, lightweight tags, and compact actions
-      settings/       # settings, role management, skills management, grouped Material rows
-docs/plans/          # design and implementation documents
-docs/progress/jindu.md             # progress log
+      chat/           # chat screen, ChatViewModel, turn outcomes, voice dock, timeline strip
+      home/           # Home dashboard and Discover role catalog
+      helmet/         # local diagnostics/readiness surface for helmet product direction
+      memory/         # Memory & Relationship UI with review queue, pinned memories, filters, compact actions
+      settings/       # profile/privacy/plan, model, voice, role, and skill settings
+      setup/          # onboarding/setup flow
+docs/                # product, architecture, and developer documentation
 ```
 
 ## Runtime Requirements
@@ -451,8 +484,10 @@ You should see the model path detected and the inference engine entering `Ready`
 ## Documentation
 
 - Chinese README: [README_CN.md](./README_CN.md)
-- Progress log: [docs/progress/jindu.md](./docs/progress/jindu.md)
-- Design and implementation docs: [`docs/plans/`](./docs/plans/)
+- Architecture review: [docs/architecture-review-2026-06-11.md](./docs/architecture-review-2026-06-11.md)
+- Product UI/UX direction: [docs/product-ui-ux.md](./docs/product-ui-ux.md)
+- Frontend/backend gap tracker: [docs/frontend-backend-gaps.md](./docs/frontend-backend-gaps.md)
+- Android developer scripts: [docs/android-dev-scripts.md](./docs/android-dev-scripts.md)
 
 ## Repository Purpose
 

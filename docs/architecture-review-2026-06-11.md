@@ -27,8 +27,36 @@ The review used the domain language from `CONTEXT.md`:
 - Role Card
 - Skill
 - Durable Memory
+- Privacy Gate
+- Timeline Event
 - Preference Learning
 - Voice-First Interaction
+
+## Implementation Status on `main`
+
+This review started as an architecture discovery document. The latest `main`
+already implements the first pass of the recommended seams:
+
+- `CompanionTurnModule` now accepts Companion Turn requests and emits explicit
+  outcomes for acceptance/rejection, streaming assistant tokens, final assistant
+  message commit, voice playback, Timeline Event requests, Durable Memory
+  refresh, and Preference Learning trigger.
+- `DefaultCompanionTurnModule` uses `ModelRuntimeLifecycle`, persists the turn,
+  emits turn outcomes, and triggers post-turn learning after the assistant
+  message is finalized.
+- `DurableMemoryModule` now owns review projection, confirmed and pinned
+  projections, one-turn memory resolution, prompt-ready injection, and simple
+  health metrics.
+- `ModelRuntimeLifecycle` centralizes runtime switching, initialization,
+  actual-backend persistence, warmup, cancellation, and release.
+- `PrivacyGate` is wired through `AppContainer` and enforced by Cloud ASR, HTTP
+  voice clone, and HTTP image generation before remote data transfer.
+- `TimelineEventRepository` and the Room `timeline_events` table back recent
+  activity in Chat, Home, Profile, setup, export, and delete flows.
+
+Remaining deepening work is now more specific: transactional durability across
+process death, richer memory provenance and confidence, per-capture privacy UI,
+and real helmet hardware adapters.
 
 ## Findings
 

@@ -1,77 +1,110 @@
 # Frontend Backend Gaps
 
-This document tracks backend/data gaps exposed by the imagegen-led UI rewrite.
-The UI is intentionally implemented first so product review can happen before
-the missing runtime surfaces are built.
+This document tracks backend/data gaps exposed by the product UI rewrite. The
+latest `main` now backs several previously visual-only surfaces, so this file is
+organized as implemented data wiring plus the runtime gaps that still remain.
 
 ## Scope
 
-Implemented frontend screens:
+Implemented product screens:
 
 - Home
 - Chat / Voice
 - Memory & Relationship
 - Helmet Control & Diagnostics
 - Profile / Privacy / Plan
+- Onboarding / Setup entry point
 
 Existing ViewModels and navigation callbacks are still wired where they existed.
-Sections below marked "placeholder" are visual-only until a backend surface is
-added.
+The remaining gaps are mostly hardware runtime, richer media metadata, and real
+cloud/account services.
 
 ## Home
 
 Current data wired:
 
+- Bottom navigation starts at `Screen.HOME`, with Home, Helmet, Memory, and
+  Profile as first-class destinations.
 - Active/recommended companion cards use `DiscoverViewModel`.
-- Model/voice/image readiness uses `CompanionReadinessRepository`.
+- `HomeDashboardRepository` builds typed `HomeDashboardUiState` from the active
+  Role Card, `DurableMemoryModule`, `CompanionReadinessRepository`, and
+  `TimelineEventRepository`.
+- Relationship level, XP, and closeness label are approximated from confirmed
+  memory count.
+- Local model, voice, and image readiness drive quick-action enabled states,
+  disabled reasons, and setup suggestions.
+- Recent memories come from the Durable Memory confirmed projection.
+- Recent activity uses typed local Timeline Events with relative timestamps.
 - Start chat, helmet, memory, profile, and role-card actions use existing
   callbacks.
 
-Backend gaps:
+Remaining gaps:
 
-- Companion relationship level, XP, mood, and active percentage.
-- Helmet battery, signal, firmware version, and online status.
+- Real helmet battery, signal, firmware version, and online status.
+- Relationship mood, active percentage, and XP sourced from real interaction
+  signals instead of confirmed-memory count.
 - Ambient playback state and ambient audio library.
 - Ride mode state and safety availability.
-- Emergency SOS readiness and contact status.
-- Recent memories with thumbnail/media metadata.
-- Recent activity feed with typed events and timestamps.
+- Emergency SOS runtime readiness, permission status, and contact test state.
+- Recent memory thumbnail/media metadata beyond the current optional `mediaUri`.
 
 ## Chat / Voice
 
 Current data wired:
 
 - Messages, sessions, voice input, voice output, image generation, and drawer
-  behavior still use `ChatViewModel`.
+  behavior use `ChatViewModel`.
 - Text/image input remains available through the existing `ChatInputBar`.
+- `CompanionTurnModule` now emits explicit turn outcomes for acceptance,
+  streaming tokens, assistant-message commit, voice playback, timeline event
+  requests, Durable Memory refresh, and Preference Learning trigger.
+- Chat records typed Timeline Events for voice transcripts, image generation,
+  user turns, assistant replies, and selected memories.
+- Pinned memories are read from `DurableMemoryModule`.
+- `Use Next Turn` passes selected confirmed memory IDs into the next Companion
+  Turn for one-turn prompt injection, then clears the selection after acceptance.
+- Chat reflects Profile privacy defaults as a local-only/cloud-optional label.
+- Remote ASR, HTTP voice clone, and HTTP image generation are guarded by
+  `PrivacyGate` at the adapter level.
 
-Backend gaps:
+Remaining gaps:
 
-- Pinned memories injected into the current conversation.
-- Conversation timeline event model.
 - Helmet stream clips and location/media metadata.
-- Voice-note transcript persistence and clipping.
-- Per-session privacy mode selection.
-- Voice personality settings: tone, language, verbosity.
+- Persisted voice-note audio clips, waveform, duration, and replay metadata.
+- Per-session or per-capture privacy mode selection before capture starts.
+- Voice personality settings in the chat workspace: tone, language, verbosity,
+  and role voice mode.
 - Assistant response audio waveform and duration metadata.
+- Human-readable memory-source chips showing which memories affected a specific
+  turn.
 
 ## Memory & Relationship
 
 Current data wired:
 
-- Memory CRUD, filters, promote, and editor still use `MemoryViewModel`.
-- Confirmed memories come from the existing Room-backed `Memory` entity.
+- `MemoryViewModel` consumes `DurableMemoryModule` instead of reimplementing
+  review rules.
+- Confirmed memories come from the Room-backed `Memory` entity.
+- Candidate review queue is exposed through `DurableMemoryReviewProjection`.
+- Candidate actions support keep, delete, and pin.
+- Confirmed memory actions support add, edit, delete, promote, pin, unpin, and
+  `Use Next Turn`.
+- Pinned memories are exposed as a first-class projection for Memory, Chat, and
+  Home.
+- Memory health metrics exist for total, pinned, candidates, long-term, and
+  short-term counts.
 
-Backend gaps:
+Remaining gaps:
 
-- Relationship profile: companion identity, level, XP, closeness label.
-- Memory health metrics: accuracy, capacity, review backlog, confidence.
-- Candidate memory review queue before commit.
-- Keep/edit/delete/pin review actions.
-- Pinned memory playback/use-next-turn actions.
-- Relationship timeline event types and media thumbnails.
-- Learned preference confirmation/disable workflow.
-- Local storage health and sync status.
+- Relationship profile beyond count-derived continuity: companion identity
+  history, emotional state, level rules, and XP rules.
+- Memory health metrics for accuracy, capacity, source confidence, and stale
+  memory risk.
+- Rich source metadata for candidate memories, including extraction reason,
+  confidence label, originating turn, voice clip, and media thumbnail.
+- Pinned memory playback when the source is voice or media.
+- Learned preference confirmation, edit, and disable workflow.
+- Local storage health, optional cloud backup, and sync status.
 
 ## Helmet Control & Diagnostics
 
@@ -80,11 +113,11 @@ Current data wired:
 - LLM, ASR, TTS, and image readiness use `CompanionReadinessSnapshot`.
 - Model and voice settings navigation callbacks remain wired.
 - Real helmet telemetry and controls are out of scope until hardware is
-  available. The current app should expose local device/model/voice diagnostics,
-  keep Helmet as the product surface, and mark hardware controls as unavailable
-  when no helmet is connected.
+  available. The current app exposes local device/model/voice diagnostics, keeps
+  Helmet as the product surface, and marks hardware controls as unavailable when
+  no helmet is connected.
 
-Backend gaps:
+Remaining gaps:
 
 - Real helmet pairing state.
 - Battery, charging, runtime, firmware, BLE signal, and changelog data.
@@ -98,27 +131,46 @@ Backend gaps:
 
 Current data wired:
 
-- Memory learning toggle uses `ContextConfigRepository`.
+- `ProfileViewModel` combines local profile, plan state, privacy settings,
+  runtime readiness, export/delete status, and deletion confirmation state.
+- `UserProfileRepository` stores display name, avatar URI, and emergency contact
+  details in SharedPreferences.
+- `PrivacySettingsRepository` stores local-only mode plus separate opt-ins for
+  Cloud ASR, HTTP voice clone, HTTP image generation, analytics, and partner
+  sharing.
+- Local-only mode normalizes cloud, analytics, and sharing opt-ins off.
+- `PrivacyGate` is wired through `AppContainer` and enforced by Cloud ASR, HTTP
+  voice clone, and HTTP image generation before data leaves the device.
+- `DataExportRepository` exports conversations, memories, role cards,
+  preferences, and Timeline Events to app-private JSON.
+- Scoped local delete supports memories, conversations, role cards, and all local
+  user data.
+- Profile privacy changes, local export, local delete, and emergency contact
+  updates create Timeline Events.
 - Runtime readiness uses `CompanionReadinessRepository`.
-- Existing navigation callbacks are preserved.
 
-Backend gaps:
+Remaining gaps:
 
-- User profile entity and avatar source.
-- Subscription/plan entitlement state.
-- Renewal dates, premium voice entitlement, warranty/cloud feature flags.
-- Export memories/conversations/role cards.
-- Delete local data flow with scoped confirmation.
-- Emergency contact management and SOS test flow.
-- Privacy controls for analytics, partner sharing, cloud ASR, HTTP voice clone,
-  and HTTP image generation.
-- Advanced diagnostic screens for endpoint templates and backend logs.
+- Real account and subscription/plan entitlement backend.
+- Renewal dates, premium voice entitlement, warranty state, and cloud feature
+  flags.
+- Emergency SOS runtime, contact test flow, and impact-detection notification
+  rules.
+- Analytics, partner sharing, diagnostic upload, and cloud backup adapters.
+- Pre-action confirmation UI for any capture/upload that can leave the device.
+- Advanced diagnostic screens for endpoint templates, backend logs, and remote
+  request history.
 
 ## Suggested Backend Order
 
-1. Add typed UI state models for Home dashboard and Profile privacy settings.
-2. Build candidate memory review queue on top of the existing memory pipeline.
-3. Add helmet pairing/telemetry repository with mockable local implementation.
-4. Add timeline/event feed shared by Home, Chat, and Memory.
-5. Add export/delete local data workflows.
-6. Add subscription/plan entitlement only after local-first flows are stable.
+1. Add a helmet pairing/telemetry repository with a mockable local
+   implementation, then replace placeholder helmet metrics.
+2. Add voice clip persistence with waveform, duration, source-turn linkage, and
+   replay metadata.
+3. Add per-capture privacy selection/confirmation UI that feeds the existing
+   `PrivacyGate` policy.
+4. Add richer memory provenance: source confidence, extraction reason, affected
+   turn chips, and media thumbnails.
+5. Add learned preference confirmation/edit/disable workflow.
+6. Add subscription entitlement, cloud backup, and SOS runtime only after the
+   local-first flows stay coherent.

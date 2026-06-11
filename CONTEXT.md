@@ -28,6 +28,14 @@ _Avoid_: Tool, command mode
 User-owned context that persists across companion turns and is injected when relevant to preserve relationship continuity.
 _Avoid_: Chat history, notes
 
+**Privacy Gate**:
+The shared decision module that evaluates whether data may leave the device for a remote adapter, based on data type, destination, reason, local alternative, and the user's privacy settings.
+_Avoid_: Cloud toggle, endpoint check
+
+**Timeline Event**:
+A typed local record of meaningful product activity, such as companion turns, voice notes, image generation, memory use, setup changes, privacy changes, data export, or local deletion.
+_Avoid_: Log line, UI feed item
+
 **Preference Learning**:
 Background extraction and confirmation of stable user preferences from prior companion turns.
 _Avoid_: Summary job, analytics
