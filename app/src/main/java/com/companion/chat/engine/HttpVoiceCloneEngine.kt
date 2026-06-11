@@ -2,6 +2,10 @@ package com.companion.chat.engine
 
 import android.content.Context
 import android.net.Uri
+import com.companion.chat.data.privacy.PrivacyDataType
+import com.companion.chat.data.privacy.PrivacyGate
+import com.companion.chat.data.privacy.PrivacyGateDefaults
+import com.companion.chat.data.privacy.PrivacyGateRequest
 import com.companion.chat.engine.voice.VoiceCloneConfig
 import com.companion.chat.engine.voice.VoiceCloneConfigRepository
 import com.companion.chat.engine.voice.VoiceCloneEngine
@@ -15,6 +19,7 @@ import java.net.URL
 
 class HttpVoiceCloneEngine private constructor(
     private val configProvider: () -> VoiceCloneConfig,
+    private val privacyGate: PrivacyGate,
     private val httpClient: VoiceCloneHttpClient = UrlConnectionVoiceCloneHttpClient(),
     private val audioStore: VoiceCloneAudioStore
 ) : VoiceCloneEngine {
@@ -22,9 +27,11 @@ class HttpVoiceCloneEngine private constructor(
     constructor(
         context: Context,
         configProvider: () -> VoiceCloneConfig = VoiceCloneConfigRepository(context)::getConfig,
+        privacyGate: PrivacyGate = PrivacyGateDefaults.denyRemoteByDefault(),
         httpClient: VoiceCloneHttpClient = UrlConnectionVoiceCloneHttpClient()
     ) : this(
         configProvider = configProvider,
+        privacyGate = privacyGate,
         httpClient = httpClient,
         audioStore = VoiceCloneAudioStore { bytes ->
             val outputDirectory = File(context.filesDir, "generated_audio/http_clone").apply { mkdirs() }
@@ -36,10 +43,12 @@ class HttpVoiceCloneEngine private constructor(
 
     internal constructor(
         config: VoiceCloneConfig,
+        privacyGate: PrivacyGate = PrivacyGateDefaults.denyRemoteByDefault(),
         httpClient: VoiceCloneHttpClient,
         audioStore: VoiceCloneAudioStore
     ) : this(
         configProvider = { config },
+        privacyGate = privacyGate,
         httpClient = httpClient,
         audioStore = audioStore
     )
@@ -49,6 +58,14 @@ class HttpVoiceCloneEngine private constructor(
             require(request.text.isNotBlank()) { "朗读文本为空" }
             val config = configProvider()
             require(config.isHttpCloneConfigured) { "HTTP 语音克隆后端未配置" }
+            privacyGate.requireAllowed(
+                PrivacyGateRequest(
+                    dataType = PrivacyDataType.VoiceCloneText,
+                    destination = config.httpCloneBaseUrl,
+                    reason = "HTTP voice clone",
+                    localAlternative = "local Moss TTS Nano or system TTS"
+                )
+            )
             NetworkEndpointPolicy.requireHttpsOrLoopback(config.httpCloneBaseUrl, "HTTP 语音克隆")
             val response = httpClient.postJson(
                 url = config.httpCloneBaseUrl,

@@ -1,6 +1,10 @@
 package com.companion.chat.engine.image
 
 import android.content.Context
+import com.companion.chat.data.privacy.PrivacyDataType
+import com.companion.chat.data.privacy.PrivacyGate
+import com.companion.chat.data.privacy.PrivacyGateDefaults
+import com.companion.chat.data.privacy.PrivacyGateRequest
 import com.companion.chat.engine.NetworkEndpointPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +19,11 @@ import java.util.Base64
 
 class HttpImageGenerationEngine : ImageGenerationEngine {
 
-    constructor(context: Context) : this(
+    constructor(
+        context: Context,
+        privacyGate: PrivacyGate = PrivacyGateDefaults.denyRemoteByDefault()
+    ) : this(
+        privacyGate = privacyGate,
         httpClient = UrlConnectionImageHttpClient(),
         imageStore = GeneratedImageStore { bytes, purpose ->
             ImageFileStore(context).saveBytes(bytes, purpose)
@@ -23,13 +31,16 @@ class HttpImageGenerationEngine : ImageGenerationEngine {
     )
 
     internal constructor(
+        privacyGate: PrivacyGate = PrivacyGateDefaults.denyRemoteByDefault(),
         httpClient: ImageGenerationHttpClient,
         imageStore: GeneratedImageStore
     ) {
+        this.privacyGate = privacyGate
         this.httpClient = httpClient
         this.imageStore = imageStore
     }
 
+    private val privacyGate: PrivacyGate
     private val httpClient: ImageGenerationHttpClient
     private val imageStore: GeneratedImageStore
     private val _state = MutableStateFlow<ImageGenerationState>(ImageGenerationState.Idle)
@@ -54,6 +65,14 @@ class HttpImageGenerationEngine : ImageGenerationEngine {
 
         _state.value = ImageGenerationState.Generating
         runCatching {
+            privacyGate.requireAllowed(
+                PrivacyGateRequest(
+                    dataType = PrivacyDataType.ImagePrompt,
+                    destination = providerConfig.endpoint,
+                    reason = "HTTP image generation",
+                    localAlternative = "local image generation"
+                )
+            )
             NetworkEndpointPolicy.requireHttpsOrLoopback(providerConfig.endpoint, "图片生成")
             val response = httpClient.postJson(
                 url = providerConfig.endpoint,

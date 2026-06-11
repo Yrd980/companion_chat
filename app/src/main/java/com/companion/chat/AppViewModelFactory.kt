@@ -40,7 +40,7 @@ class AppViewModelFactory(
             ) as T
             modelClass.isAssignableFrom(MemoryViewModel::class.java) -> MemoryViewModel(
                 application = application,
-                memoryRepository = container.memoryRepository,
+                durableMemoryModule = container.durableMemoryModule,
                 workerScope = ioScope
             ) as T
             modelClass.isAssignableFrom(ProfileViewModel::class.java) -> ProfileViewModel(

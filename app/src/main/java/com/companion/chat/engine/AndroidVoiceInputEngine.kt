@@ -8,6 +8,8 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.companion.chat.data.privacy.PrivacyGate
+import com.companion.chat.data.privacy.PrivacyGateDefaults
 import com.companion.chat.engine.VoiceInputEngine
 import com.companion.chat.engine.VoiceInputEvent
 import com.companion.chat.engine.voice.CloudAsrConfigRepository
@@ -30,7 +32,11 @@ import kotlin.math.max
 class AndroidVoiceInputEngine(
     private val context: Context,
     private val configRepository: VoiceInputConfigRepository = VoiceInputConfigRepository(context),
-    private val cloudAsrEngine: CloudHttpAsrEngine = CloudHttpAsrEngine(CloudAsrConfigRepository(context))
+    privacyGate: PrivacyGate = PrivacyGateDefaults.denyRemoteByDefault(),
+    private val cloudAsrEngine: CloudHttpAsrEngine = CloudHttpAsrEngine(
+        configRepository = CloudAsrConfigRepository(context),
+        privacyGate = privacyGate
+    )
 ) : VoiceInputEngine {
 
     private val _events = MutableSharedFlow<VoiceInputEvent>(extraBufferCapacity = 16)

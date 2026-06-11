@@ -4,6 +4,7 @@ import android.net.Uri
 import com.companion.chat.context.ContextSettings
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.ConversationSession
+import com.companion.chat.data.timeline.TimelineEventType
 import com.companion.chat.engine.InferenceState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -67,6 +68,18 @@ sealed class CompanionTurnDelivery {
 sealed class CompanionTurnEvent {
     data class Accepted(val voiceFirst: Boolean) : CompanionTurnEvent()
     data class AssistantToken(val token: String) : CompanionTurnEvent()
+    data class AssistantMessageCommitted(val message: ChatMessage) : CompanionTurnEvent()
+    data class VoicePlaybackRequested(val text: String) : CompanionTurnEvent()
+    data class TimelineEventRequested(
+        val type: TimelineEventType,
+        val title: String,
+        val detail: String,
+        val relatedSessionId: String? = null,
+        val relatedMemoryId: Long? = null,
+        val mediaUri: String? = null
+    ) : CompanionTurnEvent()
+    data object DurableMemoryRefreshRequested : CompanionTurnEvent()
+    data object PreferenceLearningTriggered : CompanionTurnEvent()
     data class Rejected(val reason: CompanionTurnRejectReason, val message: String) : CompanionTurnEvent()
     data class Failed(val message: String) : CompanionTurnEvent()
     data object Completed : CompanionTurnEvent()

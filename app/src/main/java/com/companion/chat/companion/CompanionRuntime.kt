@@ -6,8 +6,7 @@ import com.companion.chat.context.PromptAssembler
 import com.companion.chat.engine.InferenceEngine
 import com.companion.chat.data.model.ChatMessage
 import com.companion.chat.data.model.MessageRole
-import com.companion.chat.memory.MemoryPromptBuilder
-import com.companion.chat.data.memory.MemoryRepository
+import com.companion.chat.data.memory.DurableMemoryModule
 import com.companion.chat.identity.RoleCardPromptBuilder
 import com.companion.chat.identity.RoleCardRepository
 import com.companion.chat.data.preferences.PreferenceRepository
@@ -20,12 +19,11 @@ class CompanionRuntime(
     private val roleCardRepository: RoleCardRepository,
     private val skillRepository: SkillRepository,
     private val preferenceRepository: PreferenceRepository? = null,
-    private val memoryRepository: MemoryRepository? = null,
+    private val durableMemoryModule: DurableMemoryModule? = null,
     private val contextManager: ContextManager? = null,
     private val inferenceEngineProvider: () -> InferenceEngine? = { null },
     private val postTurnLearning: CompanionPostTurnLearning? = null,
     private val promptAssembler: PromptAssembler = PromptAssembler(),
-    private val memoryPromptBuilder: MemoryPromptBuilder = MemoryPromptBuilder(),
     private val roleCardPromptBuilder: RoleCardPromptBuilder = RoleCardPromptBuilder(),
     private val defaultBasePrompt: String = DEFAULT_BASE_PROMPT
 ) {
@@ -55,23 +53,29 @@ class CompanionRuntime(
         return refreshBasePrompt()
     }
 
-    suspend fun prepareTurnContext(userInput: String): CompanionTurnContext {
+    suspend fun prepareTurnContext(
+        userInput: String,
+        oneTurnMemoryIds: List<Long> = emptyList()
+    ): CompanionTurnContext {
         val query = userInput.trim()
         return try {
             val confirmedPreferences = preferenceRepository?.getConfirmedPreferences().orEmpty()
-            val repository = memoryRepository
-            val persistentMemories = repository?.getPersistentMemories().orEmpty()
-            val relevantMemories = repository?.retrieveRelevantMemories(userInput).orEmpty()
+            val memoryInjection = durableMemoryModule?.prepareInjection(
+                query = userInput,
+                oneTurnMemoryIds = oneTurnMemoryIds
+            )
             CompanionTurnContext(
                 query = query,
                 userPreferences = buildConfirmedPreferencePrompt(
                     confirmedPreferences.map { it.content }
                 ),
-                persistentMemoryPrompt = memoryPromptBuilder.buildPersistent(persistentMemories),
-                memoryPrompt = memoryPromptBuilder.build(relevantMemories),
+                persistentMemoryPrompt = memoryInjection?.persistentMemoryPrompt.orEmpty(),
+                memoryPrompt = memoryInjection?.retrievedMemoryPrompt.orEmpty(),
+                oneTurnMemoryPrompt = memoryInjection?.oneTurnMemoryPrompt.orEmpty(),
                 confirmedPreferenceCount = confirmedPreferences.size,
-                persistentMemoryCount = persistentMemories.size,
-                retrievedMemoryCount = relevantMemories.size
+                persistentMemoryCount = memoryInjection?.persistentMemoryCount ?: 0,
+                retrievedMemoryCount = memoryInjection?.retrievedMemoryCount ?: 0,
+                oneTurnMemoryCount = memoryInjection?.oneTurnMemoryCount ?: 0
             )
         } catch (error: Exception) {
             CompanionTurnContext(
@@ -241,7 +245,7 @@ class CompanionRuntime(
     ): Flow<CompanionTurnEvent> = flow {
         val engine = inferenceEngineProvider() ?: return@flow
         val stableMessages = messages.filterNot { it.isStreaming }
-        val turnContext = prepareTurnContext(userInput).withOneTurnMemories(oneTurnMemoryIds)
+        val turnContext = prepareTurnContext(userInput, oneTurnMemoryIds)
         emit(CompanionTurnEvent.ContextPrepared(turnContext))
         val rebuildResult = rebuildConversationWithContext(
             stableMessages = stableMessages,
@@ -260,21 +264,6 @@ class CompanionRuntime(
         } catch (e: Exception) {
             emit(CompanionTurnEvent.TurnFailed(e.message ?: e.javaClass.simpleName))
         }
-    }
-
-    private suspend fun CompanionTurnContext.withOneTurnMemories(memoryIds: List<Long>): CompanionTurnContext {
-        val repository = memoryRepository ?: return this
-        val memories = repository.getConfirmedMemoriesByIds(memoryIds)
-        if (memories.isEmpty()) {
-            return this
-        }
-        memories.forEach { memory ->
-            repository.markMemoryUsed(memory.id)
-        }
-        return copy(
-            oneTurnMemoryPrompt = memoryPromptBuilder.buildOneTurn(memories),
-            oneTurnMemoryCount = memories.size
-        )
     }
 
     companion object {
