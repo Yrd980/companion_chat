@@ -134,13 +134,18 @@ class DefaultCompanionTurnModule(
             }
 
             val modelConfig = modelConfigRepository.getConfig()
-            val actualPath = modelPath.ifBlank { modelConfigRepository.resolveModelPath(modelConfig) }
-            val file = File(actualPath)
+            val isCloud = modelConfig.runtime == com.companion.chat.engine.ModelRuntime.CLOUD_MIMO
+            val actualPath = if (isCloud) "" else modelPath.ifBlank { modelConfigRepository.resolveModelPath(modelConfig) }
 
             logger("模型运行时 = ${modelConfig.runtime}")
-            logger("实际模型路径 = $actualPath")
-            logger("文件存在 = ${file.exists()}")
-            logger("文件大小 = ${file.length()} bytes")
+            if (isCloud) {
+                logger("云端模式: baseUrl=${modelConfig.cloudBaseUrl}, model=${modelConfig.cloudModelName}")
+            } else {
+                logger("实际模型路径 = $actualPath")
+                val file = java.io.File(actualPath)
+                logger("文件存在 = ${file.exists()}")
+                logger("文件大小 = ${file.length()} bytes")
+            }
 
             logger("开始调用 engine.initialize...")
             val result = modelRuntimeLifecycle.initialize(

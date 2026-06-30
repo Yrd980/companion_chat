@@ -18,13 +18,18 @@ powershell -ExecutionPolicy Bypass -File scripts\android-dev.ps1 build
 - `bootstrap`: runs `doctor`, then initializes all Git submodules recursively
 - `compile`: runs `:app:compileDebugKotlin`
 - `build`: runs `:app:assembleDebug` and prints the APK path
+- `time-build`: runs `build` and prints elapsed seconds
 - `install`: pushes the debug APK to `/data/local/tmp/companionchat.apk`, then installs it with `pm install -r -t --user 0`
 - `download`: alias for `install`
 - `run`: starts `com.companion.chat/.MainActivity`
+- `restart`: force-stops and starts `com.companion.chat/.MainActivity`
 - `deploy`: build, install, then run
 - `fresh`: bootstrap, build, install, then run
 - `model`: pushes a `.litertlm` model to the app model path
+- `asr`: pushes the local SenseVoice ASR model package from `third_party\models\asr\sensevoice`
+- `image`: pushes the local SD1.5 Hyper-SD image model package from `third_party\models\image\sd15-hypersd`
 - `logs`: prints `files/viewmodel_log.txt` through `run-as`
+- `smoke`: clears logcat, restarts the app, waits briefly, then prints logcat
 - `devices`: runs `adb devices -l`
 
 ## Examples
@@ -59,6 +64,13 @@ Push the required local model:
 powershell -ExecutionPolicy Bypass -File scripts\android-dev.ps1 model -ModelPath C:\models\gemma-4-E2B-it.litertlm
 ```
 
+Push local ASR and image model packages:
+
+```powershell
+scripts\android-dev.bat asr
+scripts\android-dev.bat image
+```
+
 Target a specific device:
 
 ```powershell
@@ -75,6 +87,13 @@ The local LLM model is expected on device at:
 
 ```text
 /sdcard/Android/data/com.companion.chat/files/models/gemma-4-E2B-it.litertlm
+```
+
+The ASR and image package tasks expect local cache directories at:
+
+```text
+third_party\models\asr\sensevoice
+third_party\models\image\sd15-hypersd
 ```
 
 The repository uses Git submodules under `third_party/`. `fresh` and

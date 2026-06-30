@@ -73,6 +73,18 @@ class ModelConfigViewModel(
         updateModelConfig(_uiState.value.modelConfig.copy(topP = value.toFloatOrNull() ?: return))
     }
 
+    fun updateCloudBaseUrl(value: String) {
+        updateModelConfig(_uiState.value.modelConfig.copy(cloudBaseUrl = value))
+    }
+
+    fun updateCloudApiKey(value: String) {
+        updateModelConfig(_uiState.value.modelConfig.copy(cloudApiKey = value))
+    }
+
+    fun updateCloudModelName(value: String) {
+        updateModelConfig(_uiState.value.modelConfig.copy(cloudModelName = value))
+    }
+
     fun updateRetainedRounds(rounds: Int) {
         contextConfigRepository.updateRetainedRounds(rounds)
         refresh()

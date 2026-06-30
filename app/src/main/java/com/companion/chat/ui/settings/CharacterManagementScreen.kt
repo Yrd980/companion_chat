@@ -127,15 +127,16 @@ fun CharacterManagementScreen(
                 SectionTitle(uiText("My Role Cards", "我的角色卡"))
             }
 
-            if (uiState.roleCards.isEmpty()) {
+            val inactiveRoleCards = uiState.roleCards.filterNot { it.id == uiState.activeRoleCard?.id }
+            if (inactiveRoleCards.isEmpty()) {
                 item {
                     EmptyState(
-                        title = uiText("No role cards yet", "还没有角色卡"),
-                        description = uiText("Tap the plus button in the top-right to create your first role card.", "点击右上角“+”创建你的第一张角色卡。")
+                        title = uiText("No other role cards", "没有其他角色卡"),
+                        description = uiText("Tap the plus button to create another companion.", "点击右上角“+”创建新的陪伴角色。")
                     )
                 }
             } else {
-                items(uiState.roleCards, key = { it.id }) { roleCard ->
+                items(inactiveRoleCards, key = { it.id }) { roleCard ->
                     RoleCardItem(
                         roleCard = roleCard,
                         isActive = roleCard.isActive,

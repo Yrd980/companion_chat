@@ -12,7 +12,8 @@ enum class BackendType {
 
 enum class ModelRuntime {
     LITERT_LM,
-    LLAMA_CPP_GGUF
+    LLAMA_CPP_GGUF,
+    CLOUD_MIMO
 }
 
 data class EngineConfig(
@@ -25,7 +26,10 @@ data class EngineConfig(
     val temperature: Float = 0.7f,
     val topK: Int = 40,
     val topP: Float = 0.95f,
-    val systemPrompt: String = ""
+    val systemPrompt: String = "",
+    val cloudBaseUrl: String = "",
+    val cloudApiKey: String = "",
+    val cloudModelName: String = ""
 )
 
 sealed class InferenceState {

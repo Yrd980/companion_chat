@@ -8,6 +8,7 @@ data class PrivacySettings(
     val allowCloudAsr: Boolean = false,
     val allowHttpVoiceClone: Boolean = false,
     val allowHttpImageGeneration: Boolean = false,
+    val allowCloudLlm: Boolean = false,
     val allowAnalytics: Boolean = false,
     val allowPartnerSharing: Boolean = false
 )
@@ -25,6 +26,7 @@ class PrivacySettingsRepository(
             allowCloudAsr = sharedPreferences.getBoolean(KEY_ALLOW_CLOUD_ASR, false),
             allowHttpVoiceClone = sharedPreferences.getBoolean(KEY_ALLOW_HTTP_VOICE_CLONE, false),
             allowHttpImageGeneration = sharedPreferences.getBoolean(KEY_ALLOW_HTTP_IMAGE_GENERATION, false),
+            allowCloudLlm = sharedPreferences.getBoolean(KEY_ALLOW_CLOUD_LLM, false),
             allowAnalytics = sharedPreferences.getBoolean(KEY_ALLOW_ANALYTICS, false),
             allowPartnerSharing = sharedPreferences.getBoolean(KEY_ALLOW_PARTNER_SHARING, false)
         ).withLocalOnlyGuardrails()
@@ -37,6 +39,7 @@ class PrivacySettingsRepository(
             .putBoolean(KEY_ALLOW_CLOUD_ASR, normalized.allowCloudAsr)
             .putBoolean(KEY_ALLOW_HTTP_VOICE_CLONE, normalized.allowHttpVoiceClone)
             .putBoolean(KEY_ALLOW_HTTP_IMAGE_GENERATION, normalized.allowHttpImageGeneration)
+            .putBoolean(KEY_ALLOW_CLOUD_LLM, normalized.allowCloudLlm)
             .putBoolean(KEY_ALLOW_ANALYTICS, normalized.allowAnalytics)
             .putBoolean(KEY_ALLOW_PARTNER_SHARING, normalized.allowPartnerSharing)
             .apply()
@@ -50,6 +53,7 @@ class PrivacySettingsRepository(
                 allowCloudAsr = false,
                 allowHttpVoiceClone = false,
                 allowHttpImageGeneration = false,
+                allowCloudLlm = false,
                 allowAnalytics = false,
                 allowPartnerSharing = false
             )
@@ -62,6 +66,7 @@ class PrivacySettingsRepository(
         const val KEY_ALLOW_CLOUD_ASR = "allow_cloud_asr"
         const val KEY_ALLOW_HTTP_VOICE_CLONE = "allow_http_voice_clone"
         const val KEY_ALLOW_HTTP_IMAGE_GENERATION = "allow_http_image_generation"
+        const val KEY_ALLOW_CLOUD_LLM = "allow_cloud_llm"
         const val KEY_ALLOW_ANALYTICS = "allow_analytics"
         const val KEY_ALLOW_PARTNER_SHARING = "allow_partner_sharing"
     }

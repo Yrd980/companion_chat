@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("doctor", "bootstrap", "compile", "build", "install", "download", "run", "deploy", "fresh", "model", "logs", "devices")]
+    [ValidateSet("doctor", "bootstrap", "compile", "build", "time-build", "install", "download", "run", "restart", "deploy", "fresh", "model", "asr", "image", "logs", "smoke", "devices")]
     [string]$Task = "build",
 
     [string]$Serial = $env:ANDROID_SERIAL,
@@ -19,6 +19,8 @@ $RootDir = (Resolve-Path (Join-Path $ScriptDir "..")).Path
 $Gradle = Join-Path $RootDir "gradlew.bat"
 $ApkPath = Join-Path $RootDir "app\build\outputs\apk\debug\app-debug.apk"
 $RemoteModelPath = "/sdcard/Android/data/$PackageName/files/models/gemma-4-E2B-it.litertlm"
+$SenseVoiceModelDir = Join-Path $RootDir "third_party\models\asr\sensevoice"
+$ImageModelDir = Join-Path $RootDir "third_party\models\image\sd15-hypersd"
 
 function Invoke-Checked {
     param(
@@ -152,6 +154,13 @@ function Build-Apk {
     Write-Host "APK: $ApkPath"
 }
 
+function Measure-Build {
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    Build-Apk
+    $sw.Stop()
+    Write-Host ("BUILD_SECONDS={0:N3}" -f $sw.Elapsed.TotalSeconds)
+}
+
 function Install-Apk {
     if (-not (Test-Path -LiteralPath $ApkPath)) {
         Build-Apk
@@ -166,6 +175,11 @@ function Run-App {
     Invoke-Adb @("shell", "am", "start", "-n", "$PackageName/$Activity")
 }
 
+function Restart-App {
+    Invoke-Adb @("shell", "am", "force-stop", $PackageName)
+    Run-App
+}
+
 function Push-Model {
     if ([string]::IsNullOrWhiteSpace($ModelPath)) {
         throw "ModelPath is required. Example: scripts\android-dev.bat model -ModelPath C:\models\gemma-4-E2B-it.litertlm"
@@ -173,6 +187,33 @@ function Push-Model {
     $resolvedModel = (Resolve-Path -LiteralPath $ModelPath).Path
     Invoke-Adb @("shell", "mkdir", "-p", "/sdcard/Android/data/$PackageName/files/models")
     Invoke-Adb @("push", $resolvedModel, $RemoteModelPath)
+}
+
+function Push-SenseVoiceModels {
+    $files = @("model.int8.onnx", "tokens.txt", "silero_vad.onnx")
+    Invoke-Adb @("shell", "mkdir", "-p", "/sdcard/Android/data/$PackageName/files/models/asr/sensevoice")
+    foreach ($file in $files) {
+        $path = Join-Path $SenseVoiceModelDir $file
+        if (-not (Test-Path -LiteralPath $path)) {
+            throw "Missing SenseVoice model file: $path"
+        }
+        Invoke-Adb @("push", $path, "/sdcard/Android/data/$PackageName/files/models/asr/sensevoice/$file")
+    }
+}
+
+function Push-ImageModels {
+    if (-not (Test-Path -LiteralPath $ImageModelDir)) {
+        throw "Missing image model directory: $ImageModelDir"
+    }
+    Invoke-Adb @("shell", "mkdir", "-p", "/sdcard/Android/data/$PackageName/files/models/image/sd15-hypersd")
+    Invoke-Adb @("push", (Join-Path $ImageModelDir "."), "/sdcard/Android/data/$PackageName/files/models/image/sd15-hypersd/")
+}
+
+function Invoke-SmokeCheck {
+    Invoke-Adb @("logcat", "-c")
+    Restart-App
+    Start-Sleep -Seconds 8
+    Invoke-Adb @("logcat", "-d", "-v", "time")
 }
 
 switch ($Task) {
@@ -188,6 +229,9 @@ switch ($Task) {
     "build" {
         Build-Apk
     }
+    "time-build" {
+        Measure-Build
+    }
     "install" {
         Install-Apk
     }
@@ -196,6 +240,9 @@ switch ($Task) {
     }
     "run" {
         Run-App
+    }
+    "restart" {
+        Restart-App
     }
     "deploy" {
         Build-Apk
@@ -211,8 +258,17 @@ switch ($Task) {
     "model" {
         Push-Model
     }
+    "asr" {
+        Push-SenseVoiceModels
+    }
+    "image" {
+        Push-ImageModels
+    }
     "logs" {
         Invoke-Adb @("shell", "run-as", $PackageName, "cat", "files/viewmodel_log.txt")
+    }
+    "smoke" {
+        Invoke-SmokeCheck
     }
     "devices" {
         Invoke-Adb @("devices", "-l")

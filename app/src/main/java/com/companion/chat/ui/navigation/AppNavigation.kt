@@ -57,6 +57,7 @@ object AppRoutes {
 }
 
 object DiscoverRoutes {
+    const val LIST = "discover"
     const val DETAIL = "discover/{roleId}"
 
     fun detail(roleId: String): String = "discover/$roleId"

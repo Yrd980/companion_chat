@@ -11,7 +11,10 @@ data class ModelConfig(
     val maxTokens: Int = DefaultModelConfig.DefaultMaxTokens,
     val temperature: Float = DefaultModelConfig.DefaultTemperature,
     val topK: Int = DefaultModelConfig.DefaultTopK,
-    val topP: Float = DefaultModelConfig.DefaultTopP
+    val topP: Float = DefaultModelConfig.DefaultTopP,
+    val cloudBaseUrl: String = "",
+    val cloudApiKey: String = "",
+    val cloudModelName: String = ""
 )
 
 data class LocalLmPackageStatus(
@@ -61,7 +64,10 @@ class ModelConfigRepository(
             maxTokens = sharedPreferences.getInt(KEY_MAX_TOKENS, DefaultModelConfig.DefaultMaxTokens),
             temperature = sharedPreferences.getFloat(KEY_TEMPERATURE, DefaultModelConfig.DefaultTemperature),
             topK = sharedPreferences.getInt(KEY_TOP_K, DefaultModelConfig.DefaultTopK),
-            topP = sharedPreferences.getFloat(KEY_TOP_P, DefaultModelConfig.DefaultTopP)
+            topP = sharedPreferences.getFloat(KEY_TOP_P, DefaultModelConfig.DefaultTopP),
+            cloudBaseUrl = sharedPreferences.getString(KEY_CLOUD_BASE_URL, "").orEmpty().trim(),
+            cloudApiKey = sharedPreferences.getString(KEY_CLOUD_API_KEY, "").orEmpty().trim(),
+            cloudModelName = sharedPreferences.getString(KEY_CLOUD_MODEL_NAME, "").orEmpty().trim()
         ).normalized()
     }
 
@@ -76,16 +82,21 @@ class ModelConfigRepository(
             .putFloat(KEY_TEMPERATURE, normalized.temperature)
             .putInt(KEY_TOP_K, normalized.topK)
             .putFloat(KEY_TOP_P, normalized.topP)
+            .putString(KEY_CLOUD_BASE_URL, normalized.cloudBaseUrl)
+            .putString(KEY_CLOUD_API_KEY, normalized.cloudApiKey)
+            .putString(KEY_CLOUD_MODEL_NAME, normalized.cloudModelName)
             .apply()
     }
 
     fun resolveModelPath(config: ModelConfig = getConfig()): String {
+        if (config.runtime == ModelRuntime.CLOUD_MIMO) return ""
         val explicitPath = config.modelPath.trim()
         if (explicitPath.isNotBlank()) return explicitPath
 
         val fileName = when (config.runtime) {
             ModelRuntime.LLAMA_CPP_GGUF -> DefaultModelConfig.GgufModelFileName
             ModelRuntime.LITERT_LM -> DefaultModelConfig.LiteRtModelFileName
+            ModelRuntime.CLOUD_MIMO -> return ""
         }
         val externalDir = appContext.getExternalFilesDir(DefaultModelConfig.ExternalModelsDir)
         return if (externalDir != null) {
@@ -106,6 +117,15 @@ class ModelConfigRepository(
 
     fun getLocalLmPackageStatus(config: ModelConfig = getConfig()): LocalLmPackageStatus {
         val normalized = config.normalized()
+        if (normalized.runtime == ModelRuntime.CLOUD_MIMO) {
+            return LocalLmPackageStatus(
+                runtime = normalized.runtime,
+                modelPath = "",
+                modelFileStatus = LocalLmFileStatus.NotRequired,
+                mmprojPath = "",
+                mmprojFileStatus = LocalLmFileStatus.NotRequired
+            )
+        }
         val modelPath = resolveModelPath(normalized)
         val mmprojPath = if (normalized.runtime == ModelRuntime.LLAMA_CPP_GGUF) {
             resolveMmprojPath()
@@ -131,7 +151,7 @@ class ModelConfigRepository(
     ): EngineConfig {
         val normalized = config.normalized()
         return EngineConfig(
-            modelPath = resolveModelPath(normalized),
+            modelPath = if (normalized.runtime == ModelRuntime.CLOUD_MIMO) "" else resolveModelPath(normalized),
             mmprojPath = if (normalized.runtime == ModelRuntime.LLAMA_CPP_GGUF) resolveMmprojPath() else "",
             runtime = normalized.runtime,
             backend = normalized.backend,
@@ -140,7 +160,10 @@ class ModelConfigRepository(
             temperature = normalized.temperature,
             topK = normalized.topK,
             topP = normalized.topP,
-            systemPrompt = systemPrompt
+            systemPrompt = systemPrompt,
+            cloudBaseUrl = normalized.cloudBaseUrl,
+            cloudApiKey = normalized.cloudApiKey,
+            cloudModelName = normalized.cloudModelName
         )
     }
 
@@ -175,5 +198,8 @@ class ModelConfigRepository(
         private const val KEY_TEMPERATURE = "temperature"
         private const val KEY_TOP_K = "top_k"
         private const val KEY_TOP_P = "top_p"
+        private const val KEY_CLOUD_BASE_URL = "cloud_base_url"
+        private const val KEY_CLOUD_API_KEY = "cloud_api_key"
+        private const val KEY_CLOUD_MODEL_NAME = "cloud_model_name"
     }
 }

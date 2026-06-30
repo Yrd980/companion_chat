@@ -45,6 +45,7 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
     companion object {
         private const val TAG = "LiteRTLMEngine"
         private const val DEFAULT_MODEL_FILE = DefaultModelConfig.LiteRtModelFileName
+        private const val MAX_LOG_SIZE = 2L * 1024 * 1024
     }
 
     private val _state = MutableStateFlow<InferenceState>(InferenceState.Idle)
@@ -159,6 +160,12 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
         try {
             val time = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date())
             val line = "[$time] $msg\n"
+            val logFile = context.getFileStreamPath("engine_log.txt")
+            if (logFile.exists() && logFile.length() > MAX_LOG_SIZE) {
+                context.openFileOutput("engine_log.txt", android.content.Context.MODE_PRIVATE).use { fos ->
+                    fos.write("--- log rotated ---\n".toByteArray())
+                }
+            }
             context.openFileOutput("engine_log.txt", android.content.Context.MODE_APPEND).use { fos ->
                 fos.write(line.toByteArray())
             }
@@ -258,23 +265,29 @@ class LiteRTLMInferenceEngine(private val context: Context) : InferenceEngine {
         return try {
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
                 val bitmap = BitmapFactory.decodeStream(inputStream) ?: return null
-                val maxSize = 1024
-                val scaled = if (bitmap.width > maxSize || bitmap.height > maxSize) {
-                    val ratio = minOf(maxSize.toFloat() / bitmap.width, maxSize.toFloat() / bitmap.height)
-                    Bitmap.createScaledBitmap(
-                        bitmap,
-                        (bitmap.width * ratio).toInt(),
-                        (bitmap.height * ratio).toInt(),
-                        true
-                    )
-                } else {
-                    bitmap
+                try {
+                    val maxSize = 1024
+                    val scaled = if (bitmap.width > maxSize || bitmap.height > maxSize) {
+                        val ratio = minOf(maxSize.toFloat() / bitmap.width, maxSize.toFloat() / bitmap.height)
+                        Bitmap.createScaledBitmap(
+                            bitmap,
+                            (bitmap.width * ratio).toInt(),
+                            (bitmap.height * ratio).toInt(),
+                            true
+                        )
+                    } else {
+                        bitmap
+                    }
+                    try {
+                        val output = ByteArrayOutputStream()
+                        scaled.compress(Bitmap.CompressFormat.PNG, 100, output)
+                        output.toByteArray()
+                    } finally {
+                        if (scaled !== bitmap) scaled.recycle()
+                    }
+                } finally {
+                    bitmap.recycle()
                 }
-                val output = ByteArrayOutputStream()
-                scaled.compress(Bitmap.CompressFormat.PNG, 100, output)
-                if (scaled !== bitmap) scaled.recycle()
-                bitmap.recycle()
-                output.toByteArray()
             }
         } catch (e: Exception) {
             logToFile("图片转换失败: ${uri} - ${e.message}")

@@ -1,16 +1,13 @@
 package com.companion.chat.ui.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,87 +17,48 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DirectionsBike
-import androidx.compose.material.icons.filled.Emergency
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.HeadsetMic
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.WbSunny
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ElevatedAssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil3.compose.AsyncImage
-import com.companion.chat.companion.readiness.CompanionReadinessLevel
 import com.companion.chat.data.dashboard.HomeActivitySummary
-import com.companion.chat.data.dashboard.HomeDashboardUiState
-import com.companion.chat.data.dashboard.HomeMemorySummary
-import com.companion.chat.data.dashboard.HomeQuickAction
 import com.companion.chat.data.dashboard.HomeSuggestion
 import com.companion.chat.data.discover.ContentRating
 import com.companion.chat.data.discover.DiscoverRoleCard
 import com.companion.chat.data.discover.DiscoverRoleCardItem
-import com.companion.chat.data.discover.RoleSortMode
 import com.companion.chat.ui.components.CompanionAvatar
-import com.companion.chat.ui.components.MetricTile
 import com.companion.chat.ui.components.ProductCard
 import com.companion.chat.ui.components.ProductInnerShape
-import com.companion.chat.ui.components.ProductProgress
 import com.companion.chat.ui.components.SectionTitle
 import com.companion.chat.ui.components.StatusChip
 import com.companion.chat.ui.language.AppLanguage
@@ -117,6 +75,7 @@ fun HomeScreen(
     onOpenHelmet: () -> Unit = {},
     onOpenMemory: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
+    onOpenDiscover: () -> Unit = {},
     onOpenRole: (String) -> Unit = {},
     onCreateRole: () -> Unit = {}
 ) {
@@ -126,7 +85,6 @@ fun HomeScreen(
     val activeItem = uiState.items.firstOrNull { it.collection.importedRoleCardId != null }
         ?: uiState.items.firstOrNull { it.collection.isFavorite }
         ?: uiState.items.firstOrNull()
-    var showRoleLibrary by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         dashboardViewModel.refresh()
@@ -193,12 +151,8 @@ fun HomeScreen(
                     onCreateRole = onCreateRole
                 )
             }
-            item {
-                HelmetReadinessCard(
-                    dashboardState = dashboardUiState,
-                    onOpenHelmet = onOpenHelmet
-                )
-            }
+            item { HelmetReadinessCard(dashboardState = dashboardUiState, onOpenHelmet = onOpenHelmet) }
+            item { DiscoverCompanionsSection(uiState.items, onOpenRole, onOpenDiscover, onCreateRole) }
             item { ModeSelector() }
             item {
                 ActionGrid(
@@ -209,31 +163,7 @@ fun HomeScreen(
                     onOpenProfile = onOpenProfile
                 )
             }
-            item {
-                RecentMemories(
-                    memories = dashboardUiState.recentMemories,
-                    onOpenMemory = onOpenMemory
-                )
-            }
-            item {
-                RecommendedCompanions(
-                    items = uiState.items,
-                    onOpenRole = onOpenRole,
-                    onCreateRole = onCreateRole,
-                    expanded = showRoleLibrary,
-                    onToggleExpanded = { showRoleLibrary = !showRoleLibrary }
-                )
-            }
-            if (showRoleLibrary) {
-                item {
-                    RoleLibraryExpanded(
-                        uiState = uiState,
-                        viewModel = viewModel,
-                        onOpenRole = onOpenRole,
-                        onCreateRole = onCreateRole
-                    )
-                }
-            }
+            item { RecentMemories(memories = dashboardUiState.recentMemories, onOpenMemory = onOpenMemory) }
             item {
                 SuggestionsRow(
                     suggestions = dashboardUiState.suggestions,
@@ -243,498 +173,47 @@ fun HomeScreen(
                     onOpenProfile = onOpenProfile
                 )
             }
-            item {
-                ActivityList(
-                    activities = dashboardUiState.recentActivity,
-                    onOpenHelmet = onOpenHelmet,
-                    onOpenMemory = onOpenMemory
-                )
-            }
+            item { ActivityList(dashboardUiState.recentActivity, onOpenHelmet, onOpenMemory) }
         }
     }
 }
 
 @Composable
-private fun CompanionHeroCard(
-    activeItem: DiscoverRoleCardItem?,
-    language: AppLanguage,
-    dashboardState: HomeDashboardUiState,
-    onStartChat: () -> Unit,
-    onCreateRole: () -> Unit
-) {
-    val activeRoleText = activeItem?.role?.displayText(language)
-    val relationship = dashboardState.relationship
-    val progressPercent = if (relationship.nextLevelXp > 0) {
-        ((relationship.xp.toFloat() / relationship.nextLevelXp.toFloat()) * 100).toInt().coerceIn(0, 100)
-    } else {
-        0
-    }
-    ProductCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(contentAlignment = Alignment.BottomEnd) {
-                CompanionAvatar(activeItem?.role?.coverImageUri, size = 92.dp)
-                Box(
-                    modifier = Modifier
-                        .size(22.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                        .border(3.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = activeRoleText?.name ?: relationship.companionName,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                StatusChip(
-                    text = relationship.companionMood,
-                    level = if (dashboardState.localDevice.modelReady) {
-                        CompanionReadinessLevel.READY
-                    } else {
-                        CompanionReadinessLevel.DEGRADED
-                    }
-                )
-                Text(
-                    text = activeItem?.role?.description
-                        ?.let { activeRoleText?.description ?: it }
-                        ?: relationship.closenessLabel,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            CompanionLevelRing(
-                percent = progressPercent,
-                label = uiText("Lv. ${relationship.level}", "${relationship.level} 级")
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                onClick = onStartChat,
-                enabled = dashboardState.localDevice.modelReady,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(uiText("Start Chat", "开始聊天"))
-            }
-            OutlinedButton(
-                onClick = onCreateRole,
-                modifier = Modifier.height(48.dp)
-            ) {
-                Text(if (activeItem == null) uiText("Create Role", "创建角色") else uiText("Role Card", "角色卡"))
-            }
-        }
-    }
-}
-
-@Composable
-private fun CompanionLevelRing(percent: Int, label: String) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        Column(
-            modifier = Modifier.width(88.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                androidx.compose.material3.CircularProgressIndicator(
-                    progress = { percent / 100f },
-                    modifier = Modifier.size(66.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    strokeWidth = 7.dp
-                )
-                Text(
-                    text = "$percent%",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
-        }
-    }
-}
-
-@Composable
-private fun HelmetReadinessCard(
-    dashboardState: HomeDashboardUiState,
-    onOpenHelmet: () -> Unit
-) {
-    val localDevice = dashboardState.localDevice
-    ProductCard(
-        modifier = Modifier.clickable(onClick = onOpenHelmet)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    modifier = Modifier.size(44.dp),
-                    shape = ProductInnerShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.HeadsetMic,
-                        contentDescription = null,
-                        modifier = Modifier.padding(10.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 12.dp)
-                ) {
-                    Text(
-                        uiText("Helmet & Local Readiness", "头盔与本地就绪状态"),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = if (localDevice.noHelmetMode) {
-                            uiText("Helmet not connected - local checks available", "头盔未连接 - 可用本地检查")
-                        } else {
-                            localDevice.statusLabel
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                MetricInline(uiText("Model", "模型"), localDevice.modelReady.readyLabel(), Modifier.weight(1f))
-                MetricInline(uiText("Voice", "语音"), localDevice.voiceReady.readyLabel(), Modifier.weight(1f))
-                MetricInline(uiText("Image", "图片"), localDevice.imageReady.readyLabel(), Modifier.weight(1f))
-            }
-            Text(
-                text = uiText(
-                    "Pairing is skipped in this build. Model, voice, image, and memory remain local.",
-                    "此构建暂时跳过配对。模型、语音、图片和记忆保留在本机。"
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun MetricInline(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
-    }
-}
-
-@Composable
-private fun ModeSelector() {
-    val language = LocalAppLanguage.current
-    val modes = listOf(
-        Triple(Icons.Default.Home, uiText(language, "Idle", "待机"), true),
-        Triple(Icons.Default.WbSunny, uiText(language, "Active", "活跃"), false),
-        Triple(Icons.Default.DirectionsBike, uiText(language, "Driving", "骑行"), false),
-        Triple(Icons.Default.Shield, uiText(language, "Sleep-safe", "睡眠安全"), false)
-    )
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        modes.chunked(2).forEach { rowModes ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                rowModes.forEach { (icon, label, selected) ->
-                    ModeChip(icon = icon, label = label, selected = selected, modifier = Modifier.weight(1f))
-                }
-                if (rowModes.size == 1) {
-                    Spacer(Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ModeChip(icon: ImageVector, label: String, selected: Boolean, modifier: Modifier = Modifier) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-        shadowElevation = 1.dp,
-        modifier = modifier.height(54.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                label,
-                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-private fun ActionGrid(
-    dashboardState: HomeDashboardUiState,
-    onStartChat: () -> Unit,
-    onOpenHelmet: () -> Unit,
-    onOpenMemory: () -> Unit,
-    onOpenProfile: () -> Unit
-) {
-    val actions = dashboardState.quickActions.ifEmpty {
-        listOf(
-            HomeQuickAction("chat", uiText("Start chat", "开始聊天"), uiText("Continue locally", "本地继续")),
-            HomeQuickAction("voice", uiText("Voice check", "语音检查"), uiText("Review voice readiness", "检查语音就绪状态")),
-            HomeQuickAction("memory", uiText("Review memories", "查看记忆"), uiText("Inspect local memory", "检查本地记忆")),
-            HomeQuickAction("image", uiText("Generate image", "生成图片"), uiText("Review image readiness", "检查图片就绪状态"))
-        )
-    }
-    val actionHandlers = mapOf(
-        "chat" to onStartChat,
-        "voice" to onOpenHelmet,
-        "memory" to onOpenMemory,
-        "image" to onOpenHelmet
-    )
-    val actionIcons = mapOf(
-        "chat" to Icons.AutoMirrored.Filled.Chat,
-        "voice" to Icons.AutoMirrored.Filled.VolumeUp,
-        "memory" to Icons.Default.BookmarkBorder,
-        "image" to Icons.Default.Image
-    )
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        actions.chunked(2).forEachIndexed { rowIndex, rowActions ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                rowActions.forEach { action ->
-                    HomeAction(
-                        title = action.title.homeText(),
-                        subtitle = if (action.enabled) action.subtitle.homeText()
-                        else action.disabledReason.ifBlank { action.subtitle }.homeText(),
-                        icon = actionIcons[action.id] ?: Icons.Default.Home,
-                        filled = rowIndex == 0 && action.id == "chat",
-                        enabled = action.enabled,
-                        modifier = Modifier.weight(1f),
-                        onClick = actionHandlers[action.id] ?: onOpenProfile
-                    )
-                }
-                if (rowActions.size == 1) {
-                    Spacer(Modifier.weight(1f))
-                }
-            }
-        }
-        HomeAction(
-            title = uiText("Emergency SOS", "紧急 SOS"),
-            subtitle = uiText("Configure contact first", "请先配置联系人"),
-            icon = Icons.Default.Emergency,
-            alert = true,
-            enabled = false,
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onOpenProfile
-        )
-    }
-}
-
-@Composable
-private fun HomeAction(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    modifier: Modifier = Modifier,
-    filled: Boolean = false,
-    alert: Boolean = false,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    val container = when {
-        alert -> MaterialTheme.colorScheme.error
-        filled -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.surface
-    }
-    val content = if (alert || filled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    Surface(
-        modifier = modifier
-            .height(86.dp)
-            .clickable(enabled = enabled, onClick = onClick),
-        shape = ProductInnerShape,
-        color = if (enabled) container else MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = if (enabled) content else MaterialTheme.colorScheme.onSurfaceVariant,
-        shadowElevation = 2.dp
-    ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                modifier = Modifier.size(38.dp),
-                shape = CircleShape,
-                color = if (alert || filled) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.18f)
-                else MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    modifier = Modifier.padding(8.dp),
-                    tint = if (alert || filled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
-                )
-            }
-            Column(
-                modifier = Modifier.padding(start = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
-}
-
-@Composable
-private fun RecentMemories(
-    memories: List<HomeMemorySummary>,
-    onOpenMemory: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionTitle(uiText("Recent Memories", "最近记忆"), action = uiText("View all", "查看全部"))
-        if (memories.isEmpty()) {
-            ProductCard(modifier = Modifier.clickable(onClick = onOpenMemory)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.BookmarkBorder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Column(modifier = Modifier.padding(start = 12.dp)) {
-                        Text(uiText("No memories yet", "还没有记忆"), style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            uiText("Add a local memory to build continuity.", "添加本地记忆来建立连续感。"),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        } else {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(memories.size) { index ->
-                    val memory = memories[index]
-                    MemoryStoryCard(memory, onOpenMemory)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MemoryStoryCard(
-    memory: HomeMemorySummary,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .width(246.dp)
-            .clickable(onClick = onClick),
-        shape = ProductInnerShape,
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 2.dp
-    ) {
-        Row(modifier = Modifier.padding(10.dp)) {
-            Box(
-                modifier = Modifier
-                    .size(76.dp)
-                    .clip(ProductInnerShape)
-                    .background(
-                        Brush.linearGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primaryContainer,
-                                MaterialTheme.colorScheme.surfaceContainerHigh
-                            )
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.BookmarkBorder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(memory.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(memory.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(5.dp))
-                    Text(memory.category, style = MaterialTheme.typography.labelSmall)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RecommendedCompanions(
+private fun DiscoverCompanionsSection(
     items: List<DiscoverRoleCardItem>,
     onOpenRole: (String) -> Unit,
-    onCreateRole: () -> Unit,
-    expanded: Boolean,
-    onToggleExpanded: () -> Unit
+    onOpenDiscover: () -> Unit,
+    onCreateRole: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SectionTitle(uiText("Recommended Companions", "推荐伙伴"), action = if (expanded) uiText("Hide", "收起") else uiText("See all", "查看全部"), modifier = Modifier.weight(1f))
-            Spacer(
-                Modifier
-                    .width(1.dp)
-                    .clickable(onClick = onToggleExpanded)
+            SectionTitle(
+                title = uiText("Discover companions", "发现伙伴"),
+                action = uiText("View market", "查看市场"),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onOpenDiscover)
             )
         }
-        if (items.isEmpty()) {
+        val safeItems = items.filter { it.role.contentRating != ContentRating.MATURE }.take(3)
+        if (safeItems.isEmpty()) {
             OutlinedButton(
                 onClick = onCreateRole,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
             ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
                 Text(uiText("Create local companion", "创建本地伙伴"))
             }
         } else {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(items.take(6).size) { index ->
-                    val item = items[index]
+                items(safeItems.size) { index ->
+                    val item = safeItems[index]
                     CompactCompanionCard(item = item, onOpen = { onOpenRole(item.role.id) })
                 }
+                item { ViewMarketCard(onClick = onOpenDiscover) }
             }
         }
     }
@@ -750,7 +229,7 @@ private fun CompactCompanionCard(
     Surface(
         modifier = Modifier
             .width(166.dp)
-            .height(84.dp)
+            .height(96.dp)
             .clickable(onClick = onOpen),
         shape = ProductInnerShape,
         color = MaterialTheme.colorScheme.surface,
@@ -760,7 +239,7 @@ private fun CompactCompanionCard(
             modifier = Modifier.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CompanionAvatar(item.role.coverImageUri, size = 54.dp)
+            CompanionAvatar(item.role.coverImageUri, size = 58.dp)
             Column(
                 modifier = Modifier.padding(start = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(5.dp)
@@ -768,9 +247,32 @@ private fun CompactCompanionCard(
                 Text(roleText.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
                 StatusChip(
                     text = roleText.tags.firstOrNull() ?: uiText("Kind", "温和"),
-                    level = CompanionReadinessLevel.READY
+                    level = com.companion.chat.companion.readiness.CompanionReadinessLevel.READY
                 )
+                Text(roleText.description, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+        }
+    }
+}
+
+@Composable
+private fun ViewMarketCard(onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .width(150.dp)
+            .height(96.dp)
+            .clickable(onClick = onClick),
+        shape = ProductInnerShape,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shadowElevation = 1.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(6.dp))
+            Text(uiText("View all", "查看全部"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -911,373 +413,7 @@ private fun ActivityRow(
     }
 }
 
-@Composable
-private fun RoleLibraryExpanded(
-    uiState: DiscoverUiState,
-    viewModel: DiscoverViewModel,
-    onOpenRole: (String) -> Unit,
-    onCreateRole: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        DiscoverControls(
-            query = uiState.query,
-            onQueryChange = viewModel::updateQuery,
-            tags = uiState.tags,
-            selectedTag = uiState.selectedTag,
-            onTagSelected = viewModel::selectTag,
-            includeMature = uiState.includeMature,
-            onIncludeMatureChange = viewModel::setIncludeMature,
-            onCreateRole = onCreateRole
-        )
-        RoleSortChips(selected = uiState.sortMode, onSelect = viewModel::setSortMode)
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            uiState.items.forEach { item ->
-                DiscoverRoleCard(
-                    item = item,
-                    onOpen = { onOpenRole(item.role.id) },
-                    onFavorite = { viewModel.toggleFavorite(item.role.id) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RoleSortChips(
-    selected: RoleSortMode,
-    onSelect: (RoleSortMode) -> Unit
-) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(
-            RoleSortMode.HOT to uiText("Hot", "热门"),
-            RoleSortMode.NEWEST to uiText("Newest", "最新"),
-            RoleSortMode.NAME to uiText("Name", "名称")
-        ).forEach { (mode, label) ->
-            FilterChip(selected = selected == mode, onClick = { onSelect(mode) }, label = { Text(label) })
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DiscoverRoleDetailScreen(
-    roleId: String,
-    modifier: Modifier = Modifier,
-    viewModel: DiscoverViewModel = viewModel(),
-    onBack: () -> Unit = {},
-    onStartChat: (Long) -> Unit = {}
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
-    val language = LocalAppLanguage.current
-    val item = uiState.selectedItem
-    val roleText = item?.role?.displayText(language)
-
-    LaunchedEffect(roleId) {
-        viewModel.selectRole(roleId)
-    }
-    LaunchedEffect(uiState.message) {
-        if (uiState.message.isNotBlank()) {
-            snackbarHostState.showSnackbar(uiState.message)
-        }
-    }
-
-    Scaffold(
-        modifier = modifier,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(roleText?.name ?: uiText("Role Details", "角色详情")) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.Close, contentDescription = uiText("Back", "返回"))
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
-        if (item == null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(uiText("Role not found", "未找到角色"))
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(18.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item { RoleHero(item) }
-                item {
-                    RoleDetailActions(
-                        item = item,
-                        isGeneratingImage = uiState.isGeneratingImage,
-                        onFavorite = { viewModel.toggleFavorite(item.role.id) },
-                        onUnlock = { viewModel.unlock(item.role.id) },
-                        onGenerateImage = { viewModel.generateRoleImage(item.role.id) },
-                        onStartChat = {
-                            viewModel.copyAndActivate(item.role.id, onReady = onStartChat)
-                        }
-                    )
-                }
-                item { HorizontalDivider() }
-                item {
-                    Text(
-                        text = roleText?.description ?: item.role.description,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                item { DetailSection(uiText("Persona Summary", "人设摘要"), roleText?.persona ?: item.role.persona) }
-                item { DetailSection(uiText("Voice", "语音"), roleText?.voiceSummary ?: item.role.voiceSummary) }
-                item { DetailSection(uiText("Image Style", "图片风格"), item.role.imageStyle.ifBlank { uiText("Not configured", "未配置") }) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DiscoverControls(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    tags: List<String>,
-    selectedTag: String?,
-    onTagSelected: (String) -> Unit,
-    includeMature: Boolean,
-    onIncludeMatureChange: (Boolean) -> Unit,
-    onCreateRole: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            singleLine = true,
-            placeholder = { Text(uiText("Search roles, authors, or tags", "搜索角色、作者、标签")) },
-            shape = RoundedCornerShape(20.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                disabledContainerColor = MaterialTheme.colorScheme.surface,
-                focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-            )
-        )
-        ProductCard {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(uiText("Create your role", "创建你的角色"), style = MaterialTheme.typography.titleSmall)
-                    Text(uiText("Persona, avatar, and voice are saved to a role card.", "人设、头像、语音会保存到角色卡"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                OutlinedButton(onClick = onCreateRole) { Text(uiText("Create", "创建")) }
-            }
-        }
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(uiText("Show private roles", "显示私密"), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Switch(checked = includeMature, onCheckedChange = onIncludeMatureChange)
-        }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(tags.size) { index ->
-                val tag = tags[index]
-                FilterChip(selected = selectedTag == tag, onClick = { onTagSelected(tag) }, label = { Text(tag.displayTag()) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun DiscoverRoleCard(
-    item: DiscoverRoleCardItem,
-    onOpen: () -> Unit,
-    onFavorite: () -> Unit
-) {
-    val language = LocalAppLanguage.current
-    val roleText = item.role.displayText(language)
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onOpen),
-        shape = ProductInnerShape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-            Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            CoverBlock(
-                name = roleText.name,
-                coverImageUri = item.role.coverImageUri,
-                contentRating = item.role.contentRating,
-                modifier = Modifier
-                    .size(88.dp)
-                    .clip(ProductInnerShape)
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                Text(roleText.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Text("by ${item.role.author}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(roleText.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
-            }
-            IconButton(onClick = onFavorite) {
-                Icon(
-                    imageVector = if (item.collection.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = uiText("Favorite", "收藏"),
-                    tint = if (item.collection.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RoleHero(item: DiscoverRoleCardItem) {
-    val language = LocalAppLanguage.current
-    val roleText = item.role.displayText(language)
-    ProductCard {
-        CoverBlock(
-            name = roleText.name,
-            coverImageUri = item.role.coverImageUri,
-            contentRating = item.role.contentRating,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(260.dp)
-                .clip(ProductInnerShape)
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(roleText.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(uiText("by ${item.role.author} · Heat ${item.role.heat}", "by ${item.role.author} · 热度 ${item.role.heat}"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (item.collection.importedRoleCardId != null) {
-                ElevatedAssistChip(onClick = {}, label = { Text(uiText("Imported", "已导入")) })
-            } else if (item.collection.isUnlocked) {
-                ElevatedAssistChip(onClick = {}, label = { Text(uiText("Unlocked", "已解锁")) })
-            }
-        }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            roleText.tags.forEach { tag -> AssistChip(onClick = {}, label = { Text(tag) }) }
-        }
-    }
-}
-
-@Composable
-private fun RoleDetailActions(
-    item: DiscoverRoleCardItem,
-    isGeneratingImage: Boolean,
-    onFavorite: () -> Unit,
-    onUnlock: () -> Unit,
-    onGenerateImage: () -> Unit,
-    onStartChat: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = onStartChat, modifier = Modifier.weight(1f)) {
-                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(uiText("Start Chat", "开始聊天"))
-            }
-            OutlinedButton(onClick = onFavorite) {
-                Icon(
-                    imageVector = if (item.collection.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = uiText("Favorite", "收藏")
-                )
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(onClick = onUnlock, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Default.LockOpen, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (item.collection.isUnlocked) uiText("Unlocked", "已解锁") else uiText("Favorite to Unlock", "收藏解锁"))
-            }
-            OutlinedButton(onClick = onGenerateImage, enabled = !isGeneratingImage, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Default.Image, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (isGeneratingImage) uiText("Generating", "生成中") else uiText("Generate Image", "生成图片"))
-            }
-        }
-    }
-}
-
-@Composable
-private fun CoverBlock(
-    name: String,
-    coverImageUri: String,
-    contentRating: ContentRating,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier.background(
-            Brush.linearGradient(
-                listOf(
-                    MaterialTheme.colorScheme.primaryContainer,
-                    MaterialTheme.colorScheme.surfaceVariant,
-                    MaterialTheme.colorScheme.tertiaryContainer
-                )
-            )
-        ),
-        contentAlignment = Alignment.Center
-    ) {
-        if (coverImageUri.isNotBlank()) {
-            AsyncImage(
-                model = coverImageUri,
-                contentDescription = uiText("$name cover", "$name 封面"),
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(42.dp), tint = MaterialTheme.colorScheme.primary)
-                Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            }
-        }
-        if (contentRating == ContentRating.MATURE) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp),
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.errorContainer
-            ) {
-                Text(
-                    text = uiText("Private", "私密"),
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DetailSection(title: String, body: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (title == uiText("Voice", "语音")) {
-                Icon(
-                    Icons.AutoMirrored.Filled.VolumeUp,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.width(6.dp))
-            }
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        }
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-private data class RoleDisplayText(
+data class RoleDisplayText(
     val name: String,
     val tags: List<String>,
     val description: String,
@@ -1286,12 +422,12 @@ private data class RoleDisplayText(
 )
 
 @Composable
-private fun Boolean.readyLabel(): String {
+fun Boolean.readyLabel(): String {
     return if (this) uiText("Ready", "就绪") else uiText("Needs setup", "需要设置")
 }
 
 @Composable
-private fun String.homeText(): String {
+fun String.homeText(): String {
     val language = LocalAppLanguage.current
     if (language == AppLanguage.ENGLISH) return this
     return when (this) {
@@ -1334,69 +470,25 @@ private fun suggestionIcon(id: String): ImageVector {
     }
 }
 
-private fun DiscoverRoleCard.displayText(language: AppLanguage): RoleDisplayText {
+fun DiscoverRoleCard.displayText(language: AppLanguage): RoleDisplayText {
     if (language == AppLanguage.CHINESE) {
-        return RoleDisplayText(
-            name = name,
-            tags = tags,
-            description = description,
-            persona = persona,
-            voiceSummary = voiceSummary
-        )
+        return RoleDisplayText(name, tags, description, persona, voiceSummary)
     }
-
-    return when (id) {
-        "xia-urban" -> RoleDisplayText(
-            name = "Xia",
-            tags = listOf("Female", "Romance", "Daily", "Chinese"),
-            description = "A warm daily companion who keeps casual conversations light without being clingy.",
-            persona = "Xia is gentle, perceptive, and respects boundaries. She remembers preferences, listens more than lectures, and responds naturally.",
-            voiceSummary = "Xiaoyu sweet voice, MOSS local synthesis first, system TTS fallback"
-        )
-        "chen-nocturne" -> RoleDisplayText(
-            name = "Chen",
-            tags = listOf("Male", "Drama", "Calm", "Chinese"),
-            description = "A restrained, reliable night-radio companion for long talks and reflection.",
-            persona = "Chen is calm, reliable, and observant. He respects personal space while helping the user sort through emotions and plans.",
-            voiceSummary = "Low male voice, system TTS fallback"
-        )
-        "mira-adventure" -> RoleDisplayText(
-            name = name,
-            tags = listOf("Female", "Adventure", "English", "Drama"),
-            description = "A lively adventure partner for roleplay, English practice, and travel-style conversation.",
-            persona = persona,
-            voiceSummary = voiceSummary
-        )
-        "rin-mature" -> RoleDisplayText(
-            name = "Rin",
-            tags = listOf("Female", "Romance", "Mature", "Private"),
-            description = "A more mature, direct intimacy companion whose content boundaries stay in local settings.",
-            persona = "Rin is mature, direct, and careful with private boundaries. She prioritizes consent and builds closeness with restraint.",
-            voiceSummary = "Local voice package optional, system TTS fallback"
-        )
-        "niko-anime" -> RoleDisplayText(
-            name = name,
-            tags = listOf("Anime", "Relaxed", "Adventure", "Chinese"),
-            description = "A bright but not noisy anime partner who breaks tasks down and enjoys imaginative play.",
-            persona = "Niko is bright, quick, and mindful of the user's pace. He breaks pressure into small steps and can shift into light fantasy chat.",
-            voiceSummary = "Lively system TTS"
-        )
-        else -> RoleDisplayText(
-            name = name,
-            tags = tags.map { it.displayTag(AppLanguage.ENGLISH) },
-            description = description,
-            persona = persona,
-            voiceSummary = voiceSummary
-        )
-    }
+    return RoleDisplayText(
+        name = name,
+        tags = tags.map { it.displayTag(AppLanguage.ENGLISH) },
+        description = description,
+        persona = persona,
+        voiceSummary = voiceSummary
+    )
 }
 
 @Composable
-private fun String.displayTag(): String {
+fun String.displayTag(): String {
     return displayTag(LocalAppLanguage.current)
 }
 
-private fun String.displayTag(language: AppLanguage): String {
+fun String.displayTag(language: AppLanguage): String {
     if (language == AppLanguage.CHINESE) return this
     return when (this) {
         "男性" -> "Male"
@@ -1408,6 +500,17 @@ private fun String.displayTag(language: AppLanguage): String {
         "英语" -> "English"
         "中文" -> "Chinese"
         "日常" -> "Daily"
+        "巫女" -> "Shrine"
+        "治愈" -> "Soothing"
+        "魔法使" -> "Witch"
+        "复盘" -> "Review"
+        "月兔" -> "Moon Rabbit"
+        "练习" -> "Practice"
+        "妖怪" -> "Yokai"
+        "花灵" -> "Flower Spirit"
+        "边界" -> "Boundaries"
+        "鸦天狗" -> "Crow Tengu"
+        "行动" -> "Action"
         "冷静" -> "Calm"
         "成熟" -> "Mature"
         "私密" -> "Private"

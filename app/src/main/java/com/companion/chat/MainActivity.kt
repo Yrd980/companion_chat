@@ -42,6 +42,7 @@ import com.companion.chat.ui.chat.ChatScreen
 import com.companion.chat.ui.chat.ChatViewModel
 import com.companion.chat.ui.helmet.HelmetScreen
 import com.companion.chat.ui.home.DiscoverViewModel
+import com.companion.chat.ui.home.DiscoverScreen
 import com.companion.chat.ui.home.DiscoverRoleDetailScreen
 import com.companion.chat.ui.home.HomeDashboardViewModel
 import com.companion.chat.ui.home.HomeScreen
@@ -171,6 +172,15 @@ fun MainApp() {
                         onOpenHelmet = { navController.navigate(Screen.HELMET.route) },
                         onOpenMemory = { navController.navigate(Screen.MEMORY.route) },
                         onOpenProfile = { navController.navigate(Screen.PROFILE.route) },
+                        onOpenDiscover = { navController.navigate(DiscoverRoutes.LIST) },
+                        onOpenRole = { roleId -> navController.navigate(DiscoverRoutes.detail(roleId)) },
+                        onCreateRole = { navController.navigate(SettingsRoutes.CHARACTER) }
+                    )
+                }
+                composable(DiscoverRoutes.LIST) {
+                    DiscoverScreen(
+                        viewModel = discoverViewModel,
+                        onBack = { navController.popBackStack() },
                         onOpenRole = { roleId -> navController.navigate(DiscoverRoutes.detail(roleId)) },
                         onCreateRole = { navController.navigate(SettingsRoutes.CHARACTER) }
                     )

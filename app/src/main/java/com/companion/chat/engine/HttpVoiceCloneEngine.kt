@@ -93,6 +93,13 @@ class HttpVoiceCloneEngine private constructor(
     }
 
     private fun buildRequestBody(config: VoiceCloneConfig, request: VoiceCloneRequest): String {
+        if (config.httpCloneBaseUrl.contains("xiaomimimo.com")) {
+            return JSONObject()
+                .put("model", config.httpCloneVoice.ifBlank { "mimo-v2.5-tts" })
+                .put("input", request.text)
+                .put("voice", request.displayName.ifBlank { "alloy" })
+                .toString()
+        }
         return JSONObject()
             .put("text", request.text)
             .put("voice", request.displayName.ifBlank { config.httpCloneVoice })

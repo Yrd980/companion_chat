@@ -184,6 +184,11 @@ abstract class CompanionDatabase : RoomDatabase() {
                 seedBuiltInSkills(db)
             }
 
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                super.onOpen(db)
+                createMemoryFtsTables(db)
+            }
+
             private fun createMemoryFtsTables(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """

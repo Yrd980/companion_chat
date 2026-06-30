@@ -12,12 +12,13 @@ class CloudAsrConfigRepository(
 
     fun getConfig(): CloudAsrConfig {
         return CloudAsrConfig(
-            baseUrl = sharedPreferences.getString(KEY_BASE_URL, "").orEmpty().trim(),
+            baseUrl = sharedPreferences.getString(KEY_BASE_URL, "").orEmpty().trim()
+                .ifBlank { XIAOMI_ASR_URL },
             apiKey = sharedPreferences.getString(KEY_API_KEY, "").orEmpty().trim(),
-            requestFieldName = sharedPreferences.getString(KEY_REQUEST_FIELD_NAME, "audio")
+            requestFieldName = sharedPreferences.getString(KEY_REQUEST_FIELD_NAME, "file")
                 .orEmpty()
                 .trim()
-                .ifBlank { "audio" },
+                .ifBlank { "file" },
             responseTextFieldPath = sharedPreferences.getString(KEY_RESPONSE_TEXT_FIELD_PATH, "text")
                 .orEmpty()
                 .trim()
@@ -52,5 +53,6 @@ class CloudAsrConfigRepository(
         const val KEY_REQUEST_FIELD_NAME = "request_field_name"
         const val KEY_RESPONSE_TEXT_FIELD_PATH = "response_text_field_path"
         const val KEY_TIMEOUT_MILLIS = "timeout_millis"
+        const val XIAOMI_ASR_URL = "https://token-plan-cn.xiaomimimo.com/v1/audio/transcriptions"
     }
 }

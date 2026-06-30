@@ -166,23 +166,19 @@ private fun HelmetHero(onOpenProfile: () -> Unit) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                onClick = onOpenProfile,
-                enabled = false,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-            ) {
-                Text(uiText("Pairing skipped", "已跳过配对"))
-            }
-            OutlinedButton(
-                onClick = onOpenProfile,
-                enabled = false,
-                modifier = Modifier.height(48.dp)
-            ) {
-                Text(uiText("Manual code unavailable", "手动代码不可用"))
-            }
+        Surface(
+            shape = ProductInnerShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            Text(
+                uiText(
+                    "Pairing controls will appear after a helmet is detected.",
+                    "检测到头盔后会显示配对控制。"
+                ),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

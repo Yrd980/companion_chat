@@ -118,7 +118,9 @@ class AppContainer(
         )
     }
 
-    val inferenceEngineFactory: InferenceEngineFactory by lazy { InferenceEngineFactory(application) }
+    val inferenceEngineFactory: InferenceEngineFactory by lazy {
+        InferenceEngineFactory(application, privacyGate)
+    }
     val voiceInputEngine: AndroidVoiceInputEngine by lazy {
         AndroidVoiceInputEngine(
             context = application,
@@ -212,4 +214,5 @@ class AppContainer(
 }
 
 val Application.appContainer: AppContainer
-    get() = (this as CompanionChatApplication).appContainer
+    get() = (this as? CompanionChatApplication)?.appContainer
+        ?: error("Application must be CompanionChatApplication")

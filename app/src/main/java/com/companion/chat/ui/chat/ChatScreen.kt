@@ -149,7 +149,7 @@ fun ChatScreen(
 
     LaunchedEffect(uiState.voice.inputError) {
         if (uiState.voice.inputError.isNotBlank()) {
-            snackbarHostState.showSnackbar(uiState.voice.inputError)
+            snackbarHostState.showSnackbar(userFacingVoiceInputError(uiState.voice.inputError, language))
             viewModel.clearVoiceInputError()
         }
     }
@@ -184,12 +184,12 @@ fun ChatScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.HeadsetMic, contentDescription = null, modifier = Modifier.size(15.dp))
                                 Spacer(Modifier.width(5.dp))
-                                Text(
-                                    text = if (uiState.engineState is InferenceState.Ready) {
-                                        uiText("Helmet not connected - local chat ready", "头盔未连接 - 本地聊天就绪")
-                                    } else {
-                                        engineStatusLabel(uiState.engineState, uiState.isConversationWarmingUp, language)
-                                    },
+                            Text(
+                                text = if (uiState.engineState is InferenceState.Ready) {
+                                    uiText("Text anytime", "随时可以聊")
+                                } else {
+                                    engineStatusLabel(uiState.engineState, uiState.isConversationWarmingUp, language)
+                                },
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary
                                 )
@@ -209,10 +209,35 @@ fun ChatScreen(
                         ) {
                             Icon(Icons.Default.Radio, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(7.dp))
-                            Text(uiText("Session Live", "会话进行中"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                            Text(uiText("Local", "本地"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
+            )
+        },
+        bottomBar = {
+            ChatInputBar(
+                inputText = uiState.inputText,
+                onInputChange = viewModel::updateInputText,
+                onSend = viewModel::sendMessage,
+                onCancelGeneration = viewModel::cancelGeneration,
+                onPickImage = {
+                    photoPickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                onGenerateImage = {
+                    viewModel.generateChatSceneImage(uiState.inputText.trim())
+                },
+                onVoiceInput = viewModel::toggleVoiceListening,
+                selectedImages = uiState.selectedImages,
+                onRemoveImage = viewModel::removeImage,
+                voice = uiState.voice,
+                isGenerating = uiState.isGenerating,
+                isImageGenerating = uiState.imageGenerationState is ImageGenerationState.Generating,
+                canVoiceOutput = uiState.hasSpeakableAssistantMessage,
+                onVoiceOutput = viewModel::speakLatestAssistantMessage,
+                onStopSpeaking = viewModel::stopSpeaking
             )
         }
     ) { paddingValues ->
@@ -225,18 +250,16 @@ fun ChatScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                PinnedMemoriesDeck(
-                    memories = uiState.pinnedMemories,
-                    selectedMemory = uiState.useNextTurnMemory,
+                ChatContextStrip(
+                    uiState = uiState,
                     onUseNextTurn = viewModel::useMemoryNextTurn,
                     onClearUseNextTurn = viewModel::clearUseNextTurnMemory
                 )
             }
-            item { ConversationTimelineCard(uiState) }
             if (uiState.messages.isEmpty()) {
-                item { AssistantSceneCard(uiState) }
-                item { VoiceNoteCard(uiState) }
-                item { HelmetStreamCard() }
+                item {
+                    WelcomeCard(uiState)
+                }
             } else {
                 items(items = uiState.messages, key = { it.id }) { message ->
                     MessageBubble(
@@ -245,38 +268,6 @@ fun ChatScreen(
                         privacyLabel = localizedPrivacyLabel(uiState)
                     )
                 }
-            }
-            item {
-                VoiceDock(
-                    uiState = uiState,
-                    onVoiceInput = viewModel::toggleVoiceListening
-                )
-            }
-            item { VoicePersonalityCard() }
-            item {
-                ChatInputBar(
-                    inputText = uiState.inputText,
-                    onInputChange = viewModel::updateInputText,
-                    onSend = viewModel::sendMessage,
-                    onCancelGeneration = viewModel::cancelGeneration,
-                    onPickImage = {
-                        photoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
-                    onGenerateImage = {
-                        viewModel.generateChatSceneImage(uiState.inputText.trim())
-                    },
-                    onVoiceInput = viewModel::toggleVoiceListening,
-                    selectedImages = uiState.selectedImages,
-                    onRemoveImage = viewModel::removeImage,
-                    voice = uiState.voice,
-                    isGenerating = uiState.isGenerating,
-                    isImageGenerating = uiState.imageGenerationState is ImageGenerationState.Generating,
-                    canVoiceOutput = uiState.hasSpeakableAssistantMessage,
-                    onVoiceOutput = viewModel::speakLatestAssistantMessage,
-                    onStopSpeaking = viewModel::stopSpeaking
-                )
             }
         }
     }
@@ -401,6 +392,79 @@ private fun MemoryThumb(icon: ImageVector) {
 }
 
 @Composable
+private fun ChatContextStrip(
+    uiState: ChatUiState,
+    onUseNextTurn: (Long) -> Unit,
+    onClearUseNextTurn: () -> Unit
+) {
+    ProductCard {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            ContextAction(
+                icon = Icons.Default.PushPin,
+                title = uiText("Pins", "记忆"),
+                value = uiState.useNextTurnMemory?.category?.ifBlank { uiText("Ready", "已选") }
+                    ?: uiText("Ready", "可用"),
+                modifier = Modifier.weight(1f)
+            )
+            ContextAction(
+                icon = Icons.Default.Share,
+                title = uiText("Notes", "记录"),
+                value = if (uiState.timelineEvents.isEmpty()) uiText("Calm", "安静") else uiText("Updated", "已更新"),
+                modifier = Modifier.weight(1f)
+            )
+            ContextAction(
+                icon = Icons.Default.Person,
+                title = uiText("Tone", "语气"),
+                value = uiText("Warm", "温暖"),
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (uiState.useNextTurnMemory != null) {
+            Text(
+                uiState.useNextTurnMemory.content,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable(onClick = onClearUseNextTurn)
+            )
+        } else if (uiState.pinnedMemories.isNotEmpty()) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(uiState.pinnedMemories, key = { it.id }) { memory ->
+                    StatusChip(
+                        memory.category.ifBlank { uiText("Use next turn", "下轮使用") },
+                        CompanionReadinessLevel.READY,
+                        modifier = Modifier.clickable { onUseNextTurn(memory.id) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContextAction(
+    icon: ImageVector,
+    title: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = ProductInnerShape,
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+            Column(modifier = Modifier.padding(start = 8.dp)) {
+                Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                Text(value, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
 private fun ConversationTimelineCard(uiState: ChatUiState) {
     ProductCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -451,193 +515,28 @@ private fun TimelineNode(event: TimelineEvent) {
 }
 
 @Composable
-private fun AssistantSceneCard(uiState: ChatUiState) {
+private fun WelcomeCard(uiState: ChatUiState) {
     ProductCard {
-        Row(verticalAlignment = Alignment.Top) {
-            CompanionAvatar(uiState.assistantAvatarImageUri, size = 58.dp)
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(uiState.assistantName.ifBlank { "Aiko" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.width(8.dp))
-                    StatusChip(uiText("AI Companion", "AI 伙伴"), CompanionReadinessLevel.READY)
-                    Spacer(Modifier.width(8.dp))
-                    Text("10:06 AM", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Text(
-                    uiText(
-                        "That sounds amazing! The coast road at sunset is one of my favorites. Want me to recommend a hidden cafe nearby for your next stop?",
-                        "听起来太棒了！落日时的海岸路是我最喜欢的路线之一。要不要我推荐附近一个隐蔽的咖啡馆，作为你的下一站？"
-                    ),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                WaveformCard()
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SmallActionButton(Icons.AutoMirrored.Filled.VolumeUp, uiText("Play", "播放"))
-                    SmallActionButton(Icons.Default.BookmarkBorder, uiText("Save", "保存"))
-                    SmallActionButton(Icons.Default.Share, uiText("Share", "分享"))
-                }
-            }
-            ScenePreview()
-        }
-    }
-}
-
-@Composable
-private fun WaveformCard() {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ProductInnerShape,
-        color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(12.dp))
-            repeat(24) { index ->
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 1.dp)
-                        .width(3.dp)
-                        .height((8 + (index % 5) * 4).dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.outline)
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            Text("00:14", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            CompanionAvatar(uiState.assistantAvatarImageUri, size = 72.dp)
+            Text(
+                uiState.assistantName.ifBlank { "Companion" },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                uiText(
+                    "Start a conversation by typing or using voice input.",
+                    "开始对话吧，可以输入文字或使用语音。"
+                ),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
-    }
-}
-
-@Composable
-private fun ScenePreview() {
-    Box(
-        modifier = Modifier
-            .width(150.dp)
-            .height(132.dp)
-            .clip(ProductInnerShape)
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.tertiaryContainer,
-                        MaterialTheme.colorScheme.primaryContainer
-                    )
-                )
-            ),
-        contentAlignment = Alignment.BottomEnd
-    ) {
-        Icon(
-            Icons.Default.DirectionsBike,
-            contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .size(48.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-        Surface(
-            modifier = Modifier.padding(8.dp),
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
-        ) {
-            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.surface)
-                Spacer(Modifier.width(4.dp))
-                Text("0:08", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.surface)
-            }
-        }
-    }
-}
-
-@Composable
-private fun VoiceNoteCard(uiState: ChatUiState) {
-    ProductCard {
-        Row(verticalAlignment = Alignment.Top) {
-            Surface(
-                modifier = Modifier.size(62.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary
-            ) {
-                Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.padding(16.dp), tint = MaterialTheme.colorScheme.onPrimary)
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(uiText("You", "你"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        uiText("Voice Note · ${localizedPrivacyLabel(uiState)}", "语音备注 · ${localizedPrivacyLabel(uiState)}"),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Text(uiState.voice.inputPreview.ifBlank { uiText("It was incredible. The ocean, the sky, everything just clicked today.", "太不可思议了。海、天空，一切在今天都刚刚好。") })
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SmallActionButton(Icons.Default.BookmarkBorder, uiText("Save to Memories", "保存到记忆"))
-                    SmallActionButton(Icons.Default.ContentCut, uiText("Clip & Share", "剪辑并分享"))
-                }
-            }
-            Column(
-                modifier = Modifier.widthIn(max = 210.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(uiText("Transcript", "转写"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    text = uiState.voice.inputPreview.ifBlank { uiText("It was incredible. The ocean, the sky, everything just clicked today.", "太不可思议了。海、天空，一切在今天都刚刚好。") },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontStyle = FontStyle.Italic,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HelmetStreamCard() {
-    ProductCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(modifier = Modifier.size(54.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                Icon(Icons.Default.HeadsetMic, contentDescription = null, modifier = Modifier.padding(12.dp), tint = MaterialTheme.colorScheme.primary)
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                Text(uiText("Helmet Stream", "头盔流"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(uiText("No helmet connected. Hardware stream is unavailable in this build.", "头盔未连接。此构建无法使用硬件流。"), style = MaterialTheme.typography.bodyMedium)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatusChip(uiText("Pairing skipped", "已跳过配对"), CompanionReadinessLevel.DEGRADED)
-                    StatusChip(uiText("Hardware required", "需要真实硬件"), CompanionReadinessLevel.NOT_READY)
-                }
-            }
-            ScenePreview()
-            IconButton(onClick = {}) {
-                Icon(Icons.Default.MoreHoriz, contentDescription = uiText("More", "更多"))
-            }
-        }
-    }
-}
-
-@Composable
-private fun SmallActionButton(icon: ImageVector, label: String) {
-    OutlinedButton(onClick = {}, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(label)
     }
 }
 
@@ -648,59 +547,42 @@ private fun VoiceDock(
 ) {
     ProductCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Videocam, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(8.dp))
-                    Text(uiText("Helmet Stream", "头盔流"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                }
-                Text(
-                    if (uiState.voice.isInputActive) uiText("Listening", "正在听") else uiText("Active", "活跃"),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
             Surface(
                 modifier = Modifier
-                    .size(92.dp)
+                    .size(56.dp)
                     .clickable(onClick = onVoiceInput),
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primary,
-                shadowElevation = 5.dp
+                shadowElevation = 3.dp
             ) {
                 Icon(
                     imageVector = Icons.Default.Mic,
                     contentDescription = uiText("Push to Talk", "按住说话"),
-                    modifier = Modifier.padding(25.dp),
+                    modifier = Modifier.padding(15.dp),
                     tint = MaterialTheme.colorScheme.onPrimary
                 )
             }
             Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                Text(uiText("Privacy", "隐私"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Surface(
-                    shape = ProductInnerShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                ) {
-                    Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(localizedPrivacyLabel(uiState), style = MaterialTheme.typography.labelLarge)
-                    }
-                }
+                Text(
+                    if (uiState.voice.isInputActive) uiText("Listening", "正在听") else uiText("Tap to talk", "点按说话"),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    uiText("Hold the mic when you want to speak.", "想说话时按住麦克风。"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-        }
-        Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-            Text(uiText("Push to Talk", "按住说话"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Text(uiText("Clip & Share", "剪辑并分享"), style = MaterialTheme.typography.bodyMedium)
-            Text(uiText("Save", "保存"), style = MaterialTheme.typography.bodyMedium)
+            StatusChip(localizedPrivacyLabel(uiState), CompanionReadinessLevel.READY)
         }
     }
 }
@@ -778,7 +660,20 @@ private fun engineStatusLabel(
             uiText(language, "Local model ready", "本地模型就绪")
         }
         is InferenceState.Generating -> uiText(language, "Replying", "正在回应")
-        is InferenceState.Error -> uiText(language, "Model setup required", "需要配置模型")
+        is InferenceState.Error -> uiText(language, "Chat setup needed", "聊天还没准备好")
+    }
+}
+
+private fun userFacingVoiceInputError(error: String, language: AppLanguage): String {
+    return when {
+        error.contains("SenseVoice", ignoreCase = true) ||
+            error.contains("model", ignoreCase = true) ||
+            error.contains(".onnx", ignoreCase = true) -> uiText(
+            language,
+            "Voice input is not ready yet. You can still type.",
+            "语音输入还没准备好，可以先打字聊天。"
+        )
+        else -> error
     }
 }
 

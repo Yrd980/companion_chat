@@ -15,6 +15,7 @@ class PrivacyGate(
             PrivacyDataType.Audio -> settings.allowCloudAsr
             PrivacyDataType.VoiceCloneText -> settings.allowHttpVoiceClone
             PrivacyDataType.ImagePrompt -> settings.allowHttpImageGeneration
+            PrivacyDataType.LlmPrompt -> settings.allowCloudLlm
         }
         return if (allowedByPurpose) {
             PrivacyGateDecision.Allowed
@@ -43,7 +44,8 @@ data class PrivacyGateRequest(
 enum class PrivacyDataType(val label: String) {
     Audio("audio"),
     VoiceCloneText("voice text"),
-    ImagePrompt("image prompt")
+    ImagePrompt("image prompt"),
+    LlmPrompt("LLM prompt")
 }
 
 sealed class PrivacyGateDecision {

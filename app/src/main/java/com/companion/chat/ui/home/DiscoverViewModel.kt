@@ -122,6 +122,20 @@ class DiscoverViewModel(
         }
     }
 
+    fun copyToMyCompanions(roleId: String) {
+        viewModelScope.launch {
+            runCatching {
+                repository.copyToMyRoleCard(roleId)
+            }.onSuccess {
+                refresh()
+                selectRoleIfOpen(roleId)
+                _uiState.update { it.copy(message = "Added to My Companions") }
+            }.onFailure { error ->
+                _uiState.update { it.copy(message = error.message ?: "Failed to import role") }
+            }
+        }
+    }
+
     fun generateRoleImage(roleId: String) {
         val item = repository.getRoleItem(roleId) ?: return
         viewModelScope.launch {

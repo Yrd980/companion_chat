@@ -24,14 +24,15 @@ class VoiceCloneConfigRepository(
                 .ifBlank { defaultMossModelDirectoryProvider().trim() },
             httpCloneBaseUrl = sharedPreferences.getString(KEY_HTTP_CLONE_BASE_URL, "")
                 .orEmpty()
-                .trim(),
+                .trim()
+                .ifBlank { XIAOMI_TTS_URL },
             httpCloneApiKey = sharedPreferences.getString(KEY_HTTP_CLONE_API_KEY, "")
                 .orEmpty()
                 .trim(),
-            httpCloneVoice = sharedPreferences.getString(KEY_HTTP_CLONE_VOICE, "custom")
+            httpCloneVoice = sharedPreferences.getString(KEY_HTTP_CLONE_VOICE, "mimo-v2.5-tts-voiceclone")
                 .orEmpty()
                 .trim()
-                .ifBlank { "custom" },
+                .ifBlank { "mimo-v2.5-tts-voiceclone" },
             httpCloneTimeoutMillis = sharedPreferences.getInt(
                 KEY_HTTP_CLONE_TIMEOUT_MILLIS,
                 VoiceCloneConfig.DEFAULT_TIMEOUT_MILLIS
@@ -66,6 +67,7 @@ class VoiceCloneConfigRepository(
         private const val KEY_HTTP_CLONE_API_KEY = "http_clone_api_key"
         private const val KEY_HTTP_CLONE_VOICE = "http_clone_voice"
         private const val KEY_HTTP_CLONE_TIMEOUT_MILLIS = "http_clone_timeout_millis"
+        private const val XIAOMI_TTS_URL = "https://token-plan-cn.xiaomimimo.com/v1/audio/speech"
     }
 }
 

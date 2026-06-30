@@ -6,7 +6,7 @@ import com.companion.chat.companion.readiness.CompanionReadinessLevel
 
 fun CompanionCapability.uiLabel(language: AppLanguage): String {
     return when (this) {
-        CompanionCapability.LLM -> uiText(language, "Local LLM", "本地大模型")
+        CompanionCapability.LLM -> uiText(language, "LLM", "大模型")
         CompanionCapability.ASR -> uiText(language, "Speech Recognition", "语音识别")
         CompanionCapability.TTS -> uiText(language, "Voice Output", "语音输出")
         CompanionCapability.IMAGE -> uiText(language, "Image Generation", "图片生成")
@@ -32,6 +32,7 @@ fun CapabilityReadiness.uiProvider(language: AppLanguage): String {
         "HTTP image generation" -> "HTTP 图片生成"
         "Local DreamLite" -> "本地 DreamLite"
         "Local Stable Diffusion" -> "本地 Stable Diffusion"
+        "Xiaomi MiMo Cloud" -> "小米 MiMo 云端"
         else -> provider
     }
 }
@@ -63,6 +64,8 @@ private fun String.toEnglishRuntimeText(): String {
         this == "缺少录音权限，无法使用语音输入" -> "Microphone permission is required for voice input"
         this == "图片生成失败" -> "Image generation failed"
         startsWith("推理出错: ") -> "Inference failed: ${removePrefix("推理出错: ")}"
+        this == "云端大模型已配置" -> "Cloud LLM is configured"
+        this == "云端 API Key 未配置" -> "Cloud API key is not configured"
         else -> this
     }
 }
@@ -107,6 +110,8 @@ private fun String.toChineseRuntimeText(): String {
         this == "Please enter a message" -> "请输入内容"
         this == "A reply is already generating. Please wait." -> "正在生成回复，请稍后再说"
         this == "The model is not loaded. Configure the model path in settings." -> "模型未加载，请在设置中配置模型路径。"
+        this == "Cloud LLM is configured" -> "云端大模型已配置"
+        this == "Cloud API key is not configured" -> "云端 API Key 未配置"
         else -> this
     }
 }

@@ -121,6 +121,12 @@ class ChatViewModel(
             val app = getApplication<Application>()
             val time = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date())
             val line = "[$time] $msg"
+            val logFile = app.getFileStreamPath("viewmodel_log.txt")
+            if (logFile.exists() && logFile.length() > MAX_LOG_SIZE) {
+                app.openFileOutput("viewmodel_log.txt", Context.MODE_PRIVATE).use { fos ->
+                    fos.write("--- log rotated ---\n".toByteArray())
+                }
+            }
             app.openFileOutput("viewmodel_log.txt", Context.MODE_APPEND).use { fos ->
                 fos.write("$line\n".toByteArray())
             }
@@ -724,5 +730,9 @@ class ChatViewModel(
                 mediaUri = mediaUri
             )
         }
+    }
+
+    private companion object {
+        const val MAX_LOG_SIZE = 2L * 1024 * 1024 // 2 MB
     }
 }

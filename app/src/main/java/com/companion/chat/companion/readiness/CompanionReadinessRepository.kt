@@ -68,6 +68,26 @@ class CompanionReadinessRepository(
 
     private fun llmReadiness(): CapabilityReadiness {
         val config = modelConfigRepository.getConfig()
+        if (config.runtime == ModelRuntime.CLOUD_MIMO) {
+            val hasApiKey = config.cloudApiKey.isNotBlank()
+            val baseUrl = config.cloudBaseUrl.ifBlank { "https://token-plan-cn.xiaomimimo.com/v1" }
+            return if (hasApiKey) {
+                CapabilityReadiness(
+                    capability = CompanionCapability.LLM,
+                    level = CompanionReadinessLevel.READY,
+                    provider = "Xiaomi MiMo Cloud",
+                    summary = "Cloud LLM is configured",
+                    detail = "$baseUrl (${config.cloudModelName.ifBlank { "mimo-v2.5-pro" }})"
+                )
+            } else {
+                CapabilityReadiness(
+                    capability = CompanionCapability.LLM,
+                    level = CompanionReadinessLevel.NOT_READY,
+                    provider = "Xiaomi MiMo Cloud",
+                    summary = "Cloud API key is not configured"
+                )
+            }
+        }
         val status = modelConfigRepository.getLocalLmPackageStatus(config)
         return if (status.isModelReady) {
             CapabilityReadiness(
@@ -197,6 +217,7 @@ private fun ModelRuntime.displayName(): String {
     return when (this) {
         ModelRuntime.LLAMA_CPP_GGUF -> "llama.cpp GGUF"
         ModelRuntime.LITERT_LM -> "LiteRT-LM"
+        ModelRuntime.CLOUD_MIMO -> "Xiaomi MiMo Cloud"
     }
 }
 

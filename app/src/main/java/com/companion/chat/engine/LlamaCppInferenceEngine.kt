@@ -32,6 +32,7 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         private const val TAG = "LlamaCppEngine"
         private const val MissingMmprojMessage = "GGUF 图片输入需要 mmproj 文件，请先推送: "
         private const val MultimodalContextSize = 8192
+        private const val MAX_LOG_SIZE = 2L * 1024 * 1024
         private val StopMarkers = listOf(
             "<end_of_turn>",
             "<start_of_turn>",
@@ -67,6 +68,12 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
         try {
             val time = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date())
             val line = "[$time] $msg\n"
+            val logFile = context.getFileStreamPath("llama_engine_log.txt")
+            if (logFile.exists() && logFile.length() > MAX_LOG_SIZE) {
+                context.openFileOutput("llama_engine_log.txt", Context.MODE_PRIVATE).use { fos ->
+                    fos.write("--- log rotated ---\n".toByteArray())
+                }
+            }
             context.openFileOutput("llama_engine_log.txt", Context.MODE_APPEND).use { fos ->
                 fos.write(line.toByteArray())
             }
@@ -359,7 +366,6 @@ class LlamaCppInferenceEngine(private val context: Context) : InferenceEngine {
 
     override fun release() {
         releaseLoadedModel()
-        runtimeExecutor.shutdown()
         _state.value = InferenceState.Idle
     }
 

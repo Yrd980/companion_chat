@@ -192,6 +192,39 @@ fun ModelConfigScreen(
                         onModelConfigChanged()
                     }
                 )
+                ModelRuntimeOptionItem(
+                    title = "Xiaomi MiMo Cloud",
+                    description = uiText(
+                        "Cloud inference via Xiaomi MiMo API. Requires API key.",
+                        "小米 MiMo 云端推理，需要 API Key。"
+                    ),
+                    selected = modelConfig.runtime == ModelRuntime.CLOUD_MIMO,
+                    onClick = {
+                        viewModel.setRuntime(ModelRuntime.CLOUD_MIMO)
+                        onModelConfigChanged()
+                    }
+                )
+                if (modelConfig.runtime == ModelRuntime.CLOUD_MIMO) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Xiaomi MiMo Cloud",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ModelConfigField(
+                        uiText("API Key", "API Key"),
+                        modelConfig.cloudApiKey
+                    ) { viewModel.updateCloudApiKey(it) }
+                    ModelConfigField(
+                        uiText("Base URL", "Base URL"),
+                        modelConfig.cloudBaseUrl.ifBlank { "https://token-plan-cn.xiaomimimo.com/v1" }
+                    ) { viewModel.updateCloudBaseUrl(it) }
+                    ModelConfigField(
+                        uiText("Model Name", "模型名称"),
+                        modelConfig.cloudModelName.ifBlank { "mimo-v2.5-pro" }
+                    ) { viewModel.updateCloudModelName(it) }
+                }
                 if (modelConfig.runtime == ModelRuntime.LITERT_LM) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
@@ -236,44 +269,46 @@ fun ModelConfigScreen(
                         }
                     )
                 }
-                ModelConfigField(uiText("Model Path", "模型路径"), modelConfig.modelPath) {
-                    viewModel.updateModelPath(it)
-                }
-                Text(
-                    text = uiText(
-                        "Leave blank to use the default path: ${localLmPackageStatus.modelPath}",
-                        "留空使用默认路径：${localLmPackageStatus.modelPath}"
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-                Text(
-                    text = uiText("Text model: ", "文本模型：") +
-                        "${localLmPackageStatus.modelFileStatus.displayName(language)}\n" +
-                        localLmPackageStatus.modelPath,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (localLmPackageStatus.isModelReady) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        MaterialTheme.colorScheme.error
-                    },
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-                if (localLmPackageStatus.isMmprojRelevant) {
+                if (modelConfig.runtime != ModelRuntime.CLOUD_MIMO) {
+                    ModelConfigField(uiText("Model Path", "模型路径"), modelConfig.modelPath) {
+                        viewModel.updateModelPath(it)
+                    }
                     Text(
-                        text = uiText("Image projector: ", "图片 projector：") +
-                            localLmPackageStatus.mmprojFileStatus.displayName(language) +
-                            uiText(" (only required for image input)\n", "（仅图片输入需要）\n") +
-                            localLmPackageStatus.mmprojPath,
+                        text = uiText(
+                            "Leave blank to use the default path: ${localLmPackageStatus.modelPath}",
+                            "留空使用默认路径：${localLmPackageStatus.modelPath}"
+                        ),
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (localLmPackageStatus.mmprojFileStatus is LocalLmFileStatus.Ready) {
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    Text(
+                        text = uiText("Text model: ", "文本模型：") +
+                            "${localLmPackageStatus.modelFileStatus.displayName(language)}\n" +
+                            localLmPackageStatus.modelPath,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (localLmPackageStatus.isModelReady) {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         } else {
                             MaterialTheme.colorScheme.error
                         },
                         modifier = Modifier.padding(top = 8.dp)
                     )
+                    if (localLmPackageStatus.isMmprojRelevant) {
+                        Text(
+                            text = uiText("Image projector: ", "图片 projector：") +
+                                localLmPackageStatus.mmprojFileStatus.displayName(language) +
+                                uiText(" (only required for image input)\n", "（仅图片输入需要）\n") +
+                                localLmPackageStatus.mmprojPath,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (localLmPackageStatus.mmprojFileStatus is LocalLmFileStatus.Ready) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
